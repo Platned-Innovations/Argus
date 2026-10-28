@@ -21,6 +21,8 @@ import { RepositoriesPage } from './pages/RepositoriesPage';
 import { RepositoryDetailPage } from './pages/RepositoryDetailPage';
 import { RequiredSetupPage } from './pages/RequiredSetupPage';
 import './styles.css';
+// Sonner also tries to inject these styles as an inline <style> tag, which the CSP (style-src 'self') blocks by design.
+import 'sonner/dist/styles.css';
 import { ShieldOff } from 'lucide-react';
 
 const queryClient = new QueryClient({
