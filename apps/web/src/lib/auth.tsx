@@ -34,14 +34,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setMe = useCallback((me: MeDto | null) => qc.setQueryData(ME_KEY, me), [qc]);
 
-  useEffect(
-    () =>
-      onUnauthorized(() => {
-        qc.clear();
-        setMe(null);
-      }),
-    [qc, setMe],
-  );
+  /**
+   * Drops everything cached for the previous session. The `me` query is kept and set to null rather than removed:
+   * removing it while its fetch is in flight would orphan the result and leave the app on its loading screen.
+   */
+  const endSession = useCallback(() => {
+    qc.removeQueries({ predicate: (q) => q.queryKey[0] !== ME_KEY[0] });
+    setMe(null);
+  }, [qc, setMe]);
+
+  useEffect(() => onUnauthorized(endSession), [endSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -60,12 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async logout() {
         await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
-        qc.clear();
-        setMe(null);
+        endSession();
       },
       can: (p) => data?.permissions.includes(p) ?? false,
     }),
-    [data, isLoading, qc, setMe],
+    [data, isLoading, endSession, setMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
