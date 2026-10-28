@@ -1,5 +1,5 @@
 import { type Permission, ROLE_LABELS } from '@argus/shared';
-import { BellRing, FolderGit2, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
+import { BellRing, FolderGit2, Plug, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
 import { type ComponentType, type ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth';
@@ -18,7 +18,7 @@ const sections: { title?: string; items: NavItem[] }[] = [
   {
     title: 'Security',
     items: [
-      { to: '/repositories', label: 'Repositories', icon: FolderGit2, permission: 'repos:read', soon: true },
+      { to: '/repositories', label: 'Repositories', icon: FolderGit2, permission: 'repos:read' },
       { to: '/tickets', label: 'Tickets', icon: ShieldAlert, permission: 'tickets:read', soon: true },
       { to: '/intel', label: 'Threat intel', icon: Radar, permission: 'findings:read', soon: true },
       { to: '/notifications', label: 'Notifications', icon: BellRing, permission: 'settings:read', soon: true },
@@ -27,6 +27,7 @@ const sections: { title?: string; items: NavItem[] }[] = [
   {
     title: 'Administration',
     items: [
+      { to: '/admin/sources', label: 'Sources', icon: Plug, permission: 'sources:manage' },
       { to: '/admin/users', label: 'Users', icon: Users, permission: 'users:read' },
       { to: '/admin/teams', label: 'Teams', icon: UsersRound, permission: 'teams:read' },
       { to: '/admin/audit', label: 'Audit log', icon: ScrollText, permission: 'audit:read' },

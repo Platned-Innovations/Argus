@@ -4,6 +4,7 @@
 - **[Security model](security.md):** what Argus protects and how. Covers encryption at rest, authentication, sessions, auditing, source-code handling and AI guardrails.
 - **[Features](features/README.md):** the feature catalogue, with the delivery status of each feature.
   - [User management](features/user-management.md)
+  - [Sources, repositories and scans](features/sources-and-repositories.md)
 - **[Configuration](configuration.md):** environment variables and in-app settings.
 - **Deployment**
   - [Docker and docker compose](deployment/docker.md)

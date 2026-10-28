@@ -17,6 +17,19 @@ import {
   type UserPatch,
 } from '../models';
 import { type AuditRepo, type DataStore, type SessionRepo, type SettingsRepo, type TeamRepo, type UserRepo } from '../store';
+import {
+  bootstrapScanningIndexes,
+  type JobDoc,
+  type LockDoc,
+  MongoJobRepo,
+  MongoLockRepo,
+  MongoRepositoryRepo,
+  MongoScanRunRepo,
+  MongoSourceRepo,
+  type RepositoryDoc,
+  type ScanRunDoc,
+  type SourceDoc,
+} from './scanning';
 
 type UserDoc = Omit<User, 'id'> & { _id: string; usernameLower: string; emailLower: string | null };
 type TeamDoc = Omit<Team, 'id'> & { _id: string; nameLower: string };
@@ -26,7 +39,7 @@ type SettingDoc = { _id: string; value: unknown; updatedAt: Date; updatedBy: str
 type MetaDoc = { _id: string; version: number; updatedAt: Date };
 
 /** Bump when index/bootstrap definitions below change. */
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 async function mapDuplicate<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -140,6 +153,7 @@ class MongoTeamRepo implements TeamRepo {
   constructor(
     private readonly col: Collection<TeamDoc>,
     private readonly users: Collection<UserDoc>,
+    private readonly db: Db,
   ) {}
 
   async create(input: { name: string; description: string | null }): Promise<Team> {
@@ -169,6 +183,9 @@ class MongoTeamRepo implements TeamRepo {
     const res = await this.col.deleteOne({ _id: id });
     if (res.deletedCount === 0) return false;
     await this.users.updateMany({ teamIds: id }, { $pull: { teamIds: id } });
+    // Mirrors the ON DELETE SET NULL foreign keys of the PostgreSQL schema.
+    await this.db.collection('repositories').updateMany({ teamId: id }, { $set: { teamId: null } });
+    await this.db.collection('sources').updateMany({ defaultTeamId: id }, { $set: { defaultTeamId: null } });
     return true;
   }
 
@@ -290,6 +307,7 @@ async function bootstrap(db: Db): Promise<void> {
     { key: { action: 1, at: -1 }, name: 'action_at' },
     { key: { targetType: 1, targetId: 1 }, name: 'target' },
   ]);
+  await bootstrapScanningIndexes(db);
   await meta.updateOne({ _id: 'schema' }, { $set: { version: SCHEMA_VERSION, updatedAt: new Date() } }, { upsert: true });
 }
 
@@ -299,13 +317,20 @@ export async function createMongoStore(url: string, dbName?: string): Promise<Da
   const fromUrl = client.options.dbName;
   const db = client.db(dbName ?? (fromUrl && fromUrl !== 'test' ? fromUrl : 'argus'));
   const users = db.collection<UserDoc>('users');
+  const repositories = db.collection<RepositoryDoc>('repositories');
+  const scanRuns = db.collection<ScanRunDoc>('scan_runs');
   return {
     kind: 'mongodb',
     users: new MongoUserRepo(users),
-    teams: new MongoTeamRepo(db.collection<TeamDoc>('teams'), users),
+    teams: new MongoTeamRepo(db.collection<TeamDoc>('teams'), users, db),
     sessions: new MongoSessionRepo(db.collection<SessionDoc>('sessions')),
     audit: new MongoAuditRepo(db.collection<AuditDoc>('audit_logs')),
     settings: new MongoSettingsRepo(db.collection<SettingDoc>('settings')),
+    sources: new MongoSourceRepo(db.collection<SourceDoc>('sources'), repositories, scanRuns),
+    repositories: new MongoRepositoryRepo(repositories),
+    scanRuns: new MongoScanRunRepo(scanRuns),
+    jobs: new MongoJobRepo(db.collection<JobDoc>('jobs')),
+    locks: new MongoLockRepo(db.collection<LockDoc>('locks')),
     migrate: () => bootstrap(db),
     async ping() {
       try {

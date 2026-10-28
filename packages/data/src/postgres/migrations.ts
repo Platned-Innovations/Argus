@@ -94,6 +94,120 @@ const migrations: Record<string, Migration> = {
   },
 };
 
+migrations['0002_sources_repos_jobs'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('sources')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('provider', 'text', (c) => c.notNull())
+      .addColumn('base_url', 'text')
+      .addColumn('scope', 'text')
+      .addColumn('username', 'text')
+      .addColumn('token_enc', 'text', (c) => c.notNull())
+      .addColumn('token_last4', 'text', (c) => c.notNull())
+      .addColumn('webhook_secret_enc', 'text', (c) => c.notNull())
+      .addColumn('auto_activate_pattern', 'text')
+      .addColumn('default_team_id', 'uuid', (c) => c.references('teams.id').onDelete('set null'))
+      .addColumn('status', 'text', (c) => c.notNull())
+      .addColumn('last_sync_at', 'timestamptz')
+      .addColumn('last_sync_error', 'text')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+
+    await db.schema
+      .createTable('repositories')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('source_id', 'uuid', (c) => c.notNull().references('sources.id').onDelete('cascade'))
+      .addColumn('external_id', 'text', (c) => c.notNull())
+      .addColumn('full_name', 'text', (c) => c.notNull())
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('html_url', 'text')
+      .addColumn('clone_url', 'text', (c) => c.notNull())
+      .addColumn('default_branch', 'text')
+      .addColumn('visibility', 'text', (c) => c.notNull())
+      .addColumn('language', 'text')
+      .addColumn('description', 'text')
+      .addColumn('archived', 'boolean', (c) => c.notNull().defaultTo(false))
+      .addColumn('last_pushed_at', 'timestamptz')
+      .addColumn('removed_at', 'timestamptz')
+      .addColumn('active', 'boolean', (c) => c.notNull().defaultTo(false))
+      .addColumn('team_id', 'uuid', (c) => c.references('teams.id').onDelete('set null'))
+      .addColumn('criticality', 'text', (c) => c.notNull())
+      .addColumn('branch', 'text')
+      .addColumn('schedule', 'jsonb', (c) => c.notNull())
+      .addColumn('scan_on_push', 'boolean', (c) => c.notNull().defaultTo(true))
+      .addColumn('jira_project_key', 'text')
+      .addColumn('notify_emails', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .addColumn('next_scan_at', 'timestamptz')
+      .addColumn('last_scan_at', 'timestamptz')
+      .addColumn('last_scan_status', 'text')
+      .addColumn('last_scan_run_id', 'uuid')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .addUniqueConstraint('repositories_source_external_unique', ['source_id', 'external_id'])
+      .execute();
+    await db.schema.createIndex('repositories_due_idx').on('repositories').columns(['active', 'next_scan_at']).execute();
+    await db.schema.createIndex('repositories_team_idx').on('repositories').column('team_id').execute();
+    await db.schema.createIndex('repositories_full_name_idx').on('repositories').column('full_name').execute();
+
+    await db.schema
+      .createTable('scan_runs')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('repo_id', 'uuid', (c) => c.notNull().references('repositories.id').onDelete('cascade'))
+      .addColumn('source_id', 'uuid', (c) => c.notNull())
+      .addColumn('team_id', 'uuid')
+      .addColumn('trigger', 'text', (c) => c.notNull())
+      .addColumn('status', 'text', (c) => c.notNull())
+      .addColumn('requested_by', 'uuid')
+      .addColumn('branch', 'text')
+      .addColumn('commit_sha', 'text')
+      .addColumn('attempts', 'integer', (c) => c.notNull().defaultTo(0))
+      .addColumn('queued_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('started_at', 'timestamptz')
+      .addColumn('finished_at', 'timestamptz')
+      .addColumn('duration_ms', 'integer')
+      .addColumn('error', 'text')
+      .addColumn('stats', 'jsonb')
+      .addColumn('log', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .execute();
+    await db.schema.createIndex('scan_runs_repo_idx').on('scan_runs').columns(['repo_id', 'queued_at desc']).execute();
+    await db.schema.createIndex('scan_runs_queued_idx').on('scan_runs').column('queued_at desc').execute();
+    await db.schema.createIndex('scan_runs_status_idx').on('scan_runs').column('status').execute();
+
+    await db.schema
+      .createTable('jobs')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('type', 'text', (c) => c.notNull())
+      .addColumn('payload', 'jsonb', (c) => c.notNull())
+      .addColumn('status', 'text', (c) => c.notNull())
+      .addColumn('priority', 'integer', (c) => c.notNull().defaultTo(0))
+      .addColumn('run_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('attempts', 'integer', (c) => c.notNull().defaultTo(0))
+      .addColumn('max_attempts', 'integer', (c) => c.notNull())
+      .addColumn('locked_by', 'text')
+      .addColumn('locked_until', 'timestamptz')
+      .addColumn('last_error', 'text')
+      .addColumn('dedupe_key', 'text')
+      .addColumn('active_dedupe_key', 'text', (c) => c.unique())
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('finished_at', 'timestamptz')
+      .execute();
+    await db.schema.createIndex('jobs_runnable_idx').on('jobs').columns(['status', 'type', 'run_at']).execute();
+    await db.schema.createIndex('jobs_finished_idx').on('jobs').column('finished_at').execute();
+
+    await db.schema
+      .createTable('locks')
+      .addColumn('name', 'text', (c) => c.primaryKey())
+      .addColumn('owner', 'text', (c) => c.notNull())
+      .addColumn('expires_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

@@ -25,7 +25,12 @@ Runtime policies (password rules, MFA, sessions) are set in the UI under **Admin
 | `ARGUS_COOKIE_SECURE` | `auto` | `auto` is secure when the public URL is HTTPS (or, without a public URL, when `NODE_ENV=production`). Can also be `true` or `false`. |
 | `ARGUS_TRUST_PROXY` | `1` | Express `trust proxy` setting, so client IPs are correct behind a load balancer or App Service front end. Accepts a hop count, `true`, `false`, or a subnet list. |
 | `ARGUS_AUTH_RATE_LIMIT` | `10` | Requests per minute per client IP for each credential endpoint (login, MFA verification, password change). Raise it if many users share one egress IP (corporate NAT). |
-| `ARGUS_WORKER_CONCURRENCY` | `2` | Maximum concurrent background jobs per worker (from Phase 1). |
+| `ARGUS_WORKER_CONCURRENCY` | `2` | Maximum number of background jobs (scans, syncs) one worker process runs at the same time. |
+| `ARGUS_SCAN_WORKDIR` | `<os temp>/argus-scans` | Parent directory for the temporary scan checkouts. Each scan uses a subdirectory, deleted when the scan ends. Needs free space for your largest repository. |
+| `ARGUS_SCAN_TIMEOUT_MINUTES` | `30` | Maximum time a clone may take. |
+| `ARGUS_SCHEDULER_INTERVAL_SECONDS` | `30` | How often the scheduler checks for due scans and stale sources. |
+| `HTTPS_PROXY` / `NO_PROXY` | — | Outbound proxy. Git uses it directly; also set `NODE_USE_ENV_PROXY=1` so API calls use it. |
+| `NODE_EXTRA_CA_CERTS` / `GIT_SSL_CAINFO` | — | CA bundle for code hosts that use a private certificate authority (API calls and git respectively). |
 | `ARGUS_WEB_DIR` | bundled | Directory containing the built web UI. |
 | `PORT` | `8080` | HTTP port. |
 | `WEBSITES_PORT` | — | Takes precedence over `PORT`. Set by Azure App Service. |

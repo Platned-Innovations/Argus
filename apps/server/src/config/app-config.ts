@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 
@@ -17,6 +18,9 @@ const envSchema = z.object({
   ARGUS_WEB_DIR: z.string().optional(),
   ARGUS_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(2),
   ARGUS_AUTH_RATE_LIMIT: z.coerce.number().int().min(1).max(10_000).default(10),
+  ARGUS_SCAN_WORKDIR: z.string().optional(),
+  ARGUS_SCAN_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(720).default(30),
+  ARGUS_SCHEDULER_INTERVAL_SECONDS: z.coerce.number().int().min(1).max(3600).default(30),
   WEBSITES_PORT: z.coerce.number().int().positive().optional(),
   PORT: z.coerce.number().int().positive().default(8080),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -42,6 +46,10 @@ export class AppConfig {
   readonly workerConcurrency!: number;
   /** Per-IP requests per minute for each credential endpoint (login, MFA verify, password change). */
   readonly authRateLimit!: number;
+  /** Parent directory for ephemeral scan workspaces. */
+  readonly scanWorkdir!: string;
+  readonly scanTimeoutMs!: number;
+  readonly schedulerIntervalMs!: number;
   readonly port!: number;
   readonly logLevel!: string;
   readonly isProduction!: boolean;
@@ -76,6 +84,9 @@ export class AppConfig {
       webDir: resolveWebDir(e.ARGUS_WEB_DIR),
       workerConcurrency: e.ARGUS_WORKER_CONCURRENCY,
       authRateLimit: e.ARGUS_AUTH_RATE_LIMIT,
+      scanWorkdir: resolve(e.ARGUS_SCAN_WORKDIR ?? join(tmpdir(), 'argus-scans')),
+      scanTimeoutMs: e.ARGUS_SCAN_TIMEOUT_MINUTES * 60_000,
+      schedulerIntervalMs: e.ARGUS_SCHEDULER_INTERVAL_SECONDS * 1000,
       // Azure App Service passes the container port in WEBSITES_PORT.
       port: e.WEBSITES_PORT ?? e.PORT,
       logLevel: e.LOG_LEVEL,

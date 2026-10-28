@@ -10,12 +10,15 @@ import { ApiError } from './lib/api';
 import { AuthProvider, useAuth } from './lib/auth';
 import { AuditPage } from './pages/admin/AuditPage';
 import { SecuritySettingsPage } from './pages/admin/SecuritySettingsPage';
+import { SourcesPage } from './pages/admin/SourcesPage';
 import { TeamsPage } from './pages/admin/TeamsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { RepositoriesPage } from './pages/RepositoriesPage';
+import { RepositoryDetailPage } from './pages/RepositoryDetailPage';
 import { RequiredSetupPage } from './pages/RequiredSetupPage';
 import './styles.css';
 import { ShieldOff } from 'lucide-react';
@@ -54,10 +57,12 @@ function App() {
             <Routes>
               <Route index element={<DashboardPage />} />
               <Route path="profile" element={<ProfilePage />} />
-              <Route path="repositories" element={<ComingSoonPage title="Repositories" description="Connected GitHub and Bitbucket repositories." phase="Sources & scheduling" />} />
+              <Route path="repositories" element={<Allow permission="repos:read"><RepositoriesPage /></Allow>} />
+              <Route path="repositories/:id" element={<Allow permission="repos:read"><RepositoryDetailPage /></Allow>} />
               <Route path="tickets" element={<ComingSoonPage title="Tickets" description="Security findings tracked to resolution." phase="Tickets & integrations" />} />
               <Route path="intel" element={<ComingSoonPage title="Threat intel" description="Vulnerability advisories and security news." phase="Threat intelligence" />} />
               <Route path="notifications" element={<ComingSoonPage title="Notifications" description="Email, Teams, Slack and webhook alerts." phase="Tickets & integrations" />} />
+              <Route path="admin/sources" element={<Allow permission="sources:manage"><SourcesPage /></Allow>} />
               <Route path="admin/users" element={<Allow permission="users:read"><UsersPage /></Allow>} />
               <Route path="admin/teams" element={<Allow permission="teams:read"><TeamsPage /></Allow>} />
               <Route path="admin/audit" element={<Allow permission="audit:read"><AuditPage /></Allow>} />

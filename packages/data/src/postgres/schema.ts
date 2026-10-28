@@ -74,6 +74,102 @@ export interface SettingsTable {
   updatedBy: string | null;
 }
 
+export interface SourcesTable {
+  id: string;
+  name: string;
+  provider: string;
+  baseUrl: string | null;
+  scope: string | null;
+  username: string | null;
+  tokenEnc: string;
+  tokenLast4: string;
+  webhookSecretEnc: string;
+  autoActivatePattern: string | null;
+  defaultTeamId: string | null;
+  status: string;
+  lastSyncAt: Date | null;
+  lastSyncError: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RepositoriesTable {
+  id: string;
+  sourceId: string;
+  externalId: string;
+  fullName: string;
+  name: string;
+  htmlUrl: string | null;
+  cloneUrl: string;
+  defaultBranch: string | null;
+  visibility: string;
+  language: string | null;
+  description: string | null;
+  archived: boolean;
+  lastPushedAt: Date | null;
+  removedAt: Date | null;
+  active: boolean;
+  teamId: string | null;
+  criticality: string;
+  branch: string | null;
+  schedule: Json<{ preset: string; cron?: string | null }>;
+  scanOnPush: boolean;
+  jiraProjectKey: string | null;
+  notifyEmails: Json<string[]>;
+  nextScanAt: Date | null;
+  lastScanAt: Date | null;
+  lastScanStatus: string | null;
+  lastScanRunId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ScanRunsTable {
+  id: string;
+  repoId: string;
+  sourceId: string;
+  teamId: string | null;
+  trigger: string;
+  status: string;
+  requestedBy: string | null;
+  branch: string | null;
+  commitSha: string | null;
+  attempts: number;
+  queuedAt: Date;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  durationMs: number | null;
+  error: string | null;
+  stats: Json<{ files: number; bytes: number; ecosystems: string[]; manifests: string[] } | null> | null;
+  log: Json<string[]>;
+}
+
+export interface JobsTable {
+  id: string;
+  type: string;
+  payload: Json<Record<string, unknown>>;
+  status: string;
+  priority: number;
+  runAt: Date;
+  attempts: number;
+  maxAttempts: number;
+  lockedBy: string | null;
+  lockedUntil: Date | null;
+  lastError: string | null;
+  dedupeKey: string | null;
+  /** Equals dedupeKey while the job is queued/running, null afterwards; uniquely indexed. */
+  activeDedupeKey: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  finishedAt: Date | null;
+}
+
+export interface LocksTable {
+  name: string;
+  owner: string;
+  expiresAt: Date;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -81,4 +177,9 @@ export interface Database {
   sessions: SessionsTable;
   auditLogs: AuditLogsTable;
   settings: SettingsTable;
+  sources: SourcesTable;
+  repositories: RepositoriesTable;
+  scanRuns: ScanRunsTable;
+  jobs: JobsTable;
+  locks: LocksTable;
 }
