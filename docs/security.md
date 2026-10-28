@@ -16,9 +16,10 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Control | Status |
 |---|---|
 | **One master key.** Everything sensitive is protected by keys derived from `ARGUS_MASTER_KEY` (at least 32 characters). HKDF-SHA256 derives a separate sub-key for each purpose (encryption, token signing, keyed hashing), so no key is reused across algorithms. | ✅ |
-| **Authenticated encryption.** Stored secrets are encrypted with AES-256-GCM, using a fresh random 96-bit IV per value and a versioned envelope (`v1.iv.tag.ciphertext`). Any tampering is detected on decryption. Today this covers TOTP secrets. | ✅ |
-| Integration credentials (GitHub/Bitbucket tokens, SMTP and Microsoft Graph secrets, Jira tokens, AI provider keys) are stored with the same encryption. | 🔜 Phases 1, 3 and 4 |
-| **Write-only credentials.** The API never returns a stored credential. It only reports whether one is configured and its last four characters. | 🔜 Phase 1 |
+| **Authenticated encryption.** Stored secrets are encrypted with AES-256-GCM, using a fresh random 96-bit IV per value and a versioned envelope (`v1.iv.tag.ciphertext`). Any tampering is detected on decryption. Today this covers TOTP secrets, source-control tokens and webhook secrets. | ✅ |
+| GitHub and Bitbucket access tokens and per-source webhook secrets are stored with this encryption. | ✅ |
+| SMTP and Microsoft Graph secrets, Jira tokens and AI provider keys are stored with the same encryption. | 🔜 Phases 3 and 4 |
+| **Write-only credentials.** The API never returns a stored credential; for source tokens it shows only the last four characters (`••••abcd`). Changing a token or connection setting re-tests the connection before saving. A webhook secret is shown once, when it is created or rotated. | ✅ |
 | **Detected secrets are never stored in full.** A leaked secret found in a repository is kept only as a masked preview (for example `ghp_****abcd`) plus a salted, keyed hash used for de-duplication. Argus itself never becomes a second copy of your leaked secrets. | 🔜 Phase 2 |
 | Passwords are hashed with **argon2id** (19 MiB memory, 2 iterations; the OWASP recommendation). They are never stored reversibly or logged. | ✅ |
 | Refresh tokens and MFA recovery codes are stored only as keyed HMAC-SHA256 hashes. | ✅ |
@@ -57,7 +58,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Control | Status |
 |---|---|
 | **Role-based access control** with four roles: Administrator, Security Manager, Developer and Viewer. Each endpoint declares the permissions it needs, and the server checks them on every request. The UI hides what you cannot do, but the server is the authority. | ✅ |
-| **Team scoping.** Developers and Viewers only see repositories, findings and tickets belonging to their teams. | 🔜 Phase 1 (teams and memberships already exist) |
+| **Team scoping.** Developers and Viewers only see repositories and scan runs owned by their teams. Anything outside their teams returns *404 Not found* rather than *403*, so its existence is not revealed. Findings and tickets follow the same rule from Phases 2 and 3. | ✅ |
 | **Self-lockout and last-admin protection.** Administrators cannot disable themselves or change their own role, and the last active administrator cannot be removed. | ✅ |
 
 ## 5. Audit trail
@@ -67,15 +68,22 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Append-only **audit log** of security-relevant events: sign-ins (success and failure, with reason), lockouts, password changes and resets, MFA changes, user and team changes, settings changes, audit exports, and refresh-token reuse. | ✅ |
 | Each entry records the actor, target, outcome, source IP and structured details. **Secrets are never written to the audit log.** | ✅ |
 | CSV export is protected against spreadsheet formula injection (cells beginning with `=`, `+`, `-` or `@` are neutralised). | ✅ |
-| Ticket, integration, scan and AI actions are audited as those features arrive. | 🔜 Phases 1–4 |
+| Source changes are audited: creation, edits (including token rotation), deletion, webhook-secret rotation, sync requests and sync results. So are repository setting changes, bulk changes, and manual scan requests. | ✅ |
+| Ticket, integration and AI actions are audited as those features arrive. | 🔜 Phases 3–4 |
 
 ## 6. Source-code handling
 
 | Control | Status |
 |---|---|
-| Repositories are **shallow-cloned into an ephemeral directory** for the duration of a scan and **always deleted afterwards**, including when the scan fails. Source code is never stored in the database. | 🔜 Phase 1 |
+| Repositories are **shallow-cloned into an ephemeral directory** (`ARGUS_SCAN_WORKDIR/<run id>`) for the duration of a scan and **always deleted afterwards**, including when the scan fails. Source code is never stored in the database. | ✅ |
+| **Tokens never appear in URLs or command lines.** Git receives the credential as an HTTP header through its environment (`GIT_CONFIG_*`), so it cannot leak through process listings, git error messages or a stored remote URL. | ✅ |
+| **Clone-host allowlist.** Before any credential is attached, a clone URL must use HTTPS and point to the source's own host (for example github.com, bitbucket.org, or your server). A tampered or unexpected clone URL is refused. | ✅ |
+| **API calls are pinned to the configured server.** Pagination links returned by a provider are followed only if they stay on the same origin, so a token is never sent to another host. Redirects are not followed. | ✅ |
+| **Hardened git.** Git runs with: <br>• no user or system git configuration<br>• no interactive prompts<br>• HTTPS/HTTP transports only<br>• symbolic links checked out as plain files<br>• Git LFS downloads disabled<br>• no submodules or tags<br>• a timeout (`ARGUS_SCAN_TIMEOUT_MINUTES`)<br>Repository hooks are never executed. | ✅ |
+| **Redacted scan logs.** Scan logs and error messages are scrubbed of the token, the authorisation header and any `user:password@` URL credentials before they are stored or shown. | ✅ |
+| Source servers must use **HTTPS**. Plain HTTP is accepted only for loopback addresses (local development). | ✅ |
 | Only findings and the dependency inventory (package names and versions, for SBOMs and re-matching against new advisories) are persisted. | 🔜 Phase 2 |
-| Source-control tokens should be read-only. The documentation lists the minimum scopes for each provider. | 🔜 Phase 1 |
+| **Read-only tokens are enough.** The [sources guide](features/sources-and-repositories.md#access-tokens) lists the minimum permissions for each provider. | ✅ |
 
 ## 7. AI guardrails
 
@@ -95,11 +103,13 @@ AI features are optional and switched off until an administrator configures a pr
 | Control | Status |
 |---|---|
 | **Strict Content Security Policy** (`default-src 'self'`, no inline scripts, `frame-ancestors 'none'`), plus `X-Content-Type-Options`, a Referrer-Policy and the other Helmet defaults. | ✅ |
-| Request bodies are limited to 1 MB and validated against schemas. Unknown fields are stripped. | ✅ |
+| Request bodies are limited to 1 MB (25 MB for signed push webhooks, which can be large) and validated against schemas. Unknown fields are stripped. | ✅ |
 | **Structured logs never contain credentials.** Cookies, `Authorization` headers, CSRF tokens and `Set-Cookie` headers are redacted. Request bodies are not logged. | ✅ |
 | Configuration is validated at startup, and a misconfigured instance refuses to start. | ✅ |
 | The container runs as a **non-root user**, with `tini` as PID 1 and a health check. | ✅ |
 | **Dependency hygiene.** CI fails on high or critical `npm audit` findings in production dependencies, and the image is scanned with Trivy. | ✅ |
+| **Inbound push webhooks are authenticated** with an HMAC-SHA256 signature (`X-Hub-Signature-256` / `X-Hub-Signature`) over the raw request body, using a per-source random secret. Signatures are compared in constant time, and unsigned or mis-signed calls are rejected with 401. | ✅ |
+| Source-connection tests have their own rate limit (20/min), so Argus cannot be used to amplify requests to third-party APIs. | ✅ |
 | Outbound webhooks are HMAC-signed. | 🔜 Phase 3 |
 
 ## 9. Operator checklist

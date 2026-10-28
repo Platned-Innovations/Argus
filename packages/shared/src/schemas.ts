@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ROLES, USER_STATUSES } from './roles';
 import { PASSWORD_MAX_LENGTH } from './password-policy';
 
-const pageFields = {
+export const pageFields = {
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 };

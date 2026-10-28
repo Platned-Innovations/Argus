@@ -21,6 +21,7 @@ import {
 } from '../models';
 import { type AuditRepo, type DataStore, type SessionRepo, type SettingsRepo, type TeamRepo, type UserRepo } from '../store';
 import { migrationProvider } from './migrations';
+import { PgJobRepo, PgLockRepo, PgRepositoryRepo, PgScanRunRepo, PgSourceRepo } from './scanning';
 import { type Database, type UsersTable } from './schema';
 
 type Db = Kysely<Database>;
@@ -371,6 +372,11 @@ export function createPostgresStore(url: string): DataStore {
     sessions: new PgSessionRepo(db),
     audit: new PgAuditRepo(db),
     settings: new PgSettingsRepo(db),
+    sources: new PgSourceRepo(db),
+    repositories: new PgRepositoryRepo(db),
+    scanRuns: new PgScanRunRepo(db),
+    jobs: new PgJobRepo(db),
+    locks: new PgLockRepo(db),
     async migrate() {
       const { error, results } = await new Migrator({ db, provider: migrationProvider }).migrateToLatest();
       const failed = results?.find((r) => r.status === 'Error');

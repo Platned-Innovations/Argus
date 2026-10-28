@@ -2,6 +2,7 @@ import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDataStore, type DataStore, DuplicateKeyError, type NewUser } from '../src';
+import { scanningContract } from './scanning.contract';
 
 /**
  * One behavioural contract, executed against every DataStore adapter.
@@ -193,6 +194,8 @@ describe.each(harnesses)('DataStore contract: $name', (h) => {
       expect((await store.audit.list({ actorId, action: 'test.one', offset: 0, limit: 10 })).items[0].targetId).toBe('x');
     });
   });
+
+  scanningContract(() => store);
 
   describe('settings', () => {
     it('round-trips JSON values and upserts', async () => {

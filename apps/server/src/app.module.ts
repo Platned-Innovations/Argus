@@ -11,7 +11,10 @@ import { DuplicateKeyFilter } from './common/duplicate-key.filter';
 import { type AppConfig } from './config/app-config';
 import { CoreModule } from './core/core.module';
 import { HealthController } from './health/health.controller';
+import { JobsModule } from './jobs/jobs.module';
+import { ScansModule } from './scans/scans.module';
 import { SettingsController } from './settings/settings.controller';
+import { SourcesModule } from './sources/sources.module';
 import { TeamsController } from './teams/teams.controller';
 import { UsersModule } from './users/users.module';
 import { WorkerModule } from './worker/worker.module';
@@ -44,6 +47,9 @@ export class AppModule {
         ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
         AuthModule,
         UsersModule,
+        JobsModule,
+        SourcesModule,
+        ScansModule,
         ...(config.webDir
           ? [
               ServeStaticModule.forRoot({
@@ -76,6 +82,6 @@ export class AppModule {
 @Module({})
 export class WorkerAppModule {
   static register(config: AppConfig): DynamicModule {
-    return { module: WorkerAppModule, imports: [CoreModule.forRoot(config), loggerModule(config), WorkerModule] };
+    return { module: WorkerAppModule, imports: [CoreModule.forRoot(config), loggerModule(config), JobsModule, SourcesModule, ScansModule, WorkerModule] };
   }
 }

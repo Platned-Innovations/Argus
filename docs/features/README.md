@@ -17,12 +17,17 @@ Status legend: ✅ available · 🔜 planned (phase shown)
 
 ## Sources & scanning
 
+See [Sources, repositories and scans](sources-and-repositories.md).
+
 | Feature | Status |
 |---|---|
-| GitHub (cloud and Enterprise Server) and Bitbucket (Cloud and Data Center) connections | 🔜 Phase 1 |
-| List repositories in a source and activate them individually or in bulk; auto-activate new repos matching a pattern | 🔜 Phase 1 |
-| Per-repository scan schedule (hourly, daily, weekly or custom cron), manual "Scan now", scan-on-push webhooks | 🔜 Phase 1 |
-| Repository settings: branches, scanners, business criticality, owning team, Jira project, notification recipients | 🔜 Phase 1 |
+| GitHub (github.com and Enterprise Server) and Bitbucket (Cloud and Data Center) connections, verified before saving, with daily and on-demand repository sync | ✅ |
+| List repositories in a source and activate them individually or in bulk; auto-activate new repos matching a pattern | ✅ |
+| Per-repository scan schedule (hourly, daily, weekly or custom cron), manual "Scan now", scan-on-push webhooks (HMAC-verified) | ✅ |
+| Repository settings: branch, business criticality, owning team, Jira project, notification recipients | ✅ |
+| Team-scoped visibility of repositories and scans | ✅ |
+| Scan runs: ephemeral shallow clone, commit, ecosystem and manifest inventory, log, history | ✅ |
+| Per-repository choice of scanners | 🔜 Phase 2 |
 | `.argus.yml` repo-level configuration (ignore paths, suppressions) | 🔜 Phase 2 |
 | **Secret detection** (Gitleaks plus custom rules), with optional live verification for well-known providers | 🔜 Phase 2 |
 | **npm vulnerabilities and outdated packages** (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`) | 🔜 Phase 2 |
@@ -75,7 +80,7 @@ Status legend: ✅ available · 🔜 planned (phase shown)
 | Phase | Scope | Status |
 |---|---|---|
 | 0. Foundation | Monorepo, PostgreSQL and MongoDB data layer, authentication with MFA, roles and teams, audit log, web UI shell, Docker, CI, documentation | ✅ |
-| 1. Sources & scheduling | GitHub and Bitbucket connectors, repository activation, job queue, scheduler, scan runs | 🔜 |
+| 1. Sources & scheduling | GitHub and Bitbucket connectors, repository activation, job queue, scheduler, scan runs, push webhooks | ✅ |
 | 2. Scanners & risk | Advisory database, all scanners, findings, risk scoring, SBOM, suppressions | 🔜 |
 | 3. Tickets & integrations | Ticket lifecycle, email providers, Jira, notification rules | 🔜 |
 | 4. AI | Providers, triage, remediation, guardrails | 🔜 |

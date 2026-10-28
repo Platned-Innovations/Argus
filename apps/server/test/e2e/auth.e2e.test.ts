@@ -1,70 +1,16 @@
 import 'reflect-metadata';
-import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb';
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { type INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
 import { base32Decode, currentStep, hotp } from '../../src/auth/totp';
 import { AppConfig } from '../../src/config/app-config';
+import { Client, dbHarnesses } from './helpers';
 
 const ADMIN_PASSWORD = 'Initial-Admin-Pass-1';
 const NEW_ADMIN_PASSWORD = 'Changed-Root-Pass-2';
 
-/** Minimal cookie-aware client that echoes the CSRF cookie like the SPA does. */
-class Client {
-  cookies = new Map<string, string>();
-
-  constructor(private readonly app: INestApplication) {}
-
-  async call(method: 'get' | 'post' | 'patch' | 'put' | 'delete', path: string, body?: object, opts: { csrf?: boolean } = {}) {
-    let r = request(this.app.getHttpServer())[method](path).set('Cookie', [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; '));
-    const csrf = this.cookies.get('argus_csrf');
-    if (csrf && opts.csrf !== false) r = r.set('x-csrf-token', csrf);
-    const res = await (body ? r.send(body) : r);
-    for (const c of ([] as string[]).concat(res.headers['set-cookie'] ?? [])) {
-      const [pair] = c.split(';');
-      const idx = pair.indexOf('=');
-      const name = pair.slice(0, idx);
-      const value = decodeURIComponent(pair.slice(idx + 1));
-      if (value === '' || /Expires=Thu, 01 Jan 1970/i.test(c)) this.cookies.delete(name);
-      else this.cookies.set(name, value);
-    }
-    return res;
-  }
-
-  login(username: string, password: string) {
-    return this.call('post', '/api/v1/auth/login', { username, password });
-  }
-}
-
-interface Harness {
-  name: string;
-  env(): Promise<Record<string, string>>;
-  stop(): Promise<void>;
-}
-
-let pg: StartedPostgreSqlContainer | undefined;
-let mongo: StartedMongoDBContainer | undefined;
-
-const harnesses: Harness[] = [
-  {
-    name: 'postgres',
-    async env() {
-      pg = await new PostgreSqlContainer('postgres:17-alpine').start();
-      return { ARGUS_DB_TYPE: 'postgres', ARGUS_DB_URL: pg.getConnectionUri() };
-    },
-    stop: async () => void (await pg?.stop()),
-  },
-  {
-    name: 'mongodb',
-    async env() {
-      mongo = await new MongoDBContainer('mongo:8').start();
-      return { ARGUS_DB_TYPE: 'mongodb', ARGUS_DB_URL: `${mongo.getConnectionString()}?directConnection=true`, ARGUS_DB_NAME: 'argus_e2e' };
-    },
-    stop: async () => void (await mongo?.stop()),
-  },
-];
+const harnesses = dbHarnesses();
 
 const code = (secret: string, offset = 0) => hotp(base32Decode(secret), currentStep() + offset);
 

@@ -19,7 +19,7 @@ A threat-intelligence feed keeps Argus up to date with newly published vulnerabi
 
 Argus is self-hosted. It ships as a single Docker image, runs on Azure Web App for Containers, and stores its data in **PostgreSQL** or **MongoDB**.
 
-> **Status:** Phase 0 (Foundation) is complete. See the [roadmap](docs/features/README.md#roadmap) for what is built and what is coming.
+> **Status:** Phases 0 (Foundation) and 1 (Sources & scheduling) are complete. See the [roadmap](docs/features/README.md#roadmap) for what is built and what is coming.
 
 ## Quick start (Docker)
 
@@ -42,6 +42,7 @@ If you prefer MongoDB, use `deploy/docker/docker-compose.mongo.yml` instead.
 | [Security model](docs/security.md) | How Argus protects credentials, sessions, source code and AI prompts |
 | [Features](docs/features/README.md) | Feature catalogue and roadmap |
 | [User management](docs/features/user-management.md) | Roles, teams, MFA, lockout, audit log |
+| [Sources, repositories and scans](docs/features/sources-and-repositories.md) | Connecting GitHub/Bitbucket, token permissions, schedules, webhooks |
 | [Configuration](docs/configuration.md) | Every environment variable and in-app setting |
 | [Docker deployment](docs/deployment/docker.md) | Compose, scaling out, backups |
 | [Azure Web App deployment](docs/deployment/azure.md) | Running the image on Azure App Service |

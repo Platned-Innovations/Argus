@@ -1,11 +1,14 @@
 import { BellRing, Bot, CheckCircle2, Circle, FolderGit2, Radar, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { type Paged, type RepositoryDto } from '@argus/shared';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Card, CardHeader, PageHeader } from '../components/ui';
+import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 const roadmap = [
   { phase: 'Foundation', detail: 'Users, teams, roles, MFA, audit log, PostgreSQL & MongoDB, Docker', done: true },
-  { phase: 'Sources & scheduling', detail: 'GitHub & Bitbucket connections, repository activation, scan schedules', done: false },
+  { phase: 'Sources & scheduling', detail: 'GitHub & Bitbucket connections, repository activation, scan schedules', done: true },
   { phase: 'Scanners & risk scoring', detail: 'Secrets, npm/NuGet vulnerabilities, framework EOL, certificate expiry, SBOM', done: false },
   { phase: 'Tickets & integrations', detail: 'Ticket lifecycle, SLAs, email (Graph / SMTP), Jira', done: false },
   { phase: 'AI assistance', detail: 'Claude, OpenAI or Gemini triage and remediation advice', done: false },
@@ -14,7 +17,7 @@ const roadmap = [
 ];
 
 const tiles = [
-  { label: 'Monitored repositories', icon: FolderGit2 },
+  { label: 'Monitored repositories', icon: FolderGit2, live: true },
   { label: 'Open tickets', icon: ShieldAlert },
   { label: 'Expiring credentials', icon: BellRing },
   { label: 'Advisories tracked', icon: Radar },
@@ -22,6 +25,11 @@ const tiles = [
 
 export function DashboardPage() {
   const { me, can } = useAuth();
+  const monitored = useQuery({
+    queryKey: ['repos', 'monitored-count'],
+    queryFn: () => api<Paged<RepositoryDto>>('/repos', { query: { active: 'true', pageSize: 1 } }),
+    enabled: can('repos:read'),
+  });
   return (
     <>
       <PageHeader title={`Welcome, ${me?.displayName ?? ''}`} description="Your organisation's security posture at a glance." />
@@ -33,8 +41,16 @@ export function DashboardPage() {
               {t.label}
               <t.icon className="size-4" />
             </div>
-            <div className="mt-2 text-3xl font-semibold tabular-nums">—</div>
-            <div className="mt-1 text-xs text-slate-400">Available once scanning is enabled</div>
+            <div className="mt-2 text-3xl font-semibold tabular-nums">{'live' in t && monitored.data ? monitored.data.total : '—'}</div>
+            <div className="mt-1 text-xs text-slate-400">
+              {'live' in t ? (
+                <Link to="/repositories?active=true" className="hover:text-indigo-600">
+                  View repositories →
+                </Link>
+              ) : (
+                'Available once scanners ship (Phase 2)'
+              )}
+            </div>
           </Card>
         ))}
       </div>

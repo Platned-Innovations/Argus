@@ -32,10 +32,26 @@ Argus is a TypeScript monorepo that produces **one Docker image**. The same imag
 - **`all`**: API, web UI and worker in one process. The simplest deployment, and the one recommended for a single Azure Web App.
 - **`api`**: HTTP only. Run several replicas behind a load balancer.
 - **`worker`**: background processing only, with no HTTP port.
-  - Today: housekeeping (worker heartbeat, expired-session cleanup).
-  - Later phases add the scan scheduler, repository scans, advisory-feed ingestion, notifications and Jira sync.
+  - Today: the job runner (repository syncs and scans), the scheduler, and housekeeping (worker heartbeat, cleanup of expired sessions, old jobs and old scan runs).
+  - Later phases add advisory-feed ingestion, notifications and Jira sync.
 
-Every role needs only the database. There is **no Redis or message broker**; later phases run the job queue inside the database (a jobs table/collection with leases and retries), so an Azure deployment stays at "one container plus one database".
+Every role needs only the database. There is **no Redis or message broker**, so an Azure deployment stays at "one container plus one database".
+
+## Job queue and scheduler
+
+Background work is a row (PostgreSQL) or document (MongoDB) in `jobs`:
+
+- **Claiming.** Workers claim jobs atomically: `FOR UPDATE SKIP LOCKED` on PostgreSQL, `findOneAndUpdate` on MongoDB. Higher priority goes first, then older jobs. Priorities: manual scans > push scans > first scans > scheduled scans.
+- **Leases.** A claimed job holds a 5-minute lease that its worker renews while it runs. If the worker dies, the lease expires and another worker picks the job up.
+- **Retries.** A failing job is retried with exponential backoff (1, 4, 16 minutes…) up to its attempt limit. Permanent errors, such as bad credentials or a refused clone URL, fail immediately.
+- **De-duplication.** At most one queued or running job may hold a given key. That key is `scan:<repo>` for scans and `sync:<source>` for syncs, so duplicate requests join the existing job.
+- **Concurrency.** `ARGUS_WORKER_CONCURRENCY` limits how many jobs one worker process runs at once.
+
+The **scheduler** runs in every worker, but a database lease in `locks` makes sure only one instance acts at a time. If that instance dies, another takes over within about a minute. Every `ARGUS_SCHEDULER_INTERVAL_SECONDS` (default 30), the active scheduler:
+
+- queues scans for monitored repositories whose next scan time has passed, and computes their next run from the schedule
+- queues a repository sync for every source not synced in the last 24 hours
+- hourly, deletes finished jobs older than 7 days and scan runs older than 90 days
 
 ## Data layer
 
@@ -73,7 +89,9 @@ Every request goes through these global guards, in order:
 
 Request bodies and query strings are validated with the zod schemas from `packages/shared`.
 
-## Scan lifecycle (from Phase 1)
+## Scan lifecycle
+
+The scanner steps marked Phase 2 below are added in that phase. Today a scan clones the repository, records its inventory, and cleans up.
 
 ```
 schedule / manual / push webhook
