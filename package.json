@@ -1,0 +1,39 @@
+{
+  "name": "argus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Continuous security and dependency monitoring for code repositories",
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/shared",
+    "packages/data",
+    "apps/server",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -b apps/server/tsconfig.build.json && npm run build -w @argus/web",
+    "typecheck": "tsc -b apps/server/tsconfig.build.json && npm run typecheck -w @argus/server && npm run typecheck -w @argus/web",
+    "lint": "eslint .",
+    "test": "npm run test -w @argus/data -w @argus/server",
+    "test:unit": "npm run test:unit -w @argus/server",
+    "dev": "concurrently -n build,server,web -c blue,green,magenta \"tsc -b -w --preserveWatchOutput apps/server/tsconfig.build.json\" \"npm run dev -w @argus/server\" \"npm run dev -w @argus/web\"",
+    "clean": "tsc -b --clean apps/server/tsconfig.build.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.0",
+    "concurrently": "^9.2.0",
+    "eslint": "^9.30.0",
+    "globals": "^16.3.0",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.38.0"
+  },
+  "dependencies": {
+    "multer": "^2.5.0"
+  },
+  "overrides": {
+    "multer": "$multer"
+  }
+}

@@ -1,0 +1,105 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { z } from 'zod';
+
+export type ArgusRole = 'all' | 'api' | 'worker';
+
+const envSchema = z.object({
+  ARGUS_DB_TYPE: z.enum(['postgres', 'mongodb'], { error: 'must be "postgres" or "mongodb"' }),
+  ARGUS_DB_URL: z.string().min(1, 'is required'),
+  ARGUS_DB_NAME: z.string().min(1).optional(),
+  ARGUS_MASTER_KEY: z.string().min(32, 'must be at least 32 characters (generate one with: openssl rand -base64 48)'),
+  ARGUS_ROLE: z.enum(['all', 'api', 'worker']).default('all'),
+  ARGUS_ADMIN_PASSWORD: z.string().min(1).optional(),
+  ARGUS_PUBLIC_URL: z.url().optional(),
+  ARGUS_COOKIE_SECURE: z.enum(['auto', 'true', 'false']).default('auto'),
+  ARGUS_TRUST_PROXY: z.string().default('1'),
+  ARGUS_WEB_DIR: z.string().optional(),
+  ARGUS_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(2),
+  ARGUS_AUTH_RATE_LIMIT: z.coerce.number().int().min(1).max(10_000).default(10),
+  WEBSITES_PORT: z.coerce.number().int().positive().optional(),
+  PORT: z.coerce.number().int().positive().default(8080),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  NODE_ENV: z.string().default('production'),
+});
+
+export class ConfigError extends Error {
+  override name = 'ConfigError';
+}
+
+/** Validated runtime configuration. Built once at startup; invalid configuration fails fast. */
+export class AppConfig {
+  readonly dbType!: 'postgres' | 'mongodb';
+  readonly dbUrl!: string;
+  readonly dbName?: string;
+  readonly masterKey!: string;
+  readonly role!: ArgusRole;
+  readonly adminPassword?: string;
+  readonly publicUrl?: string;
+  readonly cookieSecure!: boolean;
+  readonly trustProxy!: boolean | number | string;
+  readonly webDir!: string | null;
+  readonly workerConcurrency!: number;
+  /** Per-IP requests per minute for each credential endpoint (login, MFA verify, password change). */
+  readonly authRateLimit!: number;
+  readonly port!: number;
+  readonly logLevel!: string;
+  readonly isProduction!: boolean;
+  readonly version!: string;
+
+  constructor(values: Omit<AppConfig, never>) {
+    Object.assign(this, values);
+  }
+
+  static fromEnv(env: NodeJS.ProcessEnv): AppConfig {
+    // Orchestrators (docker compose, App Service) often pass optional settings as empty strings: treat those as unset.
+    const parsed = envSchema.safeParse(Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v.trim() !== '')));
+    if (!parsed.success) {
+      const lines = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`);
+      throw new ConfigError(`Invalid Argus configuration:\n${lines.join('\n')}\nSee docs/configuration.md.`);
+    }
+    const e = parsed.data;
+    const isProduction = e.NODE_ENV === 'production';
+    const cookieSecure =
+      e.ARGUS_COOKIE_SECURE === 'auto' ? (e.ARGUS_PUBLIC_URL ? e.ARGUS_PUBLIC_URL.startsWith('https://') : isProduction) : e.ARGUS_COOKIE_SECURE === 'true';
+
+    return new AppConfig({
+      dbType: e.ARGUS_DB_TYPE,
+      dbUrl: e.ARGUS_DB_URL,
+      dbName: e.ARGUS_DB_NAME,
+      masterKey: e.ARGUS_MASTER_KEY,
+      role: e.ARGUS_ROLE,
+      adminPassword: e.ARGUS_ADMIN_PASSWORD,
+      publicUrl: e.ARGUS_PUBLIC_URL?.replace(/\/+$/, ''),
+      cookieSecure,
+      trustProxy: parseTrustProxy(e.ARGUS_TRUST_PROXY),
+      webDir: resolveWebDir(e.ARGUS_WEB_DIR),
+      workerConcurrency: e.ARGUS_WORKER_CONCURRENCY,
+      authRateLimit: e.ARGUS_AUTH_RATE_LIMIT,
+      // Azure App Service passes the container port in WEBSITES_PORT.
+      port: e.WEBSITES_PORT ?? e.PORT,
+      logLevel: e.LOG_LEVEL,
+      isProduction,
+      version: readVersion(),
+    });
+  }
+}
+
+function parseTrustProxy(value: string): boolean | number | string {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return /^\d+$/.test(value) ? Number(value) : value;
+}
+
+function resolveWebDir(configured: string | undefined): string | null {
+  const dir = configured ? resolve(configured) : resolve(__dirname, '../../../web/dist');
+  return existsSync(join(dir, 'index.html')) ? dir : null;
+}
+
+function readVersion(): string {
+  try {
+    return (JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf8')) as { version: string }).version;
+  } catch {
+    return '0.0.0';
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@argus/data",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@argus/shared": "0.1.0",
+    "kysely": "^0.28.2",
+    "mongodb": "^6.18.0",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@testcontainers/mongodb": "^12.2.1",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "testcontainers": "^12.2.1",
+    "vitest": "^5.0.5"
+  }
+}
