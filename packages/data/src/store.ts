@@ -370,11 +370,12 @@ export interface InviteRepo {
   list(): Promise<Invite[]>;
   /**
    * Atomically takes one use: succeeds only while the invite is not revoked, not expired at `now`,
-   * and has uses left. Returns false otherwise.
+   * and has uses left. For an invite limited to addresses, `email` (lower-cased) must be one of them
+   * and not used yet; it is then recorded as used. Returns false otherwise.
    */
-  consume(id: string, now: Date): Promise<boolean>;
+  consume(id: string, now: Date, email: string | null): Promise<boolean>;
   /** Gives back a use taken by consume() when the account could not be created. */
-  release(id: string): Promise<void>;
+  release(id: string, email: string | null): Promise<void>;
   /** Returns true when this call revoked it. */
   revoke(id: string): Promise<boolean>;
 }

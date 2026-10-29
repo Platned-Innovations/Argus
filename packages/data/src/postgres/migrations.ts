@@ -587,6 +587,20 @@ migrations['0010_invites'] = {
   },
 };
 
+migrations['0011_invite_emails'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    // One optional address becomes a list of addresses, each usable once.
+    await db.schema
+      .alterTable('invites')
+      .addColumn('emails', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .addColumn('used_emails', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .execute();
+    await sql`update invites set emails = jsonb_build_array(lower(email)), used_emails = case when uses > 0 then jsonb_build_array(lower(email)) else '[]'::jsonb end where email is not null`.execute(db);
+    await db.schema.alterTable('invites').dropColumn('email').execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

@@ -105,8 +105,10 @@ export interface Invite {
   tokenHash: string;
   role: Role;
   teamIds: string[];
-  /** When set, only this address can accept it. */
-  email: string | null;
+  /** Lower-cased. When not empty, only these addresses can accept it, once each (maxUses is their number). */
+  emails: string[];
+  /** Addresses from `emails` that have already created an account. */
+  usedEmails: string[];
   maxUses: number;
   uses: number;
   expiresAt: Date;
@@ -117,4 +119,4 @@ export interface Invite {
   revokedAt: Date | null;
 }
 
-export type NewInvite = Pick<Invite, 'tokenHash' | 'role' | 'teamIds' | 'email' | 'maxUses' | 'expiresAt' | 'note' | 'createdBy'>;
+export type NewInvite = Pick<Invite, 'tokenHash' | 'role' | 'teamIds' | 'emails' | 'maxUses' | 'expiresAt' | 'note' | 'createdBy'>;

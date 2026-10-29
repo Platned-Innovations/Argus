@@ -449,7 +449,8 @@ export interface InvitesTable {
   tokenHash: string;
   role: string;
   teamIds: Json<string[]>;
-  email: string | null;
+  emails: Json<string[]>;
+  usedEmails: Json<string[]>;
   maxUses: number;
   uses: number;
   expiresAt: Date;

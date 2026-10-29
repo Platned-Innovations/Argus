@@ -65,7 +65,7 @@ type SettingDoc = { _id: string; value: unknown; updatedAt: Date; updatedBy: str
 type MetaDoc = { _id: string; version: number; updatedAt: Date };
 
 /** Bump when index/bootstrap definitions below change. */
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 async function mapDuplicate<T>(fn: () => Promise<T>): Promise<T> {
   try {

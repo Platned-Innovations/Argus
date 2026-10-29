@@ -59,11 +59,18 @@ Instead of creating accounts yourself, you can send people a link to create thei
 |---|---|
 | **Role and teams** | Every account created with the link gets them. |
 | **Link expires** | The link works until the end of the chosen day (at most 365 days ahead). |
-| **For one email address** | Optional. Only that address can use the link, once, and it becomes the account's email. |
-| **Number of accounts** | How many people can sign up with the link (1–500). The default is 1. |
+| **Email addresses** | Optional. Only these addresses can use the link, once each, and the address becomes the account's email. Separate several with commas or new lines. |
+| **Number of accounts** | Without addresses: how many people can sign up with the link (1–500; default 1). With addresses: one per address. |
 | **Note** | Optional, for administrators only, for example who the link was sent to. |
 
-The link is shown **once**, when it is created; send it to the people you are inviting. Opening it shows the role and teams on offer. The invitee chooses a username, display name and password (the password policy applies), and is signed in straight away. They are not asked to change the password at first sign-in, because they chose it themselves. If MFA is required, they enrol at first sign-in as usual.
+The link is shown **once**, when it is created. From that window you can:
+
+- **Copy link**, always: send it yourself, for example in a chat.
+- **Send by email**, when the invite lists addresses and an email channel is set up under **Integrations**. Each address gets its own message, from the channel you pick, with an optional note from you. Their link fills in their address on the sign-up form. Addresses that have already signed up are skipped, and if some messages fail, **Try again** resends only those.
+
+Once the window is closed, the link cannot be shown or emailed again; create a new invite instead.
+
+Opening the link shows the role and teams on offer (never the list of invited addresses). The invitee chooses a username, display name and password (the password policy applies), and is signed in straight away. They are not asked to change the password at first sign-in, because they chose it themselves. If MFA is required, they enrol at first sign-in as usual.
 
 **Invite links** on the Users page lists active links with how many accounts each has created. Tick *Show used, expired and revoked* to see the rest. **Revoke** stops a link working immediately; accounts already created with it are not affected.
 
