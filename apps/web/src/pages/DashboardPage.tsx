@@ -13,7 +13,7 @@ const roadmap = [
   { phase: 'Sources & scheduling', detail: 'GitHub & Bitbucket connections, repository activation, scan schedules', done: true },
   { phase: 'Scanners & risk scoring', detail: 'Secrets, npm/NuGet vulnerabilities, framework EOL, certificates, licenses, SBOM', done: true },
   { phase: 'Tickets & integrations', detail: 'Ticket lifecycle, SLAs, email (Graph / SMTP), Jira', done: true },
-  { phase: 'AI assistance', detail: 'Claude, OpenAI or Gemini triage and remediation advice', done: false },
+  { phase: 'AI assistance', detail: 'Claude, OpenAI or Gemini fix suggestions, Jira / email drafts, scan triage', done: true },
   { phase: 'Threat intelligence', detail: 'Security news, continuous re-matching of new advisories', done: false },
   { phase: 'Enterprise polish', detail: 'Dashboards, reports, credential inventory, Azure Bicep', done: false },
 ];

@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { cn, formatRelative } from '../lib/utils';
 import { EmptyFindings, FindingModal, FindingStatusBadge, findingLocation, SeverityBadge } from './findings';
 import { CenteredSpinner, ErrorAlert, Input, Pagination, Select, Table } from './ui';
+import { AiHintBadge } from './ai';
 
 const PAGE_SIZE = 50;
 
@@ -91,7 +92,10 @@ export function FindingsTable({ repoId, initialStatus = 'open' }: { repoId?: str
                   <SeverityBadge severity={f.severity} score={f.riskScore} />
                 </td>
                 <td className="max-w-xl px-4 py-3">
-                  <div className="font-medium">{f.title}</div>
+                  <div className="flex flex-wrap items-center gap-2 font-medium">
+                    {f.title}
+                    {f.aiHint && <AiHintBadge hint={f.aiHint} />}
+                  </div>
                   <div className="truncate text-xs text-slate-500 dark:text-slate-400">
                     {SCANNER_LABELS[f.scanner]} · <code>{findingLocation(f)}</code>
                   </div>

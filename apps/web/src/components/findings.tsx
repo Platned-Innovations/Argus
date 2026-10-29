@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn, formatDateTime, formatRelative } from '../lib/utils';
 import { Badge, Button, CenteredSpinner, ErrorAlert, Field, Input, Modal, Select } from './ui';
+import { AiHintPanel } from './ai';
 
 const SEVERITY_STYLE: Record<Severity, string> = {
   critical: 'bg-red-600 text-white ring-red-700',
@@ -184,6 +185,8 @@ export function FindingModal({ findingId, onClose }: { findingId: string; onClos
                 </li>
               </ul>
             </section>
+
+            {f.aiHint && <AiHintPanel hint={f.aiHint} />}
 
             {f.remediation && (
               <section className="rounded-md bg-indigo-50 p-3 text-sm ring-1 ring-indigo-100 dark:bg-indigo-500/10 dark:ring-indigo-500/20">
