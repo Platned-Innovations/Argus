@@ -29,6 +29,24 @@ npm run dev
 | `npm run lint` | Runs ESLint. |
 | `npm run test:unit` | Runs the server unit tests. These are fast and need no Docker. |
 | `npm test` | Runs the data-layer contract tests and the end-to-end API tests against **real PostgreSQL and MongoDB containers** (Testcontainers). |
+| `npm run test:browser` | Builds Argus, then runs the Playwright browser tests (below). |
+
+### Browser tests
+
+`e2e/` holds Playwright tests that drive the real UI in Chromium. The global setup starts a PostgreSQL container, a mock GitHub serving a fixture repository with planted secrets, and the **built** server (`apps/server/dist`) serving the built web app, exactly as in production.
+
+The tests cover:
+- first sign-in and the forced password change
+- every page in the navigation
+- connecting a GitHub source, monitoring a repository, the scan, and the tickets it opens
+- saved views
+- branding
+
+They fail on any uncaught page error or console error, which includes Content-Security-Policy violations.
+
+- One-off setup: `npm run install-browser -w @argus/e2e` (downloads Chromium).
+- Run: `npm run test:browser`, or `npm test -w @argus/e2e` after a build.
+- Docker must be running. Failures keep a screenshot and a trace in `e2e/test-results/` (`npx playwright show-trace <trace.zip>`).
 
 ## Project layout
 
@@ -45,6 +63,7 @@ apps/web/src
   lib/         API client (CSRF + silent refresh), auth context
 packages/shared  roles, permissions, schemas, password policy (used by server and browser)
 packages/data    DataStore interface + postgres/ and mongo/ adapters
+e2e              Playwright browser tests
 ```
 
 ## Conventions
