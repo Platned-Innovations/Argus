@@ -23,7 +23,7 @@ const sections: { title?: string; items: NavItem[] }[] = [
       { to: '/packages', label: 'Package search', icon: PackageSearch, permission: 'repos:read' },
       { to: '/suppressions', label: 'Suppressions', icon: ShieldOff, permission: 'findings:read' },
       { to: '/tickets', label: 'Tickets', icon: ShieldAlert, permission: 'tickets:read' },
-      { to: '/intel', label: 'Threat intel', icon: Radar, permission: 'findings:read', soon: true },
+      { to: '/intel', label: 'Threat intel', icon: Radar, permission: 'findings:read' },
     ],
   },
   {
