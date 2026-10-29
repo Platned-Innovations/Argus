@@ -197,6 +197,17 @@ export interface AiInsightDto<T = Record<string, unknown>> {
   createdByName: string | null;
 }
 
+/** AI hint shown next to a finding (secret triage or vulnerability applicability). Advisory only. */
+export interface FindingAiHintDto {
+  useCase: AiUseCase;
+  verdict: string;
+  rationale: string;
+  confidence: number;
+  provider: AiProvider;
+  model: string;
+  createdAt: string;
+}
+
 export const aiDraftSchema = z.object({ target: z.enum(['jira', 'email']) });
 export type AiDraftInput = z.infer<typeof aiDraftSchema>;
 

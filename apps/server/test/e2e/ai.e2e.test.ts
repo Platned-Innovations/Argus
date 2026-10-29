@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type INestApplication } from '@nestjs/common';
-import { type AiSettingsDto, type Paged, type RepositoryDto, type TicketDetailDto, type TicketDto } from '@argus/shared';
+import { type AiSettingsDto, type FindingDto, type Paged, type RepositoryDto, type TicketDetailDto, type TicketDto } from '@argus/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
 import { AppConfig } from '../../src/config/app-config';
@@ -188,6 +188,52 @@ describe.each(harnesses)('AI assistance e2e: $name', (h) => {
     expect(calls[0].provider).toBe('openai');
     expect(calls[0].text).toContain('Draft a Jira issue');
     expect((await dev.call('post', `/api/v1/tickets/${vuln.id}/ai/draft`, { target: 'sms' })).status).toBe(400);
+  });
+
+  it('adds AI hints to new secret and vulnerability findings during a scan, without suppressing or re-scoring them', async () => {
+    calls.length = 0;
+    const before = ((await admin.call('get', `/api/v1/findings?repoId=${repo.id}&pageSize=100`)).body as Paged<FindingDto>).items;
+    const prevRun = ((await admin.call('get', `/api/v1/repos/${repo.id}`)).body as RepositoryDto).lastScanRunId;
+    expect((await admin.call('post', `/api/v1/repos/${repo.id}/scans`)).status).toBe(202);
+    await waitFor(async () => {
+      const r = (await admin.call('get', `/api/v1/repos/${repo.id}`)).body as RepositoryDto;
+      return r.lastScanRunId !== prevRun && r.lastScanStatus && !['queued', 'running'].includes(r.lastScanStatus);
+    }, { what: 'rescan', timeoutMs: 90_000 });
+
+    const findings = ((await admin.call('get', `/api/v1/findings?repoId=${repo.id}&pageSize=100`)).body as Paged<FindingDto>).items;
+    const secrets = findings.filter((f) => f.scanner === 'secrets');
+    expect(secrets.length).toBe(2);
+    for (const f of secrets) expect(f.aiHint).toMatchObject({ useCase: 'secret_triage', verdict: 'likely_false_positive', provider: 'anthropic' });
+    const lodash = findings.find((f) => f.package?.name === 'lodash')!;
+    expect(lodash.aiHint).toMatchObject({ useCase: 'vuln_applicability', verdict: 'likely_affected', provider: 'gemini', model: 'gemini-3.8-flash' });
+    expect(findings.find((f) => f.scanner === 'licenses')?.aiHint ?? null).toBeNull();
+    // Hints change nothing else.
+    for (const f of findings) {
+      const was = before.find((b) => b.id === f.id)!;
+      expect({ status: f.status, riskScore: f.riskScore, suppressionId: f.suppressionId }).toEqual({ status: was.status, riskScore: was.riskScore, suppressionId: was.suppressionId });
+    }
+
+    const triage = calls.filter((c) => c.text.includes('secret scanner flagged'));
+    expect(triage).toHaveLength(2);
+    for (const c of triage) {
+      expect(c.text).toContain('Value characteristics');
+      expect(c.text).not.toContain(REAL_KEY);
+      expect(c.text).not.toContain(EXAMPLE_KEY);
+    }
+    expect(triage.some((c) => c.text.includes('[REDACTED:secret]') && c.text.includes('src/config.js'))).toBe(true);
+    const applicability = calls.find((c) => c.provider === 'gemini')!;
+    expect(applicability.text).toContain('_.template(input)');
+    expect(applicability.text).toContain('src/render.js');
+
+    // Findings that already have a hint are not sent again.
+    const prev = ((await admin.call('get', `/api/v1/repos/${repo.id}`)).body as RepositoryDto).lastScanRunId;
+    calls.length = 0;
+    await admin.call('post', `/api/v1/repos/${repo.id}/scans`);
+    await waitFor(async () => {
+      const r = (await admin.call('get', `/api/v1/repos/${repo.id}`)).body as RepositoryDto;
+      return r.lastScanRunId !== prev && r.lastScanStatus && !['queued', 'running'].includes(r.lastScanStatus);
+    }, { what: 'second rescan', timeoutMs: 90_000 });
+    expect(calls).toHaveLength(0);
   });
 
   it('discards answers that do not match the schema, and accounts usage and cost', async () => {
