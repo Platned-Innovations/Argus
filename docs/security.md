@@ -1,5 +1,7 @@
 # Security model
 
+For a chapter-by-chapter mapping against OWASP ASVS 5.0, including known gaps, see the [ASVS self-assessment](asvs-checklist.md).
+
 Argus holds some of the most sensitive data in an engineering organisation: source-control tokens, findings about leaked secrets, and the vulnerability map of every repository. This page describes how Argus protects that data.
 
 Each control is labelled:

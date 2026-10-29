@@ -2,6 +2,7 @@
 
 - **[Architecture](architecture.md):** how Argus is put together. Covers the single image and its runtime roles, the database-agnostic data layer, and the lifecycle of a request and of a scan.
 - **[Security model](security.md):** what Argus protects and how. Covers encryption at rest, authentication, sessions, auditing, source-code handling and AI guardrails.
+- **[OWASP ASVS 5.0 self-assessment](asvs-checklist.md):** Argus mapped against each ASVS chapter, with the known gaps.
 - **[Features](features/README.md):** the feature catalogue, with the delivery status of each feature.
   - [User management](features/user-management.md)
   - [Sources, repositories and scans](features/sources-and-repositories.md)
