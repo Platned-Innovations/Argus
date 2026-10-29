@@ -13,7 +13,7 @@ export interface FeedEntry {
 const MAX_SUMMARY = 4000;
 const MAX_ENTRIES = 200;
 
-// Entity expansion is limited to XML's predefined entities; no DTDs or external entities are processed.
+// Feeds are untrusted: any DOCTYPE is removed before parsing (see parseFeed), so only XML's predefined entities are decoded.
 const xml = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', processEntities: true, htmlEntities: false, trimValues: true, parseTagValue: false });
 
 type Node = Record<string, unknown> | string | undefined;
@@ -75,7 +75,8 @@ function entry(guid: string, title: string, link: string | null, published: Date
 
 /** Parses RSS 2.0, RSS 1.0 (RDF) and Atom feeds. Throws if the document is not a recognised feed. */
 export function parseFeed(body: string): FeedEntry[] {
-  const doc = xml.parse(body) as Record<string, Node>;
+  // Dropping the DOCTYPE means no custom or external entities can be declared (no "billion laughs" expansion).
+  const doc = xml.parse(body.replace(/<!DOCTYPE(?:[^[>]|\[[\s\S]*?\])*>/gi, '')) as Record<string, Node>;
   const out: FeedEntry[] = [];
   const rss = doc.rss as Record<string, Node> | undefined;
   const rdf = doc['rdf:RDF'] as Record<string, Node> | undefined;

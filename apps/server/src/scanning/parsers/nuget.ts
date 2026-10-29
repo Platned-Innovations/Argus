@@ -1,7 +1,8 @@
 import { XMLParser } from 'fast-xml-parser';
 import { type ParsedDependency } from './types';
 
-// Entity expansion is limited to XML's predefined entities by fast-xml-parser; no DTDs or external entities are fetched.
+// Repository files are untrusted: parseXml removes any DOCTYPE first, so only XML's predefined entities are decoded
+// (no custom entity expansion) and nothing external is ever fetched.
 const xml = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -14,7 +15,7 @@ const xml = new XMLParser({
 type XmlNode = Record<string, unknown>;
 
 function parseXml(text: string): XmlNode {
-  return xml.parse(text) as XmlNode;
+  return xml.parse(text.replace(/<!DOCTYPE(?:[^[>]|\[[\s\S]*?\])*>/gi, '')) as XmlNode;
 }
 
 function str(v: unknown): string | null {

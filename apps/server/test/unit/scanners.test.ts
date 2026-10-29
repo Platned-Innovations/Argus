@@ -112,6 +112,9 @@ describe('NuGet parsers', () => {
     ]);
     expect(projectTargetFrameworks(csproj)).toEqual(['net6.0', 'net48']);
     expect(projectTargetFrameworks('<Project><PropertyGroup><TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion></PropertyGroup></Project>')).toEqual(['net472']);
+    // Entities declared in a repository's DOCTYPE are never expanded.
+    const withDtd = '<?xml version="1.0"?><!DOCTYPE Project [<!ENTITY v "9.9.9-from-entity">]><Project><ItemGroup><PackageReference Include="Evil" Version="&v;" /></ItemGroup></Project>';
+    expect(JSON.stringify(parseProjectFile(withDtd, 'x.csproj', new Map()))).not.toContain('from-entity');
 
     expect(parsePackagesConfig('<packages><package id="jQuery" version="1.8.0" /><package id="NUnit" version="3.0.0" developmentDependency="true" /></packages>', 'packages.config').map((d) => [d.name, d.dev])).toEqual([
       ['jQuery', false],

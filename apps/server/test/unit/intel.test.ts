@@ -24,6 +24,14 @@ describe('news feed parsing', () => {
     expect(() => parseFeed('<html><body>not a feed</body></html>')).toThrow(/Not an RSS or Atom feed/);
   });
 
+  it('ignores DOCTYPE entity declarations (no entity expansion from untrusted feeds)', () => {
+    const lol = `<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY a "AAAAAAAAAA"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;"><!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">]>
+      <rss version="2.0"><channel><item><title>T &amp; &a; &c;</title><description>x</description></item></channel></rss>`;
+    const [e] = parseFeed(lol);
+    expect(e.title).not.toContain('AAAA');
+    expect(e.title.length).toBeLessThan(20);
+  });
+
   it('turns HTML into plain text and validates advisory ranges', () => {
     expect(htmlToText('<style>p{}</style><p>a&nbsp;&amp;&#33;</p><ul><li>x</li><li>y</li></ul>')).toBe('a &!\nx\ny');
     expect(isValidRange('<4.17.21')).toBe(true);
