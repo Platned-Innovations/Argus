@@ -35,6 +35,25 @@ Argus only reads code, so give it read-only credentials.
 | Bitbucket Cloud | Workspace access token | **Repositories: read** |
 | Bitbucket Data Center | HTTP access token (project- or user-level) | **Project read** or **Repository read** |
 
+### GitHub App (alternative to a personal access token)
+
+For organisations, a GitHub App is often preferable: it is not tied to a person, repository access is chosen when it is installed, and Argus only ever holds tokens that expire within an hour.
+
+1. In GitHub, create an app (**Settings → Developer settings → GitHub Apps → New GitHub App**). Give it the repository permissions **Contents: read** and **Metadata: read**. It needs no other permissions or events.
+2. Generate a **private key** on the app's settings page and download the `.pem` file.
+3. **Install** the app on the organisation (or user account), for all repositories or selected ones.
+4. In Argus, add a GitHub source, choose **Authentication → GitHub App**, and enter:
+   - the organisation or account it is installed on
+   - the **App ID** (on the app's settings page)
+   - the private key: paste the whole `.pem` file.
+
+How Argus uses it:
+- The private key is encrypted like any other source credential and never returned.
+- Argus signs a short JWT with the key, finds the installation on the organisation, and mints an installation token (valid for one hour). Tokens are reused while valid, and are used for API calls and for cloning.
+- Repository sync lists exactly the repositories the installation was granted. To add or remove repositories, change the installation in GitHub.
+- **Push webhooks:** a GitHub App has a single webhook. To scan on push, set the app's webhook URL and secret to the source's payload URL and secret (below), and subscribe it to **Push** events.
+- GitHub Enterprise Server is supported the same way; enter its URL as for tokens.
+
 ### Auto-activation and default team
 
 - **Auto-activate new repositories:** comma-separated patterns matched against the full repository name. `*` matches anything, and matching ignores case. Examples: `payments/*` or `*-api, platform/core`. A matching repository starts being monitored as soon as it is discovered. Archived repositories are never auto-activated.

@@ -434,6 +434,16 @@ export interface CredentialsTable {
   updatedAt: Date;
 }
 
+export interface SavedViewsTable {
+  id: string;
+  userId: string;
+  page: string;
+  name: string;
+  query: string;
+  shared: boolean;
+  createdAt: Date;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -462,4 +472,5 @@ export interface Database {
   advisories: AdvisoriesTable;
   apiTokens: ApiTokensTable;
   credentials: CredentialsTable;
+  savedViews: SavedViewsTable;
 }

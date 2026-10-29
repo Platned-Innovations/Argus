@@ -72,7 +72,7 @@ import {
   type NewIntelItem,
   type NewIntelSource,
 } from './intel-models';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type FindingStatRow, type NewApiToken, type NewCredential, type StatsFilter, type TicketStatRow } from './platform-models';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type FindingStatRow, type NewApiToken, type NewCredential, type NewSavedView, type SavedView, type StatsFilter, type TicketStatRow } from './platform-models';
 import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
 import { type AiSubjectType, type AiUseCase, type Ecosystem, type IntelItemStatus } from '@argus/shared';
 
@@ -353,6 +353,15 @@ export interface CredentialRepo {
   listBySource(source: Credential['source']): Promise<Credential[]>;
 }
 
+export interface SavedViewRepo {
+  create(input: NewSavedView): Promise<SavedView>;
+  findById(id: string): Promise<SavedView | null>;
+  /** The user's own views and everyone's shared views for one list, by name. */
+  listVisible(userId: string, page: SavedView['page']): Promise<SavedView[]>;
+  countForUser(userId: string, page: SavedView['page']): Promise<number>;
+  delete(id: string): Promise<boolean>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -382,6 +391,7 @@ export interface DataStore {
   readonly advisories: AdvisoryRepo;
   readonly apiTokens: ApiTokenRepo;
   readonly credentials: CredentialRepo;
+  readonly savedViews: SavedViewRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

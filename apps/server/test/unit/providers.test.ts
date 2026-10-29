@@ -1,6 +1,7 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, generateKeyPairSync, verify } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { assertCloneUrlAllowed, createProviderClient, parseWebhook, ProviderError, verifyWebhookSignature } from '../../src/sources/providers';
+import { githubAppJwt, isGitHubApp } from '../../src/sources/providers/github';
 
 type Route = (url: URL, init: RequestInit) => { status?: number; body: unknown; headers?: Record<string, string> };
 
@@ -101,9 +102,23 @@ describe('GitHub client', () => {
     expect(() => createProviderClient({ provider: 'github', baseUrl: 'http://127.0.0.1:9999', scope: null, username: null, token: 't' })).not.toThrow();
   });
 
-  it('authenticates git with an x-access-token basic header', () => {
-    const header = createProviderClient({ provider: 'github', baseUrl: null, scope: null, username: null, token: 'tok' }).gitAuthHeader();
+  it('authenticates git with an x-access-token basic header', async () => {
+    const header = await createProviderClient({ provider: 'github', baseUrl: null, scope: null, username: null, token: 'tok' }).gitAuthHeader();
     expect(header).toBe(`Authorization: Basic ${Buffer.from('x-access-token:tok').toString('base64')}`);
+  });
+
+  it('signs GitHub App JWTs with the private key, valid for under ten minutes', () => {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const now = Date.UTC(2026, 9, 1, 12);
+    const jwt = githubAppJwt('123', privateKey.export({ type: 'pkcs1', format: 'pem' }).toString(), now);
+    const [h, p, s] = jwt.split('.');
+    expect(JSON.parse(Buffer.from(h, 'base64url').toString())).toEqual({ alg: 'RS256', typ: 'JWT' });
+    expect(JSON.parse(Buffer.from(p, 'base64url').toString())).toEqual({ iss: '123', iat: now / 1000 - 60, exp: now / 1000 + 480 });
+    expect(verify('RSA-SHA256', Buffer.from(`${h}.${p}`), publicKey, Buffer.from(s, 'base64url'))).toBe(true);
+    expect(() => githubAppJwt('abc', 'x')).toThrow(/App ID must be a number/);
+    expect(() => githubAppJwt('1', 'not a key')).toThrow(/private key is not valid/);
+    expect(isGitHubApp({ provider: 'github', username: '123' })).toBe(true);
+    expect(isGitHubApp({ provider: 'bitbucket_cloud', username: 'me@example.com' })).toBe(false);
   });
 });
 
@@ -139,7 +154,7 @@ describe('Bitbucket Cloud client', () => {
     const client = createProviderClient({ provider: 'bitbucket_cloud', baseUrl: null, scope: 'ws', username: null, token: 'atok' });
     expect(await client.check()).toEqual({ identity: 'access token', visibleRepos: 42 });
     expect(calls[0].auth).toBe('Bearer atok');
-    expect(client.gitAuthHeader()).toBe(`Authorization: Basic ${Buffer.from('x-token-auth:atok').toString('base64')}`);
+    expect(await client.gitAuthHeader()).toBe(`Authorization: Basic ${Buffer.from('x-token-auth:atok').toString('base64')}`);
   });
 
   it('requires a workspace', () => {
@@ -169,7 +184,7 @@ describe('Bitbucket Data Center client', () => {
     ]);
     expect(calls[0].url).toBe('https://bb.corp/rest/api/1.0/projects/PAY/repos?limit=100&start=0');
     expect(calls[0].auth).toBe('Bearer http-token');
-    expect(client.gitAuthHeader()).toBe('Authorization: Bearer http-token');
+    expect(await client.gitAuthHeader()).toBe('Authorization: Bearer http-token');
   });
 
   it('requires a server URL', () => {

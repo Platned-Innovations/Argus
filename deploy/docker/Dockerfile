@@ -14,6 +14,8 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/data/package.json packages/data/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
+# Browser tests are not part of the image, but npm ci needs every workspace manifest to match the lockfile.
+COPY e2e/package.json e2e/
 RUN npm ci --no-audit --no-fund
 
 COPY tsconfig.base.json ./

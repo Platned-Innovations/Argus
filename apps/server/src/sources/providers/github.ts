@@ -1,5 +1,6 @@
+import { createHash, createPrivateKey, type KeyObject, sign } from 'node:crypto';
 import { type DiscoveredRepo, type Visibility } from '@argus/data';
-import { getJson, normalizeBaseUrl, ProviderError } from './http';
+import { getJson, normalizeBaseUrl, ProviderError, requestJson } from './http';
 import { type ConnectionCheck, MAX_PAGES, type ProviderClient, type ProviderConnection } from './types';
 
 interface GhRepo {
@@ -19,16 +20,49 @@ interface GhRepo {
 }
 
 const NAME = 'GitHub';
+const API_HEADERS = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
 
 function nextLink(link: string | null): string | null {
   const m = link?.split(',').find((p) => /rel="next"/.test(p));
   return m ? (/<([^>]+)>/.exec(m)?.[1] ?? null) : null;
 }
 
-/** GitHub.com or GitHub Enterprise Server, authenticated with a classic or fine-grained personal access token. */
+/** Whether a connection authenticates as a GitHub App: the App ID goes in `username`, the private key in `token`. */
+export function isGitHubApp(conn: Pick<ProviderConnection, 'provider' | 'username'>): boolean {
+  return conn.provider === 'github' && !!conn.username;
+}
+
+/**
+ * The JSON Web Token a GitHub App signs with its private key to call the App API (RS256, valid for 9 minutes,
+ * backdated a minute for clock drift).
+ */
+export function githubAppJwt(appId: string, privateKeyPem: string, now = Date.now()): string {
+  if (!/^\d{1,12}$/.test(appId)) throw new ProviderError('The GitHub App ID must be a number (shown on the app\'s settings page).', null, true);
+  let key: KeyObject;
+  try {
+    key = createPrivateKey(privateKeyPem);
+  } catch {
+    throw new ProviderError('The GitHub App private key is not valid. Paste the whole .pem file that GitHub generated.', null, true);
+  }
+  const b64 = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url');
+  const iat = Math.floor(now / 1000) - 60;
+  const unsigned = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ iat, exp: iat + 9 * 60, iss: appId })}`;
+  return `${unsigned}.${sign('RSA-SHA256', Buffer.from(unsigned), key).toString('base64url')}`;
+}
+
+/** Installation access tokens (valid for an hour), reused until five minutes before they expire. */
+const installationTokens = new Map<string, { token: string; expiresAt: number }>();
+const TOKEN_MARGIN_MS = 5 * 60_000;
+
+/**
+ * GitHub.com or GitHub Enterprise Server, authenticated with a classic or fine-grained personal access token, or
+ * as a GitHub App installation (short-lived tokens minted from the app's private key, repository access chosen
+ * when the app is installed).
+ */
 export class GitHubClient implements ProviderClient {
   private readonly api: URL;
   private readonly webHost: string;
+  private readonly app: { id: string; key: string } | null;
 
   constructor(private readonly conn: ProviderConnection) {
     if (conn.baseUrl) {
@@ -41,21 +75,54 @@ export class GitHubClient implements ProviderClient {
       this.api = new URL('https://api.github.com');
       this.webHost = 'github.com';
     }
+    this.app = isGitHubApp(conn) ? { id: conn.username!.trim(), key: conn.token } : null;
   }
 
   private url(path: string): string {
     return `${this.api.toString().replace(/\/+$/, '')}${path}`;
   }
 
-  private get<T>(url: string) {
-    return getJson<T>(url, {
-      headers: { Authorization: `Bearer ${this.conn.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
-      allowedOrigin: this.api.origin,
-      providerName: NAME,
-    });
+  private request<T>(url: string, bearer: string, method: 'GET' | 'POST' = 'GET') {
+    return requestJson<T>(url, { method, headers: { Authorization: `Bearer ${bearer}`, ...API_HEADERS }, allowedOrigin: this.api.origin, providerName: NAME });
+  }
+
+  private async get<T>(url: string) {
+    return getJson<T>(url, { headers: { Authorization: `Bearer ${await this.accessToken()}`, ...API_HEADERS }, allowedOrigin: this.api.origin, providerName: NAME });
+  }
+
+  /** The personal access token, or a current installation token for a GitHub App. */
+  private async accessToken(): Promise<string> {
+    if (!this.app) return this.conn.token;
+    const scope = this.conn.scope?.trim();
+    if (!scope) throw new ProviderError('Enter the organisation or account the GitHub App is installed on.', null, true);
+    const cacheKey = [this.api.origin, this.app.id, scope.toLowerCase(), createHash('sha256').update(this.app.key).digest('hex').slice(0, 16)].join('|');
+    const cached = installationTokens.get(cacheKey);
+    if (cached && cached.expiresAt - TOKEN_MARGIN_MS > Date.now()) return cached.token;
+
+    const jwt = githubAppJwt(this.app.id, this.app.key);
+    const installation = await this.installationId(jwt, scope);
+    const { data } = await this.request<{ token: string; expires_at: string }>(this.url(`/app/installations/${installation}/access_tokens`), jwt, 'POST');
+    installationTokens.set(cacheKey, { token: data.token, expiresAt: Date.parse(data.expires_at) || Date.now() + 50 * 60_000 });
+    return data.token;
+  }
+
+  private async installationId(jwt: string, scope: string): Promise<number> {
+    for (const kind of ['orgs', 'users']) {
+      try {
+        return (await this.request<{ id: number }>(this.url(`/${kind}/${encodeURIComponent(scope)}/installation`), jwt)).data.id;
+      } catch (err) {
+        if (!(err instanceof ProviderError && err.status === 404)) throw err;
+      }
+    }
+    throw new ProviderError(`The GitHub App is not installed on ${scope}. Install it on that organisation or account, then try again.`, 404, true);
   }
 
   async check(): Promise<ConnectionCheck> {
+    if (this.app) {
+      const { data: app } = await this.request<{ slug: string }>(this.url('/app'), githubAppJwt(this.app.id, this.app.key));
+      const { data } = await this.get<{ total_count: number }>(this.url('/installation/repositories?per_page=1'));
+      return { identity: `${app.slug} (GitHub App)`, visibleRepos: data.total_count };
+    }
     const { data: user } = await this.get<{ login: string }>(this.url('/user'));
     const first = await this.firstPage();
     return { identity: user.login, visibleRepos: first.length };
@@ -85,6 +152,7 @@ export class GitHubClient implements ProviderClient {
   }
 
   async listRepositories(): Promise<DiscoveredRepo[]> {
+    if (this.app) return this.listInstallationRepositories();
     const scope = this.conn.scope?.trim().toLowerCase();
     let url: string | null = await this.listUrl();
     const out: DiscoveredRepo[] = [];
@@ -94,6 +162,18 @@ export class GitHubClient implements ProviderClient {
         if (this.orgListingMissing && scope && r.owner.login.toLowerCase() !== scope) continue;
         out.push(this.map(r));
       }
+      url = nextLink(res.headers.get('link'));
+    }
+    return out;
+  }
+
+  /** The repositories the app installation was granted, whichever way it was installed (all or selected). */
+  private async listInstallationRepositories(): Promise<DiscoveredRepo[]> {
+    let url: string | null = this.url('/installation/repositories?per_page=100');
+    const out: DiscoveredRepo[] = [];
+    for (let page = 0; url && page < MAX_PAGES; page++) {
+      const res: { data: { repositories: GhRepo[] }; headers: Headers } = await this.get<{ repositories: GhRepo[] }>(url);
+      out.push(...res.data.repositories.map((r) => this.map(r)));
       url = nextLink(res.headers.get('link'));
     }
     return out;
@@ -116,8 +196,8 @@ export class GitHubClient implements ProviderClient {
     };
   }
 
-  gitAuthHeader(): string {
-    return `Authorization: Basic ${Buffer.from(`x-access-token:${this.conn.token}`).toString('base64')}`;
+  async gitAuthHeader(): Promise<string> {
+    return `Authorization: Basic ${Buffer.from(`x-access-token:${await this.accessToken()}`).toString('base64')}`;
   }
 
   allowedCloneHosts(): string[] {

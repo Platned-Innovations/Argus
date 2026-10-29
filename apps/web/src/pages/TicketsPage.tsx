@@ -2,13 +2,15 @@ import { type Paged, type Severity, SEVERITIES, type TicketDto, type TicketStatu
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Search, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { SeverityBadge } from '../components/findings';
+import { SavedViews } from '../components/SavedViews';
 import { DueBadge, TicketStatusBadge } from '../components/tickets';
 import { Button, Card, CenteredSpinner, Checkbox, EmptyState, ErrorAlert, Input, PageHeader, Pagination, Select, Table } from '../components/ui';
 import { api, buildQuery } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useFilters } from '../lib/filters';
 import { cn } from '../lib/utils';
 
 const PAGE_SIZE = 50;
@@ -16,23 +18,18 @@ const PAGE_SIZE = 50;
 export function TicketsPage() {
   const { me, can } = useAuth();
   const qc = useQueryClient();
-  const [params, setParams] = useSearchParams();
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const filters = useFilters(true, () => {
+    setPage(1);
+    setSelected(new Set());
+  });
+  const { params, set } = filters;
+  const search = params.get('q') ?? '';
   const status = params.get('status') ?? 'active';
   const assignee = params.get('assignee') ?? '';
   const severity = (params.get('severity') ?? '').split(',').filter(Boolean) as Severity[];
   const slaBreached = params.get('sla') === 'breached';
-
-  const set = (key: string, value: string) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next);
-    setPage(1);
-    setSelected(new Set());
-  };
 
   const query = {
     status: status === 'all' ? undefined : status,
@@ -83,8 +80,9 @@ export function TicketsPage() {
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
           <div className="relative min-w-56 flex-1">
             <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-slate-400" />
-            <Input placeholder="Search key, title or label" className="pl-9" value={search} onChange={(e) => (setSearch(e.target.value), setPage(1))} />
+            <Input placeholder="Search key, title or label" className="pl-9" value={search} onChange={(e) => set('q', e.target.value, { replace: true })} />
           </div>
+          <SavedViews page="tickets" query={params.toString()} onApply={filters.replaceAll} />
           <Select className="w-auto" value={status} onChange={(e) => set('status', e.target.value === 'active' ? '' : e.target.value)} aria-label="Status">
             <option value="active">Active</option>
             <option value="all">All statuses</option>

@@ -1,12 +1,33 @@
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 
-const apiTarget = process.env.ARGUS_API_URL ?? 'http://localhost:8080';
+/**
+ * sonner injects its stylesheet at runtime through a <style> element, which the Content-Security-Policy
+ * (style-src 'self') blocks. The same stylesheet is imported in main.tsx and bundled, so the injection is removed.
+ * The build fails if a sonner upgrade changes it, rather than silently loosening or breaking the policy.
+ */
+function sonnerWithoutInlineCss(): Plugin {
+  return {
+    name: 'argus:sonner-without-inline-css',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!/[\\/]node_modules[\\/]sonner[\\/]dist[\\/]index\.m?js$/.test(id)) return null;
+      const out = code.replace(/^__insertCSS\(/m, 'void (');
+      if (out === code) this.error('sonner no longer injects CSS with __insertCSS; review the CSP workaround in vite.config.ts.');
+      return { code: out, map: null };
+    },
+  };
+}
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, fileURLToPath(new URL('../..', import.meta.url)), '');
+  const apiTarget =
+    process.env.ARGUS_API_URL ?? env.ARGUS_API_URL ?? `http://localhost:${env.PORT ?? 8080}`;
+
+  return {
+  plugins: [sonnerWithoutInlineCss(), react(), tailwindcss()],
   resolve: {
     alias: {
       // Consume the shared package from source so the SPA bundles it as ESM.
@@ -14,7 +35,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: Number(process.env.WEB_PORT ?? env.WEB_PORT ?? 5173),
+    strictPort: true,
     proxy: {
       '/api': apiTarget,
       '/healthz': apiTarget,
@@ -25,4 +47,5 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
   },
+  };
 });

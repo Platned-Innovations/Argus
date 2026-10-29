@@ -48,10 +48,12 @@ function SourceFormModal({ source, onClose, onCreated }: { source: SourceDto | n
     scope: source?.scope ?? '',
     username: source?.username ?? '',
     token: '',
+    authMethod: source?.authMethod ?? 'token',
     autoActivatePattern: source?.autoActivatePattern ?? '',
     defaultTeamId: source?.defaultTeamId ?? '',
   });
   const help = PROVIDER_HELP[form.provider];
+  const githubApp = form.provider === 'github' && form.authMethod === 'github_app';
   const body = () => ({
     name: form.name,
     baseUrl: form.baseUrl || null,
@@ -129,27 +131,63 @@ function SourceFormModal({ source, onClose, onCreated }: { source: SourceDto | n
               {(id) => <Input id={id} type="url" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} required={form.provider === 'bitbucket_server'} />}
             </Field>
           )}
-          <Field label={help.scope} hint={help.scopeHint}>
-            {(id) => <Input id={id} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} required={form.provider === 'bitbucket_cloud'} />}
+          {form.provider === 'github' && (
+            <Field label="Authentication">
+              {(id) => (
+                <Select id={id} value={form.authMethod} onChange={(e) => setForm({ ...form, authMethod: e.target.value as 'token' | 'github_app', username: '', token: '' })}>
+                  <option value="token">Personal access token</option>
+                  <option value="github_app">GitHub App</option>
+                </Select>
+              )}
+            </Field>
+          )}
+          <Field label={githubApp ? 'Installed on (organisation or account)' : help.scope} hint={githubApp ? 'The organisation or user account the app is installed on.' : help.scopeHint}>
+            {(id) => <Input id={id} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} required={form.provider === 'bitbucket_cloud' || githubApp} />}
           </Field>
+          {githubApp && (
+            <Field label="App ID" hint="On the app's settings page (General → About).">
+              {(id) => <Input id={id} inputMode="numeric" pattern="[0-9]+" autoComplete="off" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />}
+            </Field>
+          )}
           {help.usernameHint && (
             <Field label="Username (optional)" hint={help.usernameHint}>
               {(id) => <Input id={id} autoComplete="off" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />}
             </Field>
           )}
         </div>
-        <Field label="Access token" hint={help.token}>
-          {(id) => (
-            <Input
-              id={id}
-              type="password"
-              autoComplete="new-password"
-              value={form.token}
-              placeholder={source ? `Leave empty to keep the current token (${source.tokenHint})` : ''}
-              onChange={(e) => setForm({ ...form, token: e.target.value })}
-              required={isNew}
-            />
-          )}
+        <Field
+          label={githubApp ? 'Private key' : 'Access token'}
+          hint={
+            githubApp
+              ? 'Generate one under the app settings → Private keys, and paste the whole .pem file. The app needs read-only "Contents" and "Metadata" repository permissions. Argus mints short-lived installation tokens from it.'
+              : help.token
+          }
+        >
+          {(id) =>
+            githubApp ? (
+              <textarea
+                id={id}
+                rows={5}
+                spellCheck={false}
+                autoComplete="off"
+                value={form.token}
+                placeholder={source?.authMethod === 'github_app' ? 'Leave empty to keep the current private key' : '-----BEGIN RSA PRIVATE KEY-----'}
+                onChange={(e) => setForm({ ...form, token: e.target.value })}
+                required={isNew || source?.authMethod !== 'github_app'}
+                className="block w-full rounded-md border-0 bg-white px-3 py-2 font-mono text-xs text-slate-900 shadow-xs ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-indigo-600 focus:ring-inset dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700"
+              />
+            ) : (
+              <Input
+                id={id}
+                type="password"
+                autoComplete="new-password"
+                value={form.token}
+                placeholder={source?.authMethod === 'token' ? `Leave empty to keep the current token (${source.tokenHint})` : ''}
+                onChange={(e) => setForm({ ...form, token: e.target.value })}
+                required={isNew || source?.authMethod !== 'token'}
+              />
+            )
+          }
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Auto-activate new repositories" hint="Comma-separated patterns, e.g. payments/*, *-api. Matching repositories start being scanned as soon as they are discovered.">

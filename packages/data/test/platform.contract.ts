@@ -136,4 +136,27 @@ export function platformContract(getStore: () => DataStore): void {
       expect((await store.apiTokens.listForUser(user.id)).every((t) => t.revokedAt)).toBe(true);
     });
   });
+
+  describe('saved views', () => {
+    it('lists own and shared views per list, sorted by name, and counts per user', async () => {
+      const store = getStore();
+      const mk = (u: string) => store.users.create({ username: `${u}${Date.now()}`, email: null, displayName: u, passwordHash: 'h', role: 'developer', teamIds: [], mustChangePassword: false });
+      const [alice, bob] = [await mk('alice'), await mk('bob')];
+      const mine = await store.savedViews.create({ userId: alice.id, page: 'tickets', name: 'my criticals', query: 'severity=critical', shared: false });
+      await store.savedViews.create({ userId: alice.id, page: 'findings', name: 'secrets', query: 'scanner=secrets', shared: false });
+      const team = await store.savedViews.create({ userId: bob.id, page: 'tickets', name: 'Overdue', query: 'sla=breached', shared: true });
+      await store.savedViews.create({ userId: bob.id, page: 'tickets', name: 'bob only', query: '', shared: false });
+
+      expect(mine).toMatchObject({ userId: alice.id, page: 'tickets', name: 'my criticals', query: 'severity=critical', shared: false });
+      const forAlice = (await store.savedViews.listVisible(alice.id, 'tickets')).filter((v) => [alice.id, bob.id].includes(v.userId));
+      expect(forAlice.map((v) => v.name)).toEqual(['my criticals', 'Overdue']);
+      expect((await store.savedViews.listVisible(bob.id, 'tickets')).filter((v) => v.userId === alice.id)).toEqual([]);
+      expect(await store.savedViews.countForUser(alice.id, 'tickets')).toBe(1);
+      expect(await store.savedViews.countForUser(bob.id, 'tickets')).toBe(2);
+
+      expect(await store.savedViews.delete(team.id)).toBe(true);
+      expect(await store.savedViews.delete(team.id)).toBe(false);
+      expect(await store.savedViews.findById(team.id)).toBeNull();
+    });
+  });
 }

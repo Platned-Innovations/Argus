@@ -548,6 +548,23 @@ migrations['0008_credentials'] = {
   },
 };
 
+migrations['0009_saved_views'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('saved_views')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('user_id', 'uuid', (c) => c.notNull().references('users.id').onDelete('cascade'))
+      .addColumn('page', 'text', (c) => c.notNull())
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('query', 'text', (c) => c.notNull())
+      .addColumn('shared', 'boolean', (c) => c.notNull())
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+    await db.schema.createIndex('saved_views_user_page_idx').on('saved_views').columns(['user_id', 'page']).execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

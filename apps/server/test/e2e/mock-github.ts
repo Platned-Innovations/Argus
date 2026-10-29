@@ -100,6 +100,8 @@ export async function startMockGitHub(opts: { bare: string; token: string; repos
       if (url.pathname.startsWith('/api/v3/')) {
         if (req.headers.authorization !== `Bearer ${opts.token}`) return void res.writeHead(401, { 'content-type': 'application/json' }).end('{"message":"Bad credentials"}');
         if (url.pathname === '/api/v3/user') return json({ login: 'argus-bot' });
+        // GitHub App installations list their repositories here (authorized with an installation token).
+        if (url.pathname === '/api/v3/installation/repositories') return json({ total_count: opts.repos.length, repositories: opts.repos.map(repo) });
         if (url.pathname === '/api/v3/orgs/acme/repos') {
           const half = Math.ceil(opts.repos.length / 2);
           if (url.searchParams.get('per_page') === '1') return json(opts.repos.slice(0, 1).map(repo));

@@ -3,9 +3,11 @@ import { ChangePasswordForm } from '../components/ChangePasswordForm';
 import { MfaSetup } from '../components/MfaSetup';
 import { Button, Card, CardHeader } from '../components/ui';
 import { useAuth } from '../lib/auth';
+import { useBranding } from '../lib/branding';
 
 /** Shown instead of the app while the account must change its password or enroll in MFA. */
 export function RequiredSetupPage() {
+  const { productName } = useBranding();
   const { me, logout } = useAuth();
   if (!me) return null;
   const needsPassword = me.restrictions.passwordChangeRequired;
@@ -16,7 +18,7 @@ export function RequiredSetupPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img src="/favicon.svg" alt="" className="size-8" />
-            <span className="font-semibold">Argus</span>
+            <span className="font-semibold">{productName}</span>
           </div>
           <Button variant="ghost" size="sm" icon={<LogOut className="size-4" />} onClick={() => void logout()}>
             Sign out

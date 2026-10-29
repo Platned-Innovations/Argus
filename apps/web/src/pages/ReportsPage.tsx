@@ -1,6 +1,6 @@
 import { type DashboardDto, DASHBOARD_PERIODS, type TeamDto } from '@argus/shared';
 import { useQuery } from '@tanstack/react-query';
-import { Download, Printer } from 'lucide-react';
+import { Download, FileDown, Printer } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import { PostureView } from '../components/posture';
 import { Button, CenteredSpinner, ErrorAlert, PageHeader, Select } from '../components/ui';
@@ -31,13 +31,18 @@ export function ReportsPage() {
         description={`${scopeName} · last ${days} days${report.data ? ` · generated ${formatDateTime(report.data.generatedAt)}` : ''}`}
         actions={
           <div className="flex gap-2 print:hidden">
+            <a href={`/api/v1/reports/summary.pdf${buildQuery({ days, teamId: teamId || undefined, repoId: repoId || undefined })}`} download>
+              <Button variant="secondary" icon={<FileDown className="size-4" />}>
+                PDF
+              </Button>
+            </a>
             <a href={`/api/v1/reports/findings.csv${buildQuery({ teamId: teamId || undefined, repoId: repoId || undefined })}`} download>
               <Button variant="secondary" icon={<Download className="size-4" />}>
                 Findings CSV
               </Button>
             </a>
             <Button icon={<Printer className="size-4" />} onClick={() => window.print()}>
-              Print / save as PDF
+              Print
             </Button>
           </div>
         }

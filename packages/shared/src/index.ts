@@ -12,3 +12,5 @@ export * from './api-tokens';
 export * from './dashboard';
 export * from './credentials';
 export * from './operations';
+export * from './saved-views';
+export * from './configuration';

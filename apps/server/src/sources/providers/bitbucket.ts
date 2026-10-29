@@ -82,7 +82,7 @@ export class BitbucketCloudClient implements ProviderClient {
     return out;
   }
 
-  gitAuthHeader(): string {
+  async gitAuthHeader(): Promise<string> {
     const header = this.conn.username ? basicAuth(this.conn.username, this.conn.token) : basicAuth('x-token-auth', this.conn.token);
     return `Authorization: ${header}`;
   }
@@ -175,7 +175,7 @@ export class BitbucketServerClient implements ProviderClient {
     return out;
   }
 
-  gitAuthHeader(): string {
+  async gitAuthHeader(): Promise<string> {
     return `Authorization: ${this.authorization()}`;
   }
 

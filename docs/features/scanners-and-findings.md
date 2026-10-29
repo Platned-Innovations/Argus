@@ -18,6 +18,26 @@ Every scan runs five scanners over a fresh checkout of the repository. Each prob
 - **NuGet:** `packages.lock.json`, `PackageReference` in SDK-style projects (including central package management via `Directory.Packages.props`), and `packages.config`.
 - `node_modules`, `bin`, `obj`, `dist` and similar folders are never scanned.
 
+### Secrets: git history and live verification
+
+Both are off by default and are turned on under **Administration → Scanning settings**.
+
+- **Git history.** Set *Commits of history to scan for secrets* (1–1000) to also scan that many recent commits of the scanned branch.
+  - The clone then fetches that many commits instead of only the latest one. Other scanners still look only at the current code.
+  - A secret that was committed and later deleted is reported as *… (git history)*, with the commit and date.
+  - A secret in history has the same identity as the one in the code, so deleting it from the code does not close the finding. Rotating the secret does: suppress or resolve the finding after rotating it.
+  - Secrets still in the current code are not reported twice. Vendored folders and `.argus.yml` ignore rules apply to history too.
+  - A finding closes as fixed once its commit is older than the scanned window.
+- **Live verification.** Argus asks the issuer whether a detected credential still works, using one read-only request to the issuer's own API. A working secret raises the risk score; a revoked one lowers it.
+
+  | Credential | Request | Needs |
+  |---|---|---|
+  | GitHub, GitLab, Slack, npm tokens | The issuer's "who am I" endpoint | — |
+  | AWS access keys (`AKIA…`) | STS `GetCallerIdentity` (signed locally; needs no IAM permission) | The secret access key in the same file |
+  | Azure Storage account keys | Blob service *Get Service Properties* (settings only, no data) | The connection string's `AccountName` (public Azure cloud only) |
+
+  Anything inconclusive (network errors, rate limits, a storage firewall) is recorded as *unknown* and does not change the score. At most 25 secrets are checked per scan.
+
 **Turning scanners off:** every scanner runs by default. Turn one off for a repository under **Repository → Monitoring settings → Scanners**, or in `.argus.yml` (below).
 
 ## Risk score

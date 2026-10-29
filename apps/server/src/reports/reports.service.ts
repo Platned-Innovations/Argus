@@ -4,8 +4,10 @@ import { type DashboardDto, type DashboardQuery, type ExpiringItemDto, hasGlobal
 import { csvCell } from '../audit/audit.controller';
 import { type RequestContext } from '../common/request';
 import { AuditService } from '../core/audit.service';
+import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
 import { buildDashboard } from './dashboard';
+import { dashboardPdf } from './pdf';
 
 const DAY = 86_400_000;
 const EXPORT_PAGE = 500;
@@ -41,6 +43,7 @@ export class ReportsService {
   constructor(
     @Inject(DATA_STORE) private readonly store: DataStore,
     private readonly audit: AuditService,
+    private readonly settings: SettingsService,
   ) {}
 
   /** Restricts a requested scope to what the user may see. */
@@ -56,6 +59,17 @@ export class ReportsService {
 
   async dashboard(q: DashboardQuery, user: User): Promise<DashboardDto> {
     return loadDashboard(this.store, await this.scope(q, user), q.days, new Date(), this.credentialSource);
+  }
+
+  /** The posture report as a PDF, for people who need a file rather than the printable page. */
+  async summaryPdf(q: DashboardQuery, user: User, ctx: RequestContext): Promise<Buffer> {
+    const d = await this.dashboard(q, user);
+    const team = q.teamId ? await this.store.teams.findById(q.teamId) : null;
+    const repo = q.repoId ? await this.store.repositories.findById(q.repoId) : null;
+    const scope = repo ? `Repository ${repo.fullName}` : team ? `Team ${team.name}` : hasGlobalScope(user.role) ? 'Whole organisation' : 'Your teams';
+    const { productName } = await this.settings.getBranding();
+    await this.audit.record({ action: 'report.pdf_exported', actor: { id: user.id, username: user.username }, details: { days: q.days, teamId: q.teamId ?? null, repoId: q.repoId ?? null }, ip: ctx.ip });
+    return dashboardPdf(d, { product: productName, scope, periodLabel: `Last ${q.days} days` });
   }
 
   /** Open and suppressed findings in scope, as CSV (spreadsheet-safe cells). */

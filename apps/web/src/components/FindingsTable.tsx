@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { useFilters } from '../lib/filters';
+import { SavedViews } from './SavedViews';
 import { cn, formatRelative } from '../lib/utils';
 import { EmptyFindings, FindingModal, FindingStatusBadge, findingLocation, SeverityBadge } from './findings';
 import { CenteredSpinner, ErrorAlert, Input, Pagination, Select, Table } from './ui';
@@ -10,41 +12,37 @@ import { AiHintBadge } from './ai';
 
 const PAGE_SIZE = 50;
 
-/** Filterable, paginated findings list; scoped to one repository when `repoId` is given. */
-export function FindingsTable({ repoId, initialStatus = 'open' }: { repoId?: string; initialStatus?: FindingStatus | '' }) {
-  const [severities, setSeverities] = useState<Severity[]>([]);
-  const [scanner, setScanner] = useState<ScannerName | ''>('');
-  const [status, setStatus] = useState<FindingStatus | ''>(initialStatus);
-  const [search, setSearch] = useState('');
+/**
+ * Filterable, paginated findings list; scoped to one repository when `repoId` is given. With `savedViews`, the
+ * filters live in the URL and can be saved as named views.
+ */
+export function FindingsTable({ repoId, initialStatus = 'open', savedViews = false }: { repoId?: string; initialStatus?: FindingStatus | ''; savedViews?: boolean }) {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
+  const filters = useFilters(savedViews, () => setPage(1));
+  const { params, set } = filters;
+  const severities = (params.get('severity') ?? '').split(',').filter(Boolean) as Severity[];
+  const scanner = (params.get('scanner') ?? '') as ScannerName | '';
+  // "any" is stored explicitly, because no parameter means the default status.
+  const statusParam = params.get('status');
+  const status = (statusParam === 'any' ? '' : (statusParam ?? initialStatus)) as FindingStatus | '';
+  const search = params.get('q') ?? '';
 
   const query = useQuery({
     queryKey: ['findings', { repoId, severities, scanner, status, search, page }],
     queryFn: () => api<Paged<FindingDto>>('/findings', { query: { repoId, severity: severities.join(','), scanner, status, search, page, pageSize: PAGE_SIZE } }),
     placeholderData: (prev) => prev,
   });
-  const reset = () => setPage(1);
-  const toggleSeverity = (s: Severity) => {
-    setSeverities(severities.includes(s) ? severities.filter((x) => x !== s) : [...severities, s]);
-    reset();
-  };
+  const toggleSeverity = (s: Severity) => set('severity', (severities.includes(s) ? severities.filter((x) => x !== s) : [...severities, s]).join(','));
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
         <div className="relative min-w-56 flex-1">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-slate-400" />
-          <Input
-            placeholder="Search title, rule, path or package"
-            className="pl-9"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              reset();
-            }}
-          />
+          <Input placeholder="Search title, rule, path or package" className="pl-9" value={search} onChange={(e) => set('q', e.target.value, { replace: true })} />
         </div>
+        {savedViews && <SavedViews page="findings" query={params.toString()} onApply={filters.replaceAll} />}
         <div className="flex flex-wrap gap-1" role="group" aria-label="Severity">
           {SEVERITIES.map((s) => (
             <button
@@ -61,7 +59,7 @@ export function FindingsTable({ repoId, initialStatus = 'open' }: { repoId?: str
             </button>
           ))}
         </div>
-        <Select className="w-auto" value={scanner} onChange={(e) => (setScanner(e.target.value as ScannerName | ''), reset())} aria-label="Scanner">
+        <Select className="w-auto" value={scanner} onChange={(e) => set('scanner', e.target.value)} aria-label="Scanner">
           <option value="">All scanners</option>
           {SCANNERS.map((s) => (
             <option key={s} value={s}>
@@ -69,7 +67,7 @@ export function FindingsTable({ repoId, initialStatus = 'open' }: { repoId?: str
             </option>
           ))}
         </Select>
-        <Select className="w-auto" value={status} onChange={(e) => (setStatus(e.target.value as FindingStatus | ''), reset())} aria-label="Status">
+        <Select className="w-auto" value={status} onChange={(e) => set('status', e.target.value === initialStatus ? '' : e.target.value || 'any')} aria-label="Status">
           <option value="">Any status</option>
           {FINDING_STATUSES.map((s) => (
             <option key={s} value={s}>

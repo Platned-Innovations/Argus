@@ -231,6 +231,11 @@ export const scanningSettingsSchema = z.object({
    * whether they still work. Off by default: it sends the detected secret to its own issuer.
    */
   verifySecrets: z.boolean().default(false),
+  /**
+   * Also scan this many recent commits of the scanned branch for secrets that were committed and later removed
+   * (0 = only the current code). The clone then fetches that much history.
+   */
+  secretHistoryCommits: z.number().int().min(0).max(1000).default(0),
 });
 export type ScanningSettings = z.infer<typeof scanningSettingsSchema>;
 
@@ -253,6 +258,7 @@ export const DEFAULT_SCANNING_SETTINGS: ScanningSettings = {
   eolWarningDays: 180,
   expiryWarningDays: 30,
   verifySecrets: false,
+  secretHistoryCommits: 0,
 };
 
 export interface IntelStatusDto {

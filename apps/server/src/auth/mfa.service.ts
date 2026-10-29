@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { toDataURL } from 'qrcode';
 import { CryptoService } from '../core/crypto.service';
+import { SettingsService } from '../core/settings.service';
 import { generateTotpSecret, otpauthUrl, verifyTotp } from './totp';
 
 const RECOVERY_CODE_COUNT = 10;
@@ -9,14 +10,18 @@ const RECOVERY_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 /** TOTP (RFC 6238) and one-time recovery codes. Secrets are only ever stored encrypted; recovery codes only as keyed hashes. */
 @Injectable()
 export class MfaService {
-  constructor(private readonly crypto: CryptoService) {}
+  constructor(
+    private readonly crypto: CryptoService,
+    private readonly settings: SettingsService,
+  ) {}
 
   generateSecret(): string {
     return generateTotpSecret();
   }
 
   async enrollment(username: string, secret: string) {
-    const url = otpauthUrl('Argus', username, secret);
+    // The issuer is the label authenticator apps show next to the code.
+    const url = otpauthUrl((await this.settings.getBranding()).productName, username, secret);
     return { otpauthUrl: url, qrDataUrl: await toDataURL(url, { margin: 1, width: 220 }), secret };
   }
 

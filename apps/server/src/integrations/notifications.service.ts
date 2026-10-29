@@ -19,6 +19,7 @@ import { DATA_STORE } from '../core/tokens';
 import { JobRunner, PermanentJobError } from '../jobs/job-runner.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { severityRank } from '../tickets/ticket-rules';
+import { dashboardPdf } from '../reports/pdf';
 import { loadDashboard } from '../reports/reports.service';
 import { ChannelsService } from './channels.service';
 import { type Message } from './messages';
@@ -317,6 +318,9 @@ export class NotificationsService implements OnModuleInit {
     const opened = d.newVsFixed.reduce((n, w) => n + w.opened, 0);
     const label = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toLocaleString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     const mttr = (s: 'critical' | 'high') => (d.mttrDays[s] === null ? 'n/a' : `${d.mttrDays[s]} days`);
+    const { productName } = await this.settings.getBranding();
+    const scope = rule.teamIds.length ? `Teams of rule "${rule.name}"` : 'Whole organisation';
+    const pdf = dashboardPdf(d, { product: productName, scope, periodLabel: `${label} (last 30 days)` });
     return {
       event: 'monthly_report',
       title: `Security report — ${label}${rule.teamIds.length ? ` (${rule.name})` : ''}`,
@@ -333,6 +337,7 @@ export class NotificationsService implements OnModuleInit {
         { name: 'End-of-life frameworks', value: String(d.eol.length) },
         ...d.topRepos.slice(0, 3).map((r, i) => ({ name: `Riskiest repository #${i + 1}`, value: `${r.fullName} (${r.critical} critical, ${r.high} high)` })),
       ],
+      attachments: [{ filename: `security-report-${now.toISOString().slice(0, 7)}.pdf`, contentType: 'application/pdf', content: pdf }],
     };
   }
 

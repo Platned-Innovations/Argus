@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { type Collection, type Db, type Filter } from 'mongodb';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type NewApiToken, type NewCredential } from '../platform-models';
-import { type ApiTokenRepo, type CredentialRepo } from '../store';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type NewApiToken, type NewCredential, type NewSavedView, type SavedView } from '../platform-models';
+import { type ApiTokenRepo, type CredentialRepo, type SavedViewRepo } from '../store';
 
 export type ApiTokenDoc = Omit<ApiToken, 'id'> & { _id: string };
 export type CredentialDoc = Omit<Credential, 'id'> & { _id: string };
+export type SavedViewDoc = Omit<SavedView, 'id'> & { _id: string; nameLower: string };
 
 function strip<T extends { _id: string }>(d: T): Omit<T, '_id'> & { id: string } {
   const { _id, ...rest } = d;
@@ -100,7 +101,43 @@ export class MongoCredentialRepo implements CredentialRepo {
   }
 }
 
+function toView(d: SavedViewDoc): SavedView {
+  const { _id, nameLower: _lower, ...rest } = d;
+  return { id: _id, ...rest };
+}
+
+export class MongoSavedViewRepo implements SavedViewRepo {
+  constructor(private readonly col: Collection<SavedViewDoc>) {}
+
+  async create(input: NewSavedView): Promise<SavedView> {
+    const doc: SavedViewDoc = { ...input, _id: randomUUID(), nameLower: input.name.toLowerCase(), createdAt: new Date() };
+    await this.col.insertOne(doc);
+    return toView(doc);
+  }
+
+  async findById(id: string): Promise<SavedView | null> {
+    const d = await this.col.findOne({ _id: id });
+    return d ? toView(d) : null;
+  }
+
+  async listVisible(userId: string, page: SavedView['page']): Promise<SavedView[]> {
+    return (await this.col.find({ page, $or: [{ userId }, { shared: true }] }).sort({ nameLower: 1, _id: 1 }).toArray()).map(toView);
+  }
+
+  async countForUser(userId: string, page: SavedView['page']): Promise<number> {
+    return this.col.countDocuments({ userId, page });
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return (await this.col.deleteOne({ _id: id })).deletedCount > 0;
+  }
+}
+
 export async function bootstrapPlatformIndexes(db: Db): Promise<void> {
+  await db.collection('saved_views').createIndexes([
+    { key: { userId: 1, page: 1 }, name: 'user_page' },
+    { key: { page: 1, shared: 1 }, name: 'page_shared' },
+  ]);
   await db.collection('credentials').createIndexes([
     { key: { source: 1, externalId: 1 }, unique: true, name: 'source_external_unique', partialFilterExpression: { externalId: { $type: 'string' } } },
     { key: { archived: 1, expiresAt: 1 }, name: 'archived_expiry' },

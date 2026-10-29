@@ -15,6 +15,7 @@ Status legend: ✅ available · 🔜 planned (phase shown)
 | Single Docker image; Azure Web App support | ✅ | [Docker](../deployment/docker.md), [Azure](../deployment/azure.md) |
 | Personal API tokens for CI/automation (scoped, expiring, default-deny) | ✅ | [API and automation](api-and-automation.md) |
 | OpenAPI description generated from the code; Prometheus metrics | ✅ | [API and automation](api-and-automation.md) |
+| Branding (product name, sign-in notice); configuration export and import without secrets | ✅ | [Configuration](../configuration.md#system-branding-and-the-configuration-file) |
 | Data retention settings; master-key rotation tool; Azure Bicep template | ✅ | [Dashboards…](dashboards-and-reports.md#data-retention), [Docker](../deployment/docker.md#rotating-the-master-key), [Azure](../deployment/azure.md) |
 
 ## Sources & scanning
@@ -23,7 +24,7 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 
 | Feature | Status |
 |---|---|
-| GitHub (github.com and Enterprise Server) and Bitbucket (Cloud and Data Center) connections, verified before saving, with daily and on-demand repository sync | ✅ |
+| GitHub (github.com and Enterprise Server, with a personal access token or as a GitHub App) and Bitbucket (Cloud and Data Center) connections, verified before saving, with daily and on-demand repository sync | ✅ |
 | List repositories in a source and activate them individually or in bulk; auto-activate new repos matching a pattern | ✅ |
 | Per-repository scan schedule (hourly, daily, weekly or custom cron), manual "Scan now", scan-on-push webhooks (HMAC-verified) | ✅ |
 | Repository settings: branch, business criticality, owning team, Jira project, notification recipients | ✅ |
@@ -32,7 +33,8 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 | Per-repository choice of scanners | ✅ |
 | `.argus.yml` repo-level configuration (ignore paths, scanner switches, suppressions) — see [Scanners and findings](scanners-and-findings.md#argusyml) | ✅ |
 | **Secret detection** (Gitleaks, with built-in rules as a fallback) | ✅ |
-| Live verification of detected GitHub, GitLab, Slack and npm tokens with their issuer (opt-in) | ✅ |
+| Live verification of detected GitHub, GitLab, Slack and npm tokens, AWS access keys and Azure Storage keys with their issuer (opt-in) | ✅ |
+| Secrets in recent git history (configurable number of commits, opt-in) | ✅ |
 | **npm vulnerabilities, deprecations and latest versions** (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`) | ✅ |
 | **NuGet vulnerabilities and latest versions** (`PackageReference`, central package management, `packages.lock.json`, `packages.config`) | ✅ |
 | **Framework / runtime end-of-life** (.NET, .NET Framework, Node.js, Angular, React, Vue, Next.js, NestJS) | ✅ |
@@ -52,7 +54,7 @@ See [Tickets, email, Jira and notifications](tickets-and-notifications.md).
 
 | Built-in tickets (one per issue) with statuses Open, Triaged, In progress, Resolved, Closed, Risk accepted, False positive and Reopened | ✅ |
 | Automatic resolution when a later scan no longer finds the issue, and automatic re-opening if it returns | ✅ |
-| SLA due dates by severity, overdue flagging, assignment, watchers, labels, comments, activity timeline, bulk actions, CSV export | ✅ |
+| SLA due dates by severity, overdue flagging, assignment, watchers, labels, comments, activity timeline, bulk actions, CSV export, saved (and shared) views | ✅ |
 | Risk acceptance and false positives backed by ticket-scoped, optionally expiring suppressions | ✅ |
 | Email from a ticket via Microsoft Graph, Microsoft 365 SMTP (OAuth2 or password) or Google SMTP | ✅ |
 | Create a Jira issue from a ticket (Jira Cloud or Data Center, in the project linked to the repository), with status sync | ✅ |
@@ -87,7 +89,7 @@ See [Threat intelligence](threat-intelligence.md).
 | Feature | Status |
 |---|---|
 | Organisation, team and repository dashboards (risk trend, found vs fixed, MTTR, SLA compliance, riskiest repositories, expiring credentials, EOL exposure) | ✅ |
-| Printable report (save as PDF), findings CSV export, monthly report by email | ✅ |
+| Report as PDF download and printable page, findings CSV export, monthly report by email with the PDF attached | ✅ |
 | Prometheus metrics, OpenAPI documentation | ✅ |
 
 See [Dashboards, reports and credentials](dashboards-and-reports.md).

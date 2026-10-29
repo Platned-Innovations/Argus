@@ -6,6 +6,7 @@ import { type RequestContext } from '../common/request';
 import { AppConfig } from '../config/app-config';
 import { AuditService } from '../core/audit.service';
 import { CryptoService } from '../core/crypto.service';
+import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
 import { type Envelope, type GraphConfig, sendViaGraph, sendViaSmtp, type SmtpConfig } from './email';
 import { type Message, renderEmail, renderSlack, renderTeams, signWebhook } from './messages';
@@ -23,6 +24,7 @@ export class ChannelsService {
     private readonly crypto: CryptoService,
     private readonly audit: AuditService,
     private readonly config: AppConfig,
+    private readonly settings: SettingsService,
   ) {}
 
   toDto(c: Channel): ChannelDto {
@@ -136,7 +138,7 @@ export class ChannelsService {
         case 'email_graph':
         case 'email_smtp': {
           if (!envelope.to.length) throw new IntegrationError('No recipients.');
-          const content = renderEmail(message);
+          const content = renderEmail(message, (await this.settings.getBranding()).productName);
           if (c.type === 'email_graph') await sendViaGraph(c.config as unknown as GraphConfig, secret!, envelope, content, this.config.microsoft);
           else await sendViaSmtp(c.config as unknown as SmtpConfig, secret, envelope, content, this.config.microsoft, { allowSelfSigned: !this.config.isProduction && c.config.host === '127.0.0.1' });
           break;

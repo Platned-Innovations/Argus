@@ -111,6 +111,13 @@ describe('messages', () => {
     expect(escapeHtml(`'"`)).toBe('&#39;&quot;');
   });
 
+  it('uses the configured product name, escaped', () => {
+    const e = renderEmail(m, 'Contoso & Co');
+    expect(e.subject).toBe('[Contoso & Co] ARG-1 <script>alert(1)</script>');
+    expect(e.text).toContain('Open in Contoso & Co: https://');
+    expect(e.html).toContain('Sent by Contoso &amp; Co security monitoring.');
+  });
+
   it('renders Teams adaptive cards and Slack blocks without markup injection', () => {
     const teams = renderTeams(m) as { attachments: { contentType: string; content: { actions: { url: string }[] } }[] };
     expect(teams.attachments[0].contentType).toBe('application/vnd.microsoft.card.adaptive');

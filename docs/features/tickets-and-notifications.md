@@ -67,8 +67,19 @@ Reopening the ticket yourself removes the suppression.
 | Close, accept risk, mark false positive (and reopen those) | | | ✓ |
 | Email a ticket, create a Jira issue | | ✓ | ✓ |
 | Bulk changes, CSV export | Export | ✓ | ✓ |
+| Save views (private) | ✓ | ✓ | ✓ |
+| Share views with everyone, delete others' shared views | | | ✓ |
 
 Every change is recorded in the ticket's activity and in the audit log.
+
+## Saved views
+
+The **Tickets** and **Findings** lists keep their filters (status, assignee, severity, overdue, scanner, search) in the page address, so a filtered list can be bookmarked or sent to a colleague.
+
+- **Save view** stores the current filters under a name. Pick a saved view from the list to apply it again; delete it with the bin icon.
+- Views are private unless shared. Security managers and administrators can tick **Share with everyone**, so the view appears in everyone's list.
+- A view stores only the filters. Everyone who opens it still sees only the tickets and findings they have access to.
+- Each person can keep up to 50 views per list. Views are a browser feature: API tokens cannot use them.
 
 ## Emailing a ticket
 

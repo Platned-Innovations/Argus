@@ -8,19 +8,21 @@
     "packages/shared",
     "packages/data",
     "apps/server",
-    "apps/web"
+    "apps/web",
+    "e2e"
   ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "build": "tsc -b apps/server/tsconfig.build.json && npm run build -w @argus/web",
-    "typecheck": "tsc -b apps/server/tsconfig.build.json && npm run typecheck -w @argus/server && npm run typecheck -w @argus/web",
+    "typecheck": "tsc -b apps/server/tsconfig.build.json && npm run typecheck -w @argus/server && npm run typecheck -w @argus/web && npm run typecheck -w @argus/e2e",
     "lint": "eslint .",
     "test": "npm run test -w @argus/data -w @argus/server",
     "test:unit": "npm run test:unit -w @argus/server",
     "dev": "concurrently -n build,server,web -c blue,green,magenta \"tsc -b -w --preserveWatchOutput apps/server/tsconfig.build.json\" \"npm run dev -w @argus/server\" \"npm run dev -w @argus/web\"",
-    "clean": "tsc -b --clean apps/server/tsconfig.build.json"
+    "clean": "tsc -b --clean apps/server/tsconfig.build.json",
+    "test:browser": "npm run build && npm test -w @argus/e2e"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",

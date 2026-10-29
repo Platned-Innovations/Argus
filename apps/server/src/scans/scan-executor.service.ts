@@ -5,6 +5,7 @@ import { type DataStore, type Job, type Repository, type ScanRun, type ScanStats
 import { Redactor } from '../common/redact';
 import { AppConfig } from '../config/app-config';
 import { DomainEvents } from '../core/domain-events';
+import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
 import { type JobContext, JobRunner, PermanentJobError } from '../jobs/job-runner.service';
 import { assertCloneUrlAllowed, ProviderError } from '../sources/providers';
@@ -31,6 +32,7 @@ export class ScanExecutor implements OnModuleInit {
     private readonly config: AppConfig,
     private readonly pipeline: ScanPipeline,
     private readonly events: DomainEvents,
+    private readonly settings: SettingsService,
   ) {}
 
   onModuleInit(): void {
@@ -57,8 +59,7 @@ export class ScanExecutor implements OnModuleInit {
 
     const conn = this.sources.connection(source);
     const client = this.sources.clientFor(source);
-    const authHeader = client.gitAuthHeader();
-    redactor = new Redactor([conn.token, authHeader, authHeader.replace(/^Authorization:\s*\S+\s+/, '')]);
+    redactor = new Redactor([conn.token]);
     const workdir = join(this.config.scanWorkdir, run.id);
     let stats: ScanStatsRecord | null = null;
 
@@ -67,12 +68,19 @@ export class ScanExecutor implements OnModuleInit {
 
     try {
       const cloneUrl = assertCloneUrlAllowed(client, repo.cloneUrl);
+      // Minted on demand for GitHub Apps, so it is only known here; it is redacted like the stored token.
+      const authHeader = await client.gitAuthHeader();
+      const encoded = authHeader.replace(/^Authorization:\s*\S+\s+/, '');
+      const decodedSecret = /^Authorization:\s*Basic\s/i.test(authHeader) ? Buffer.from(encoded, 'base64').toString('utf8').split(':').slice(1).join(':') : null;
+      redactor = new Redactor([conn.token, authHeader, encoded, decodedSecret]);
       await mkdir(this.config.scanWorkdir, { recursive: true });
       await rm(workdir, { recursive: true, force: true });
 
       const branch = repo.branch ?? repo.defaultBranch;
-      log(`Cloning ${cloneUrl.host}${cloneUrl.pathname}${branch ? ` (branch ${branch})` : ' (default branch)'}`);
-      await this.clone(cloneUrl.toString(), branch, workdir, authHeader, log);
+      // Secret history scanning needs the recent commits too; everything else only needs the latest one.
+      const history = repo.disabledScanners.includes('secrets') ? 0 : (await this.settings.getScanning()).secretHistoryCommits;
+      log(`Cloning ${cloneUrl.host}${cloneUrl.pathname}${branch ? ` (branch ${branch})` : ' (default branch)'}${history ? ` with ${history} commit(s) of history` : ''}`);
+      await this.clone(cloneUrl.toString(), branch, workdir, authHeader, log, 1 + history);
       const commitSha = await runGit(['rev-parse', 'HEAD'], { cwd: workdir, home: this.config.scanWorkdir, timeoutMs: 30_000 });
       const checkedOut = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: workdir, home: this.config.scanWorkdir, timeoutMs: 30_000 });
       log(`Checked out ${checkedOut} at ${commitSha}`);
@@ -105,11 +113,11 @@ export class ScanExecutor implements OnModuleInit {
     }
   }
 
-  private async clone(url: string, branch: string | null, dir: string, authHeader: string, log: (m: string) => void): Promise<void> {
+  private async clone(url: string, branch: string | null, dir: string, authHeader: string, log: (m: string) => void, depth: number): Promise<void> {
     const common = ['-c', 'core.symlinks=false', '-c', 'advice.detachedHead=false', 'clone', '--single-branch', '--no-tags', ...(branch ? ['--branch', branch] : [])];
     const opts = { home: this.config.scanWorkdir, authHeader, timeoutMs: this.config.scanTimeoutMs };
     try {
-      await runGit([...common, '--depth', '1', '--', url, dir], opts);
+      await runGit([...common, '--depth', String(depth), '--', url, dir], opts);
     } catch (err) {
       // Some servers (and git's "dumb" HTTP protocol) cannot do shallow clones.
       if (err instanceof GitError && /shallow/i.test(err.stderr)) {

@@ -3,6 +3,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { type DataStore, type Dependency, type ObservedFinding, type Repository, type ScanRun } from '@argus/data';
 import { type ScannerName, type ScannerRunResult, SCANNERS, type ScanStats, type Severity, SEVERITIES } from '@argus/shared';
 import { AppConfig } from '../config/app-config';
+import { runGit } from '../scans/git';
+import { isVendoredPath } from '../scans/inventory';
 import { CryptoService } from '../core/crypto.service';
 import { DomainEvents } from '../core/domain-events';
 import { SettingsService } from '../core/settings.service';
@@ -48,6 +50,7 @@ async function readText(file: RepoFile, maxBytes = 2 * 1024 * 1024): Promise<str
 @Injectable()
 export class ScanPipeline {
   private readonly scanners: Scanner[];
+  private readonly config: AppConfig;
 
   constructor(
     @Inject(DATA_STORE) private readonly store: DataStore,
@@ -58,6 +61,7 @@ export class ScanPipeline {
     intel: IntelService,
     config: AppConfig,
   ) {
+    this.config = config;
     // Order matters: the license scanner reuses the dependency inventory.
     this.scanners = [new SecretsScanner(config.gitleaksPath, config.scanTimeoutMs, config.offline ? null : new SecretVerifier()), new DependenciesScanner(intel), new LicensesScanner(), new FrameworksScanner(intel), new CertificatesScanner()];
   }
@@ -83,6 +87,8 @@ export class ScanPipeline {
       log,
       hashSecret: (v) => this.crypto.hash(`secret:${v}`),
       readText,
+      excluded: (path) => isVendoredPath(path) || ignored(path),
+      git: (args) => runGit(args, { cwd: workdir, home: this.config.scanWorkdir, timeoutMs: this.config.scanTimeoutMs }),
     };
     const shared: SharedScanState = { inventory: null };
     const observed: ObservedFinding[] = [];

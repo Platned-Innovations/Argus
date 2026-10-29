@@ -21,6 +21,10 @@ export interface ScanInput {
   hashSecret(value: string): string;
   /** UTF-8 content of a text file, or null for binary/oversized files. */
   readText(file: RepoFile, maxBytes?: number): Promise<string | null>;
+  /** Whether a path is excluded from scanning (vendored folders and `.argus.yml` ignore rules); used for git history. */
+  excluded(path: string): boolean;
+  /** Runs a read-only git command in the checkout (isolated configuration, no network). */
+  git(args: string[]): Promise<string>;
 }
 
 /** A scanner's view of a finding. The pipeline adds fingerprint, risk score and suppression state. */

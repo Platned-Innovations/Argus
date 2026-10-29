@@ -11,12 +11,21 @@ export interface Message {
   facts: { name: string; value: string }[];
   /** Free text from a person (e.g. the note added when emailing a ticket). */
   note?: string | null;
+  /** Files for email channels (e.g. the monthly report PDF); other channels ignore them. */
+  attachments?: Attachment[];
+}
+
+export interface Attachment {
+  filename: string;
+  contentType: string;
+  content: Buffer;
 }
 
 export interface EmailContent {
   subject: string;
   text: string;
   html: string;
+  attachments?: Attachment[];
 }
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -29,19 +38,21 @@ export function emailSubject(s: string): string {
   return s.replace(/[\r\n]+/g, ' ').slice(0, 200);
 }
 
-export function renderEmail(m: Message): EmailContent {
+/** `product` is the installation's product name (branding). */
+export function renderEmail(m: Message, product = 'Argus'): EmailContent {
   const lines = [m.summary, '', ...m.facts.map((f) => `${f.name}: ${f.value}`)];
   if (m.note) lines.unshift(m.note, '', '---', '');
-  if (m.url) lines.push('', `Open in Argus: ${m.url}`);
+  if (m.url) lines.push('', `Open in ${product}: ${m.url}`);
+  const name = escapeHtml(product);
   const color = m.severity ? SEVERITY_COLOR[m.severity] : '#4f46e5';
   const html = `<!doctype html><html><body style="font-family:Segoe UI,Arial,sans-serif;color:#0f172a;max-width:640px">
 ${m.note ? `<p style="white-space:pre-line">${escapeHtml(m.note)}</p><hr style="border:none;border-top:1px solid #e2e8f0">` : ''}
 <h2 style="margin:16px 0 4px;border-left:4px solid ${color};padding-left:8px">${escapeHtml(m.title)}</h2>
 <p style="white-space:pre-line">${escapeHtml(m.summary)}</p>
 <table style="border-collapse:collapse;font-size:14px">${m.facts.map((f) => `<tr><td style="padding:2px 12px 2px 0;color:#64748b">${escapeHtml(f.name)}</td><td style="padding:2px 0">${escapeHtml(f.value)}</td></tr>`).join('')}</table>
-${m.url ? `<p><a href="${escapeHtml(m.url)}" style="color:#4f46e5">Open in Argus</a></p>` : ''}
-<p style="color:#94a3b8;font-size:12px">Sent by Argus security monitoring.</p></body></html>`;
-  return { subject: emailSubject(`[Argus] ${m.title}`), text: lines.join('\n'), html };
+${m.url ? `<p><a href="${escapeHtml(m.url)}" style="color:#4f46e5">Open in ${name}</a></p>` : ''}
+<p style="color:#94a3b8;font-size:12px">Sent by ${name} security monitoring.</p></body></html>`;
+  return { subject: emailSubject(`[${product}] ${m.title}`), text: lines.join('\n'), html, attachments: m.attachments };
 }
 
 /** Adaptive Card payload accepted by Teams workflow webhooks ("When a Teams webhook request is received"). */

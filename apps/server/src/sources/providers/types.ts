@@ -19,8 +19,11 @@ export interface ProviderClient {
   /** Verifies the credentials and scope. Throws ProviderError with an actionable message. */
   check(): Promise<ConnectionCheck>;
   listRepositories(): Promise<DiscoveredRepo[]>;
-  /** Value for git's http.extraHeader so the token never appears in a URL or command line. */
-  gitAuthHeader(): string;
+  /**
+   * Value for git's http.extraHeader so the token never appears in a URL or command line. Async because some
+   * credentials (GitHub App installation tokens) are minted on demand.
+   */
+  gitAuthHeader(): Promise<string>;
   /** Hosts (host[:port]) that clone URLs may point to; anything else is refused before credentials are sent. */
   allowedCloneHosts(): string[];
   /** Whether plain http clone URLs are acceptable (only for loopback development servers). */

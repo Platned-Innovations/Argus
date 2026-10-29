@@ -1,6 +1,7 @@
 import { type FindingStatRow, type TicketStatRow } from '@argus/data';
 import { describe, expect, it } from 'vitest';
 import { buildDashboard } from '../../src/reports/dashboard';
+import { dashboardPdf, pdfString } from '../../src/reports/pdf';
 
 const DAY = 86_400_000;
 const now = new Date('2026-10-29T12:00:00Z');
@@ -81,5 +82,30 @@ describe('dashboard', () => {
       credentials: [{ kind: 'credential', title: 'Payments API key', repoId: null, location: 'Stripe', expiresAt: ago(-5).toISOString(), daysLeft: 5 }],
     });
     expect(withCreds.expiring.map((e) => e.kind)).toEqual(['credential', 'certificate']);
+  });
+});
+
+describe('PDF report', () => {
+  const now = new Date('2026-06-30T12:00:00Z');
+  const d = buildDashboard([], [], new Map(), { days: 30, now, teamId: null, repoId: null });
+  d.topRepos = [{ repoId: 'r', fullName: 'acme/(api) \\ “quoted” — 日本', openFindings: 3, critical: 1, high: 2, riskTotal: 210 }];
+
+  it('escapes text and maps characters outside WinAnsi', () => {
+    expect(pdfString('a(b)c\\d')).toBe('a\\(b\\)c\\\\d');
+    expect(pdfString('“x” — é 日\n')).toBe('"x" - é ? ');
+  });
+
+  it('writes a well-formed PDF whose cross-reference offsets point at their objects', () => {
+    const pdf = dashboardPdf(d, { product: 'Contoso', scope: 'Whole organisation', periodLabel: 'Last 30 days' });
+    const text = pdf.toString('latin1');
+    expect(text.startsWith('%PDF-1.4')).toBe(true);
+    expect(text.trimEnd().endsWith('%%EOF')).toBe(true);
+    const startxref = Number(/startxref\n(\d+)\n%%EOF/.exec(text)![1]);
+    expect(text.slice(startxref, startxref + 4)).toBe('xref');
+    const entries = text.slice(startxref).split('\n').slice(3).filter((l) => / 00000 n $/.test(l));
+    entries.forEach((e, i) => expect(text.slice(Number(e.slice(0, 10)), Number(e.slice(0, 10)) + 12)).toMatch(new RegExp(`^${i + 1} 0 obj\n`)));
+    expect(text).toContain('(Security report) Tj');
+    expect(text).toContain('/Title (Contoso - Security report)');
+    expect(text).toContain('acme/\\(api\\) \\\\ "quoted" - ??');
   });
 });
