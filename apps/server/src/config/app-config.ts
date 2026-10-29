@@ -22,6 +22,7 @@ const envSchema = z.object({
   ARGUS_SCAN_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(720).default(30),
   ARGUS_SCHEDULER_INTERVAL_SECONDS: z.coerce.number().int().min(1).max(3600).default(30),
   ARGUS_OFFLINE: z.enum(['true', 'false']).default('false'),
+  SCAN: z.enum(['true', 'false']).default('true'),
   ARGUS_GITLEAKS_PATH: z.string().min(1).default('gitleaks'),
   ARGUS_OSV_URL: z.url().default('https://api.osv.dev'),
   ARGUS_KEV_URL: z.url().default('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'),
@@ -65,6 +66,8 @@ export class AppConfig {
   readonly schedulerIntervalMs!: number;
   /** No outbound threat-intelligence lookups; scanners that need them report partial results. */
   readonly offline!: boolean;
+  /** False: this instance never runs repository scans; queued scans wait for a worker that does (e.g. local development). */
+  readonly scanEnabled!: boolean;
   readonly gitleaksPath!: string;
   /** Base URLs of public data sources; point them at internal mirrors if required. */
   readonly intel!: { osv: string; kev: string; epss: string; eol: string; npmRegistry: string; nuget: string; nvd: string; nvdApiKey: string | null };
@@ -110,6 +113,7 @@ export class AppConfig {
       scanTimeoutMs: e.ARGUS_SCAN_TIMEOUT_MINUTES * 60_000,
       schedulerIntervalMs: e.ARGUS_SCHEDULER_INTERVAL_SECONDS * 1000,
       offline: e.ARGUS_OFFLINE === 'true',
+      scanEnabled: e.SCAN === 'true',
       gitleaksPath: e.ARGUS_GITLEAKS_PATH,
       intel: {
         osv: trimSlash(e.ARGUS_OSV_URL),

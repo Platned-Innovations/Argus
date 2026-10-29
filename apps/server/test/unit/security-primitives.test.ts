@@ -52,6 +52,12 @@ describe('AppConfig', () => {
     expect(c.publicUrl).toBe('https://argus.example.com');
     expect(AppConfig.fromEnv({ ...baseEnv, ARGUS_PUBLIC_URL: 'http://localhost:8080' }).cookieSecure).toBe(false);
   });
+
+  it('scans unless SCAN=false', () => {
+    expect(AppConfig.fromEnv(baseEnv).scanEnabled).toBe(true);
+    expect(AppConfig.fromEnv({ ...baseEnv, SCAN: 'false' }).scanEnabled).toBe(false);
+    expect(() => AppConfig.fromEnv({ ...baseEnv, SCAN: 'no' })).toThrow(/SCAN/);
+  });
 });
 
 describe('password policy', () => {
