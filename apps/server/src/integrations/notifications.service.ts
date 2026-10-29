@@ -247,7 +247,7 @@ export class NotificationsService implements OnModuleInit {
     const now = new Date();
     const visibleTeamIds = rule.teamIds.length ? rule.teamIds : undefined;
     const [summary, breached, findings] = await Promise.all([
-      this.store.tickets.summary({ visibleTeamIds, userId: '', now }),
+      this.store.tickets.summary({ visibleTeamIds, userId: null, now }),
       this.store.tickets.list({ statuses: ['open', 'triaged', 'in_progress', 'reopened'], slaBreached: true, visibleTeamIds, now, offset: 0, limit: 5 }),
       this.store.findings.summary({ visibleTeamIds, fixedSince: new Date(now.getTime() - 7 * 86_400_000) }),
     ]);

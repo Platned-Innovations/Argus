@@ -84,7 +84,7 @@ export class MongoTicketRepo implements TicketRepo {
     return { items: docs.map(strip), total };
   }
 
-  async summary(f: { visibleTeamIds?: string[]; userId: string; now: Date }): Promise<TicketSummaryRecord> {
+  async summary(f: { visibleTeamIds?: string[]; userId: string | null; now: Date }): Promise<TicketSummaryRecord> {
     const out: TicketSummaryRecord = { active: 0, bySeverity: Object.fromEntries(SEVERITIES.map((s) => [s, 0])) as Record<Severity, number>, slaBreached: 0, assignedTo: 0, unassigned: 0 };
     if (f.visibleTeamIds && f.visibleTeamIds.length === 0) return out;
     const match: Filter<TicketDoc> = { status: { $in: ACTIVE_TICKET_STATUSES } };
@@ -97,7 +97,8 @@ export class MongoTicketRepo implements TicketRepo {
             _id: '$severity',
             n: { $sum: 1 },
             breached: { $sum: { $cond: [{ $and: [{ $ne: ['$dueAt', null] }, { $lt: ['$dueAt', f.now] }] }, 1, 0] } },
-            mine: { $sum: { $cond: [{ $eq: ['$assigneeId', f.userId] }, 1, 0] } },
+            // Without a user, unassigned tickets (assigneeId null) must not count as "mine".
+            mine: f.userId ? { $sum: { $cond: [{ $eq: ['$assigneeId', f.userId] }, 1, 0] } } : { $sum: 0 },
             unassigned: { $sum: { $cond: [{ $eq: ['$assigneeId', null] }, 1, 0] } },
           },
         },

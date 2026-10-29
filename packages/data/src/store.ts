@@ -17,6 +17,7 @@ import {
   type DiscoveredRepo,
   type DiscoveryDefaults,
   type Job,
+  type JobStatus,
   type NewJob,
   type NewScanRun,
   type NewSource,
@@ -170,6 +171,8 @@ export interface JobRepo {
   fail(id: string, workerId: string, error: string, retryAt: Date | null): Promise<boolean>;
   findById(id: string): Promise<Job | null>;
   deleteFinishedBefore(before: Date): Promise<number>;
+  /** Number of jobs per status and type, for metrics. */
+  countByStatus(): Promise<{ type: string; status: JobStatus; count: number }[]>;
 }
 
 export interface LockRepo {
@@ -231,7 +234,8 @@ export interface TicketRepo {
   update(id: string, patch: TicketPatch): Promise<Ticket | null>;
   /** Highest risk first. */
   list(filter: TicketListFilter): Promise<Page<Ticket>>;
-  summary(filter: { visibleTeamIds?: string[]; userId: string; now: Date }): Promise<TicketSummaryRecord>;
+  /** `userId` counts tickets assigned to that user; null when there is no current user (digests, metrics). */
+  summary(filter: { visibleTeamIds?: string[]; userId: string | null; now: Date }): Promise<TicketSummaryRecord>;
   /** Active tickets past their due date that have not been flagged yet. */
   findNewlyOverdue(now: Date, limit: number): Promise<Ticket[]>;
   /** Tickets linked to Jira that are not closed. */

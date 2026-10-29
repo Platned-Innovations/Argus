@@ -111,7 +111,7 @@ export class PgTicketRepo implements TicketRepo {
     return { items: rows.map(toTicket), total };
   }
 
-  async summary(f: { visibleTeamIds?: string[]; userId: string; now: Date }): Promise<TicketSummaryRecord> {
+  async summary(f: { visibleTeamIds?: string[]; userId: string | null; now: Date }): Promise<TicketSummaryRecord> {
     const out: TicketSummaryRecord = { active: 0, bySeverity: Object.fromEntries(SEVERITIES.map((s) => [s, 0])) as Record<Severity, number>, slaBreached: 0, assignedTo: 0, unassigned: 0 };
     if (f.visibleTeamIds && f.visibleTeamIds.length === 0) return out;
     let q = this.db.selectFrom('tickets').where('status', 'in', ACTIVE_TICKET_STATUSES);
@@ -121,7 +121,8 @@ export class PgTicketRepo implements TicketRepo {
         'severity',
         sql<number>`count(*)::int`.as('n'),
         sql<number>`count(*) filter (where due_at < ${f.now})::int`.as('breached'),
-        sql<number>`count(*) filter (where assignee_id = ${f.userId})::int`.as('mine'),
+        // A non-uuid parameter here would fail the whole query on PostgreSQL, so "no user" is a constant 0.
+        (f.userId ? sql<number>`count(*) filter (where assignee_id = ${f.userId})::int` : sql<number>`0`).as('mine'),
         sql<number>`count(*) filter (where assignee_id is null)::int`.as('unassigned'),
       ])
       .groupBy('severity')

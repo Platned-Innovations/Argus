@@ -105,6 +105,8 @@ export function ticketsContract(getStore: () => DataStore): void {
 
       const s = await store.tickets.summary({ visibleTeamIds: [team.id], userId: user.id, now });
       expect(s).toMatchObject({ active: 2, slaBreached: 1, assignedTo: 1, unassigned: 1, bySeverity: { critical: 1, medium: 1, low: 0 } });
+      // Without a current user (weekly digests, metrics) nothing counts as "assigned to me".
+      expect(await store.tickets.summary({ visibleTeamIds: [team.id], userId: null, now })).toMatchObject({ active: 2, assignedTo: 0, unassigned: 1 });
 
       const overdue = await store.tickets.findNewlyOverdue(now, 100);
       expect(overdue.map((t) => t.id)).toContain(a.id);
