@@ -565,6 +565,28 @@ migrations['0009_saved_views'] = {
   },
 };
 
+migrations['0010_invites'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('invites')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('token_hash', 'text', (c) => c.notNull().unique())
+      .addColumn('role', 'text', (c) => c.notNull())
+      .addColumn('team_ids', 'jsonb', (c) => c.notNull())
+      .addColumn('email', 'text')
+      .addColumn('max_uses', 'integer', (c) => c.notNull())
+      .addColumn('uses', 'integer', (c) => c.notNull())
+      .addColumn('expires_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('note', 'text', (c) => c.notNull())
+      .addColumn('created_by', 'uuid', (c) => c.references('users.id').onDelete('set null'))
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('last_used_at', 'timestamptz')
+      .addColumn('revoked_at', 'timestamptz')
+      .execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

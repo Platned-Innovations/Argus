@@ -444,6 +444,22 @@ export interface SavedViewsTable {
   createdAt: Date;
 }
 
+export interface InvitesTable {
+  id: string;
+  tokenHash: string;
+  role: string;
+  teamIds: Json<string[]>;
+  email: string | null;
+  maxUses: number;
+  uses: number;
+  expiresAt: Date;
+  note: string;
+  createdBy: string | null;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+  revokedAt: Date | null;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -473,4 +489,5 @@ export interface Database {
   apiTokens: ApiTokensTable;
   credentials: CredentialsTable;
   savedViews: SavedViewsTable;
+  invites: InvitesTable;
 }

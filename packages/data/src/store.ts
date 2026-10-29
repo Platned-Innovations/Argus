@@ -72,7 +72,7 @@ import {
   type NewIntelItem,
   type NewIntelSource,
 } from './intel-models';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type FindingStatRow, type NewApiToken, type NewCredential, type NewSavedView, type SavedView, type StatsFilter, type TicketStatRow } from './platform-models';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type FindingStatRow, type Invite, type NewApiToken, type NewCredential, type NewInvite, type NewSavedView, type SavedView, type StatsFilter, type TicketStatRow } from './platform-models';
 import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
 import { type AiSubjectType, type AiUseCase, type Ecosystem, type IntelItemStatus } from '@argus/shared';
 
@@ -362,6 +362,23 @@ export interface SavedViewRepo {
   delete(id: string): Promise<boolean>;
 }
 
+export interface InviteRepo {
+  create(input: NewInvite): Promise<Invite>;
+  findById(id: string): Promise<Invite | null>;
+  findByHash(tokenHash: string): Promise<Invite | null>;
+  /** Newest first. */
+  list(): Promise<Invite[]>;
+  /**
+   * Atomically takes one use: succeeds only while the invite is not revoked, not expired at `now`,
+   * and has uses left. Returns false otherwise.
+   */
+  consume(id: string, now: Date): Promise<boolean>;
+  /** Gives back a use taken by consume() when the account could not be created. */
+  release(id: string): Promise<void>;
+  /** Returns true when this call revoked it. */
+  revoke(id: string): Promise<boolean>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -392,6 +409,7 @@ export interface DataStore {
   readonly apiTokens: ApiTokenRepo;
   readonly credentials: CredentialRepo;
   readonly savedViews: SavedViewRepo;
+  readonly invites: InviteRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

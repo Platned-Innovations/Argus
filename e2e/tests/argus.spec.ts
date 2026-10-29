@@ -113,6 +113,39 @@ test.describe.serial('Argus in a browser', () => {
     expect(errors).toEqual([]);
   });
 
+  test('an administrator invites a user, who signs up through the link', async ({ page, browser }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/admin/users');
+    await page.getByRole('button', { name: 'Invite users' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Role').selectOption({ label: 'Viewer' });
+    await dialog.getByLabel('Note (optional)').fill('Browser test');
+    await dialog.getByRole('button', { name: 'Create invite link' }).click();
+    const link = (await page.getByRole('dialog').locator('pre').textContent())!;
+    expect(link).toMatch(/\/invite#[\w-]{20,}$/);
+    await page.getByRole('button', { name: 'Done' }).click();
+    await expect(page.getByRole('row', { name: /Browser test/ }).getByText('0 of 1')).toBeVisible();
+
+    const guest = await browser.newPage();
+    const guestErrors = watchErrors(guest);
+    await guest.goto(link);
+    await expect(guest.getByText(/You are invited as Viewer/)).toBeVisible();
+    await guest.getByLabel('Username').fill('invited.viewer');
+    await guest.getByLabel('Display name').fill('Invited Viewer');
+    await guest.getByLabel('Password', { exact: true }).fill('Invited-Viewer-Pass-7');
+    await guest.getByLabel('Confirm password').fill('Invited-Viewer-Pass-7');
+    await guest.getByRole('button', { name: 'Create account' }).click();
+    await expect(guest.getByRole('heading', { name: 'Welcome, Invited Viewer' })).toBeVisible();
+    await guest.close();
+
+    await page.reload();
+    await expect(page.getByText('No active invite links')).toBeVisible();
+    await expect(page.getByText('@invited.viewer')).toBeVisible();
+    expect(errors).toEqual([]);
+    expect(guestErrors).toEqual([]);
+  });
+
   test('branding changes the product name on the sign-in page', async ({ page }) => {
     const errors = watchErrors(page);
     await signIn(page);

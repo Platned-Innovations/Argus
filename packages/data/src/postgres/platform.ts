@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { type Kysely, type Selectable, sql } from 'kysely';
-import { type CredentialKind, type CredentialSource, type Permission, type SavedViewPage } from '@argus/shared';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type NewApiToken, type NewCredential, type NewSavedView, type SavedView } from '../platform-models';
-import { type ApiTokenRepo, type CredentialRepo, type SavedViewRepo } from '../store';
-import { type ApiTokensTable, type CredentialsTable, type Database, type SavedViewsTable } from './schema';
+import { type CredentialKind, type CredentialSource, type Permission, type Role, type SavedViewPage } from '@argus/shared';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type Invite, type NewApiToken, type NewCredential, type NewInvite, type NewSavedView, type SavedView } from '../platform-models';
+import { type ApiTokenRepo, type CredentialRepo, type InviteRepo, type SavedViewRepo } from '../store';
+import { type ApiTokensTable, type CredentialsTable, type Database, type InvitesTable, type SavedViewsTable } from './schema';
 
 type Db = Kysely<Database>;
 
@@ -156,5 +156,57 @@ export class PgSavedViewRepo implements SavedViewRepo {
 
   async delete(id: string): Promise<boolean> {
     return Number((await this.db.deleteFrom('savedViews').where('id', '=', id).executeTakeFirst()).numDeletedRows) > 0;
+  }
+}
+
+function toInvite(r: Selectable<InvitesTable>): Invite {
+  return { ...r, role: r.role as Role, teamIds: (r.teamIds ?? []) as string[] };
+}
+
+export class PgInviteRepo implements InviteRepo {
+  constructor(private readonly db: Db) {}
+
+  async create(input: NewInvite): Promise<Invite> {
+    const id = randomUUID();
+    await this.db
+      .insertInto('invites')
+      .values({ ...input, id, teamIds: JSON.stringify(input.teamIds), uses: 0, createdAt: new Date(), lastUsedAt: null, revokedAt: null })
+      .execute();
+    return (await this.findById(id))!;
+  }
+
+  async findById(id: string): Promise<Invite | null> {
+    const r = await this.db.selectFrom('invites').selectAll().where('id', '=', id).executeTakeFirst();
+    return r ? toInvite(r) : null;
+  }
+
+  async findByHash(tokenHash: string): Promise<Invite | null> {
+    const r = await this.db.selectFrom('invites').selectAll().where('tokenHash', '=', tokenHash).executeTakeFirst();
+    return r ? toInvite(r) : null;
+  }
+
+  async list(): Promise<Invite[]> {
+    return (await this.db.selectFrom('invites').selectAll().orderBy('createdAt', 'desc').orderBy('id').execute()).map(toInvite);
+  }
+
+  async consume(id: string, now: Date): Promise<boolean> {
+    const res = await this.db
+      .updateTable('invites')
+      .set({ uses: sql`uses + 1`, lastUsedAt: now })
+      .where('id', '=', id)
+      .where('revokedAt', 'is', null)
+      .where('expiresAt', '>', now)
+      .where('uses', '<', sql<number>`max_uses`)
+      .executeTakeFirst();
+    return Number(res.numUpdatedRows) > 0;
+  }
+
+  async release(id: string): Promise<void> {
+    await this.db.updateTable('invites').set({ uses: sql`uses - 1` }).where('id', '=', id).where('uses', '>', 0).execute();
+  }
+
+  async revoke(id: string): Promise<boolean> {
+    const res = await this.db.updateTable('invites').set({ revokedAt: new Date() }).where('id', '=', id).where('revokedAt', 'is', null).executeTakeFirst();
+    return Number(res.numUpdatedRows) > 0;
   }
 }

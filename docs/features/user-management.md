@@ -51,6 +51,24 @@ Deleting a team removes it from its members. Their accounts are not affected.
 
 You can set an initial password, or let Argus generate a strong temporary password, which is shown **once**. Either way, the user must choose their own password at first sign-in.
 
+## Invite links
+
+Instead of creating accounts yourself, you can send people a link to create their own. **Users → Invite users** sets:
+
+| Setting | |
+|---|---|
+| **Role and teams** | Every account created with the link gets them. |
+| **Link expires** | The link works until the end of the chosen day (at most 365 days ahead). |
+| **For one email address** | Optional. Only that address can use the link, once, and it becomes the account's email. |
+| **Number of accounts** | How many people can sign up with the link (1–500). The default is 1. |
+| **Note** | Optional, for administrators only, for example who the link was sent to. |
+
+The link is shown **once**, when it is created; send it to the people you are inviting. Opening it shows the role and teams on offer. The invitee chooses a username, display name and password (the password policy applies), and is signed in straight away. They are not asked to change the password at first sign-in, because they chose it themselves. If MFA is required, they enrol at first sign-in as usual.
+
+**Invite links** on the Users page lists active links with how many accounts each has created. Tick *Show used, expired and revoked* to see the rest. **Revoke** stops a link working immediately; accounts already created with it are not affected.
+
+Creating and revoking links needs the *Manage users* permission and a signed-in session (an API token cannot create them). Creating and revoking links, and each account created with one, are audited.
+
 ## Account actions
 
 Open a user to:

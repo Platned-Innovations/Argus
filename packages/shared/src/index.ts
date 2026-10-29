@@ -14,3 +14,4 @@ export * from './credentials';
 export * from './operations';
 export * from './saved-views';
 export * from './configuration';
+export * from './invites';

@@ -46,6 +46,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | **Organisation-wide MFA enforcement.** When enabled, users without MFA must enroll before doing anything else, and they cannot turn MFA off. | ✅ |
 | Per-IP **rate limiting** on credential endpoints (`ARGUS_AUTH_RATE_LIMIT`, default 10 per minute). | ✅ |
 | **Personal API tokens** for CI and automation: random 256-bit tokens with a recognisable prefix (`argus_pat_`), shown once and stored only as a keyed hash; chosen scopes, always limited to the owner's current role; mandatory expiry (7–365 days); revocable by the owner or an administrator; last use (time and IP) recorded. | ✅ |
+| **Invite links** carry a random 256-bit token in the URL fragment (`/invite#…`), which browsers never send to the server, so it stays out of server and proxy logs. Only a keyed hash is stored. Links expire (at most 365 days), have a use limit taken atomically, can be limited to one email address and revoked at any time. Unknown, used, expired and revoked links all get the same answer, and the lookup and sign-up endpoints share the sign-in rate limit. Only signed-in administrators (not API tokens) can create them. | ✅ |
 | **API tokens are default-deny.** They only reach endpoints that declare the permissions they need, and are refused on sign-in, MFA, password and token-management endpoints, so a leaked token cannot mint or hide other tokens. A token stops working when its owner is disabled or must change their password or enrol in MFA. | ✅ |
 
 ## 3. Sessions
