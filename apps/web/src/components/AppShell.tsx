@@ -5,6 +5,7 @@ import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth';
 import { useBranding } from '../lib/branding';
 import { cn } from '../lib/utils';
+import { ActivityIndicator } from './activity';
 
 interface NavItem {
   to: string;
@@ -131,15 +132,19 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen lg:flex">
       <aside className="hidden w-64 shrink-0 print:!hidden flex-col gap-6 border-r border-slate-200 bg-white px-3 py-5 lg:sticky lg:top-0 lg:flex lg:h-screen dark:border-slate-800 dark:bg-slate-900">
         <Logo />
+        <ActivityIndicator panelClassName="left-0" />
         <Sidebar />
         <UserMenu />
       </aside>
 
       <header className="sticky top-0 z-30 print:hidden flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden dark:border-slate-800 dark:bg-slate-900">
         <Logo />
-        <button onClick={() => setOpen(true)} aria-label="Open navigation" className="rounded p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800">
-          <Menu className="size-5" />
-        </button>
+        <div className="flex min-w-0 items-center gap-2">
+          <ActivityIndicator compact className="max-w-48" panelClassName="right-0" />
+          <button onClick={() => setOpen(true)} aria-label="Open navigation" className="rounded p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <Menu className="size-5" />
+          </button>
+        </div>
       </header>
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">

@@ -118,6 +118,8 @@ A scan is started by its schedule, a push webhook, **Scan now** (Developers and 
 
 If a scan fails for a transient reason, such as a network error, it is retried once a minute later. Authentication problems and refused clone URLs fail immediately with a clear message.
 
+**Activity indicator.** While scans are running or waiting, or Argus is doing other background work (discovering repositories, matching new advisories, reading security news, sending notifications), an indicator at the top of the sidebar says so. Open it to see which repositories are being scanned, with links to them, how many scans are waiting, and what else is running. It only lists scans of repositories you can see, and it disappears when Argus is idle.
+
 Each repository page shows its **scan history**. Open a run to see its status, commit, duration, detected ecosystems and log. Scan runs are kept for 90 days.
 
 ## Push webhooks (optional)

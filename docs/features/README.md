@@ -29,6 +29,7 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 | Per-repository scan schedule (hourly, daily, weekly or custom cron), manual "Scan now", scan-on-push webhooks (HMAC-verified) | ✅ |
 | Repository settings: branch, business criticality, owning team, Jira project, notification recipients | ✅ |
 | Team-scoped visibility of repositories and scans | ✅ |
+| Activity indicator for running and queued scans and other background work | ✅ |
 | Scan runs: ephemeral shallow clone, commit, ecosystem and manifest inventory, log, history | ✅ |
 | Per-repository choice of scanners | ✅ |
 | `.argus.yml` repo-level configuration (ignore paths, scanner switches, suppressions) — see [Scanners and findings](scanners-and-findings.md#argusyml) | ✅ |

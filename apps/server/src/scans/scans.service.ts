@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { type DataStore, type Repository, type ScanRun, type ScanTrigger, type User } from '@argus/data';
-import { hasGlobalScope, type ListScanRunsQuery, type Paged, type ScanRunDto } from '@argus/shared';
+import { type ActivityDto, BACKGROUND_TASK_LABELS, hasGlobalScope, type ListScanRunsQuery, type Paged, type ScanRunDto } from '@argus/shared';
 import { DATA_STORE } from '../core/tokens';
 import { JobRunner } from '../jobs/job-runner.service';
 import { toScanRunDto } from './mappers';
@@ -47,6 +47,25 @@ export class ScansService {
     const page = await this.store.scanRuns.list({ repoId: q.repoId, status: q.status, visibleTeamIds: visibleTeams(user), offset: (q.page - 1) * q.pageSize, limit: q.pageSize });
     const repos = new Map((await this.store.repositories.findByIds([...new Set(page.items.map((r) => r.repoId))])).map((r) => [r.id, r.fullName]));
     return { items: page.items.map((r) => toScanRunDto(r, repos.get(r.repoId) ?? null)), total: page.total, page: q.page, pageSize: q.pageSize };
+  }
+
+  /** Running and queued scans within the user's scope, plus other background work that is running now. */
+  async activity(user: User): Promise<ActivityDto> {
+    const visibleTeamIds = visibleTeams(user);
+    const [running, queued, jobs] = await Promise.all([
+      this.store.scanRuns.list({ status: 'running', visibleTeamIds, offset: 0, limit: 20 }),
+      this.store.scanRuns.list({ status: 'queued', visibleTeamIds, offset: 0, limit: 1 }),
+      this.store.jobs.countByStatus(),
+    ]);
+    const repos = new Map((await this.store.repositories.findByIds([...new Set(running.items.map((r) => r.repoId))])).map((r) => [r.id, r.fullName]));
+    return {
+      scans: {
+        running: running.items.map((r) => ({ id: r.id, repoId: r.repoId, repoFullName: repos.get(r.repoId) ?? null, startedAt: r.startedAt?.toISOString() ?? null })),
+        runningTotal: running.total,
+        queued: queued.total,
+      },
+      tasks: jobs.filter((j) => j.status === 'running' && j.count > 0 && BACKGROUND_TASK_LABELS[j.type]).map((j) => ({ type: j.type, label: BACKGROUND_TASK_LABELS[j.type], running: j.count })),
+    };
   }
 
   async get(id: string, user: User): Promise<ScanRunDto> {
