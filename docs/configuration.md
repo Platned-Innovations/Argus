@@ -75,6 +75,21 @@ Under **Administration → Scanning settings**:
 - **Early warnings.**
   - Framework end-of-life warning: default 180 days.
   - Certificate and token expiry warning: default 30 days.
+- **Secrets.** Live verification of detected secrets with their issuer (off by default), and how many recent commits to scan for secrets that were committed and later deleted (default 0: only the current code). See [Secrets: git history and live verification](features/scanners-and-findings.md#secrets-git-history-and-live-verification).
 - **Threat-intelligence status.** When each source was last used, any errors, and whether Gitleaks is installed.
 
 Changes apply from the next scan.
+
+## System: branding and the configuration file
+
+Under **Administration → System** (administrators):
+
+- **Branding.**
+  - The **product name** (default "Argus", up to 40 characters) is shown in the sidebar, on the sign-in page, in the browser tab, in email subjects (`[Contoso Security] …`) and footers, and as the label in authenticator apps for MFA set up afterwards.
+  - An optional **sign-in notice** (plain text) is shown below the sign-in form, for example an acceptable-use statement.
+- **Configuration file.** **Export settings** downloads a JSON file with the security, scanning, ticketing and SLA, retention, threat-intelligence and branding settings, plus the news sources.
+  - The file **never contains secrets**: credentials, API keys, and email, webhook and Entra ID secrets stay encrypted in the installation that holds them.
+  - It leaves out installation data: sources, repositories, users, teams and notification rules.
+  - **Import settings…** replaces each section that is in the file and leaves the others untouched. News sources whose URL is already configured are skipped. The import is validated as a whole first: an invalid file changes nothing.
+  - Use it to copy a configuration from a test installation to production, or to keep settings under version control.
+  - Exports and imports are recorded in the audit log.

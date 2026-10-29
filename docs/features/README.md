@@ -15,6 +15,7 @@ Status legend: ✅ available · 🔜 planned (phase shown)
 | Single Docker image; Azure Web App support | ✅ | [Docker](../deployment/docker.md), [Azure](../deployment/azure.md) |
 | Personal API tokens for CI/automation (scoped, expiring, default-deny) | ✅ | [API and automation](api-and-automation.md) |
 | OpenAPI description generated from the code; Prometheus metrics | ✅ | [API and automation](api-and-automation.md) |
+| Branding (product name, sign-in notice); configuration export and import without secrets | ✅ | [Configuration](../configuration.md#system-branding-and-the-configuration-file) |
 | Data retention settings; master-key rotation tool; Azure Bicep template | ✅ | [Dashboards…](dashboards-and-reports.md#data-retention), [Docker](../deployment/docker.md#rotating-the-master-key), [Azure](../deployment/azure.md) |
 
 ## Sources & scanning

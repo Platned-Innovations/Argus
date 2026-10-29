@@ -3,8 +3,10 @@ import { type FormEvent, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import { Button, Card, ErrorAlert, Field, Input } from '../components/ui';
 import { useAuth } from '../lib/auth';
+import { useBranding } from '../lib/branding';
 
 export function LoginPage() {
+  const branding = useBranding();
   const { me, login, verifyMfa } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,7 +54,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <img src="/favicon.svg" alt="" className="size-12" />
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight">Sign in to Argus</h1>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">Sign in to {branding.productName}</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Continuous security & dependency monitoring</p>
         </div>
         <Card className="p-6">
@@ -93,6 +95,7 @@ export function LoginPage() {
             </form>
           )}
         </Card>
+        {branding.loginNotice && <p className="mt-6 text-center text-xs whitespace-pre-line text-slate-500 dark:text-slate-400">{branding.loginNotice}</p>}
       </div>
     </div>
   );

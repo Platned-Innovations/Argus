@@ -271,6 +271,51 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
     });
   });
 
+  describe('branding and configuration file', () => {
+    it('serves branding before sign-in, and only administrators change it', async () => {
+      const pub = await request(app.getHttpServer()).get('/api/v1/settings/branding');
+      expect(pub.status).toBe(200);
+      expect(pub.body).toEqual({ productName: 'Argus', loginNotice: '' });
+      expect((await dev.call('put', '/api/v1/settings/branding', { productName: 'X', loginNotice: '' })).status).toBe(403);
+      expect((await admin.call('put', '/api/v1/settings/branding', { productName: '<script>', loginNotice: '' })).status).toBe(400);
+      const res = await admin.call('put', '/api/v1/settings/branding', { productName: 'Contoso Security', loginNotice: 'Authorised use only.' });
+      expect(res.status).toBe(200);
+      expect((await request(app.getHttpServer()).get('/api/v1/settings/branding')).body.productName).toBe('Contoso Security');
+      // New MFA enrolments use the product name as the authenticator label.
+      const enrol = await dev.call('post', '/api/v1/auth/mfa/setup');
+      if (enrol.status === 200 || enrol.status === 201) expect(enrol.body.otpauthUrl).toContain('Contoso%20Security');
+    });
+
+    it('exports settings without secrets and imports them section by section', async () => {
+      expect((await admin.call('post', '/api/v1/intel/sources', { name: 'Vendor advisories', url: 'https://vendor.example.com/advisories.rss', enabled: false })).status).toBe(201);
+      expect((await dev.call('get', '/api/v1/settings/export')).status).toBe(403);
+      const exp = await admin.call('get', '/api/v1/settings/export');
+      expect(exp.status).toBe(200);
+      expect(exp.body).toMatchObject({ format: 'argus-settings', version: 1, settings: { branding: { productName: 'Contoso Security' } } });
+      expect(Object.keys(exp.body.settings).sort()).toEqual(['branding', 'intel', 'retention', 'scanning', 'security', 'ticketing']);
+      // The Entra import secret configured earlier stays out of it.
+      expect(JSON.stringify(exp.body)).not.toContain('entra-secret-0001');
+      const sources = exp.body.intelSources as { url: string }[];
+      expect(sources.length).toBeGreaterThan(0);
+
+      const file = {
+        ...exp.body,
+        settings: { scanning: { ...exp.body.settings.scanning, eolWarningDays: 99 }, branding: { productName: 'Imported', loginNotice: '' } },
+        intelSources: [...sources, { name: 'Imported feed', url: 'https://feeds.example.com/security.xml', enabled: false, intervalMinutes: 60 }],
+      };
+      const imp = await admin.call('post', '/api/v1/settings/import', file);
+      expect(imp.status).toBe(200);
+      expect(imp.body).toEqual({ applied: ['scanning', 'branding'], intelSourcesAdded: 1, intelSourcesSkipped: sources.length });
+      expect((await admin.call('get', '/api/v1/settings/scanning')).body.eolWarningDays).toBe(99);
+      // Sections left out are untouched.
+      expect((await admin.call('get', '/api/v1/settings/retention')).body).toEqual(exp.body.settings.retention);
+      expect((await admin.call('post', '/api/v1/settings/import', { format: 'something-else', version: 1, settings: {} })).status).toBe(400);
+      const audit = await admin.call('get', '/api/v1/audit?action=settings.imported');
+      expect(audit.body.items[0].details).toMatchObject({ applied: ['scanning', 'branding'], intelSourcesAdded: 1 });
+      await admin.call('put', '/api/v1/settings/branding', { productName: 'Argus', loginNotice: '' });
+    });
+  });
+
   describe('saved views', () => {
     it('keeps private views private, lets triagers share, and is not reachable with API tokens', async () => {
       const mine = await dev.call('post', '/api/v1/saved-views', { page: 'tickets', name: 'My overdue', query: 'sla=breached&assignee=me' });

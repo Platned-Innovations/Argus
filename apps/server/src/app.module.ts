@@ -23,6 +23,7 @@ import { SavedViewsModule } from './saved-views/saved-views.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ScansModule } from './scans/scans.module';
 import { SettingsController } from './settings/settings.controller';
+import { SettingsTransferService } from './settings/settings-transfer.service';
 import { SourcesModule } from './sources/sources.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { TeamsController } from './teams/teams.controller';
@@ -87,6 +88,7 @@ export class AppModule {
       controllers: [HealthController, MetricsController, OpenApiController, TeamsController, AuditController, SettingsController],
       providers: [
         OpenApiService,
+        SettingsTransferService,
         // Guard order matters: rate limit, then CSRF, then authenticate, then authorise.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_GUARD, useExisting: CsrfGuard },

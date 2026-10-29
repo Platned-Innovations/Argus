@@ -1,18 +1,63 @@
-import { Body, Controller, Get, Put, Req } from '@nestjs/common';
-import { type RetentionSettings, retentionSettingsSchema, type ScanningSettings, scanningSettingsSchema, type SecuritySettings, securitySettingsSchema } from '@argus/shared';
+import { Body, Controller, Get, HttpCode, Post, Put, Req } from '@nestjs/common';
+import {
+  type BrandingSettings,
+  brandingSettingsSchema,
+  type RetentionSettings,
+  retentionSettingsSchema,
+  type ScanningSettings,
+  scanningSettingsSchema,
+  type SecuritySettings,
+  securitySettingsSchema,
+  type SettingsExport,
+  settingsExportSchema,
+  type SettingsImportResultDto,
+} from '@argus/shared';
 import { type Request } from 'express';
-import { CurrentUser, RequirePermissions } from '../auth/decorators';
+import { AllowRestricted, CurrentUser, Public, RequirePermissions } from '../auth/decorators';
 import { type RequestUser, requestContext } from '../common/request';
 import { ZodPipe } from '../common/zod.pipe';
 import { AuditService } from '../core/audit.service';
 import { SettingsService } from '../core/settings.service';
+import { SettingsTransferService } from './settings-transfer.service';
 
 @Controller('settings')
 export class SettingsController {
   constructor(
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
+    private readonly transfer: SettingsTransferService,
   ) {}
+
+  /** Public: the sign-in page shows the product name and notice before anyone signs in. */
+  @Get('branding')
+  @Public()
+  @AllowRestricted()
+  getBranding(): Promise<BrandingSettings> {
+    return this.settings.getBranding();
+  }
+
+  @Put('branding')
+  @RequirePermissions('settings:manage')
+  async updateBranding(@Body(new ZodPipe(brandingSettingsSchema)) body: BrandingSettings, @CurrentUser() me: RequestUser, @Req() req: Request): Promise<BrandingSettings> {
+    const before = await this.settings.getBranding();
+    const after = await this.settings.updateBranding(body, me.user.id);
+    await this.audit.record({ action: 'settings.branding_updated', actor: me.user, details: { before, after }, ip: requestContext(req).ip });
+    return after;
+  }
+
+  /** Configuration without secrets, as a JSON file to import into another installation. */
+  @Get('export')
+  @RequirePermissions('settings:manage')
+  export(@CurrentUser() me: RequestUser, @Req() req: Request): Promise<SettingsExport> {
+    return this.transfer.export(me.user, requestContext(req));
+  }
+
+  @Post('import')
+  @HttpCode(200)
+  @RequirePermissions('settings:manage')
+  import(@Body(new ZodPipe(settingsExportSchema)) body: SettingsExport, @CurrentUser() me: RequestUser, @Req() req: Request): Promise<SettingsImportResultDto> {
+    return this.transfer.import(body, me.user, requestContext(req));
+  }
 
   @Get('security')
   @RequirePermissions('settings:read')

@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { type DataStore } from '@argus/data';
 import {
+  type BrandingSettings,
+  brandingSettingsSchema,
+  DEFAULT_BRANDING_SETTINGS,
+  DEFAULT_INTEL_SETTINGS,
   DEFAULT_RETENTION_SETTINGS,
+  type IntelSettings,
+  intelSettingsSchema,
   DEFAULT_SCANNING_SETTINGS,
   type RetentionSettings,
   retentionSettingsSchema,
@@ -20,11 +26,14 @@ const SECURITY_KEY = 'security';
 const SCANNING_KEY = 'scanning';
 const TICKETING_KEY = 'ticketing';
 const RETENTION_KEY = 'retention';
+const BRANDING_KEY = 'branding';
+const INTEL_KEY = 'intel';
 const CACHE_MS = 15_000;
 
 @Injectable()
 export class SettingsService {
   private securityCache: { value: SecuritySettings; at: number } | null = null;
+  private brandingCache: { value: BrandingSettings; at: number } | null = null;
 
   constructor(@Inject(DATA_STORE) private readonly store: DataStore) {}
 
@@ -80,6 +89,33 @@ export class SettingsService {
   async updateRetention(value: RetentionSettings, actorId: string): Promise<RetentionSettings> {
     await this.store.settings.set(RETENTION_KEY, value, actorId);
     return this.getRetention();
+  }
+
+  /** Read on every page load and email, so it is cached briefly like the security settings. */
+  async getBranding(): Promise<BrandingSettings> {
+    if (this.brandingCache && Date.now() - this.brandingCache.at < CACHE_MS) return this.brandingCache.value;
+    const v = (await this.store.settings.get<Partial<BrandingSettings>>(BRANDING_KEY))?.value ?? {};
+    const merged = brandingSettingsSchema.safeParse({ ...DEFAULT_BRANDING_SETTINGS, ...v });
+    const value = merged.success ? merged.data : DEFAULT_BRANDING_SETTINGS;
+    this.brandingCache = { value, at: Date.now() };
+    return value;
+  }
+
+  async updateBranding(value: BrandingSettings, actorId: string): Promise<BrandingSettings> {
+    await this.store.settings.set(BRANDING_KEY, value, actorId);
+    this.brandingCache = null;
+    return this.getBranding();
+  }
+
+  async getIntel(): Promise<IntelSettings> {
+    const v = (await this.store.settings.get<Partial<IntelSettings>>(INTEL_KEY))?.value ?? {};
+    const merged = intelSettingsSchema.safeParse({ ...DEFAULT_INTEL_SETTINGS, ...v });
+    return merged.success ? merged.data : DEFAULT_INTEL_SETTINGS;
+  }
+
+  async updateIntel(value: IntelSettings, actorId: string): Promise<IntelSettings> {
+    await this.store.settings.set(INTEL_KEY, value, actorId);
+    return this.getIntel();
   }
 
   async getSystemValue<T>(key: string): Promise<T | null> {

@@ -13,6 +13,7 @@ import { AuditPage } from './pages/admin/AuditPage';
 import { IntegrationsPage } from './pages/admin/IntegrationsPage';
 import { ScanningSettingsPage } from './pages/admin/ScanningSettingsPage';
 import { SecuritySettingsPage } from './pages/admin/SecuritySettingsPage';
+import { SystemSettingsPage } from './pages/admin/SystemSettingsPage';
 import { SourcesPage } from './pages/admin/SourcesPage';
 import { TeamsPage } from './pages/admin/TeamsPage';
 import { UsersPage } from './pages/admin/UsersPage';
@@ -87,6 +88,7 @@ function App() {
               <Route path="admin/teams" element={<Allow permission="teams:read"><TeamsPage /></Allow>} />
               <Route path="admin/audit" element={<Allow permission="audit:read"><AuditPage /></Allow>} />
               <Route path="admin/security" element={<Allow permission="settings:read"><SecuritySettingsPage /></Allow>} />
+              <Route path="admin/system" element={<Allow permission="settings:manage"><SystemSettingsPage /></Allow>} />
               <Route path="*" element={<EmptyState icon={<ShieldOff className="size-5" />} title="Page not found" />} />
             </Routes>
           </RequireAuth>

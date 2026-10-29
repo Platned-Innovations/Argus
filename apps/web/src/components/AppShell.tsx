@@ -1,8 +1,9 @@
 import { type Permission, ROLE_LABELS } from '@argus/shared';
-import { BellRing, Bot, Bug, FileBarChart, KeyRound, FolderGit2, PackageSearch, Plug, ShieldOff, SlidersHorizontal, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
+import { BellRing, Bot, Bug, FileBarChart, KeyRound, FolderGit2, PackageSearch, Plug, ShieldOff, SlidersHorizontal, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Server, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
 import { type ComponentType, type ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth';
+import { useBranding } from '../lib/branding';
 import { cn } from '../lib/utils';
 
 interface NavItem {
@@ -39,16 +40,18 @@ const sections: { title?: string; items: NavItem[] }[] = [
       { to: '/admin/audit', label: 'Audit log', icon: ScrollText, permission: 'audit:read' },
       { to: '/admin/scanning', label: 'Scanning settings', icon: SlidersHorizontal, permission: 'settings:read' },
       { to: '/admin/security', label: 'Security settings', icon: Settings2, permission: 'settings:read' },
+      { to: '/admin/system', label: 'System', icon: Server, permission: 'settings:manage' },
     ],
   },
 ];
 
 function Logo() {
+  const { productName } = useBranding();
   return (
     <div className="flex items-center gap-2.5 px-2">
       <img src="/favicon.svg" alt="" className="size-8" />
       <div>
-        <div className="text-base leading-tight font-semibold">Argus</div>
+        <div className="text-base leading-tight font-semibold">{productName}</div>
         <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Security monitoring</div>
       </div>
     </div>

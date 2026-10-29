@@ -105,6 +105,7 @@ Terminate TLS at a reverse proxy or load balancer, then set `ARGUS_PUBLIC_URL=ht
 - **PostgreSQL:** `pg_dump`, or your provider's point-in-time restore.
 - **MongoDB:** `mongodump`, or Atlas / Cosmos DB backups.
 - **Back up `ARGUS_MASTER_KEY` separately from the database.** A database backup without the key cannot decrypt stored credentials or MFA secrets.
+- For a copy of the configuration alone (no secrets, no data), use **Administration → System → Export settings**. See [configuration](../configuration.md#system-branding-and-the-configuration-file).
 
 ## Rotating the master key
 
