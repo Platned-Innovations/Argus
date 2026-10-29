@@ -16,11 +16,11 @@ export class IntegrationError extends Error {
  * Calls an administrator-configured endpoint. Redirects are refused (a credential must never follow a redirect
  * to another host) and response bodies are reduced to a short, single-line excerpt for error messages.
  */
-export async function callExternal(url: string, init: RequestInit & { service: string }): Promise<Response> {
-  const { service, ...rest } = init;
+export async function callExternal(url: string, init: RequestInit & { service: string; timeoutMs?: number }): Promise<Response> {
+  const { service, timeoutMs = TIMEOUT_MS, ...rest } = init;
   let res: Response;
   try {
-    res = await fetch(url, { ...rest, redirect: 'error', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetch(url, { ...rest, redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     const cause = err instanceof Error ? ((err.cause as Error | undefined)?.message ?? err.message) : String(err);
     throw new IntegrationError(`Could not reach ${service} (${new URL(url).host}): ${cause}`);

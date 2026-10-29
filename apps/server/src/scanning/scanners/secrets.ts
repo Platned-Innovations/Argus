@@ -17,7 +17,7 @@ interface SecretRule {
   accept?: (value: string) => boolean;
 }
 
-const PLACEHOLDER = /^(x+|\*+|changeme|change_me|password|secret|example|sample|dummy|test|todo|redacted|null|none|undefined|<[^>]*>|\$\{.*\}|\{\{.*\}\}|%[A-Z_]+%)$/i;
+export const PLACEHOLDER = /^(x+|\*+|changeme|change_me|password|secret|example|sample|dummy|test|todo|redacted|null|none|undefined|<[^>]*>|\$\{.*\}|\{\{.*\}\}|%[A-Z_]+%)$/i;
 
 export function shannonEntropy(s: string): number {
   const counts = new Map<string, number>();
