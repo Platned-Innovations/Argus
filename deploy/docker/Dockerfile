@@ -22,31 +22,33 @@ COPY apps apps
 RUN npm run build \
  && npm prune --omit=dev --no-audit --no-fund
 
-# ---------- gitleaks (secret scanner), pinned and checksum-verified ----------
-FROM debian:bookworm-slim AS gitleaks
-ARG TARGETARCH
+# ---------- gitleaks (secret scanner), built from pinned source ----------
+# Upstream release binaries are built with an older Go and older modules that carry known CVEs, so Gitleaks is
+# compiled here from the release's exact commit with a current Go toolchain and patched modules. Everything is
+# pinned: the image by digest, the source by commit, the modules by version (verified against sum.golang.org).
+FROM golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS gitleaks
 ARG GITLEAKS_VERSION=8.30.1
-ARG GITLEAKS_SHA256_AMD64=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-ARG GITLEAKS_SHA256_ARM64=e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080
-RUN apt-get update \
- && apt-get install -y --no-install-recommends curl ca-certificates \
- && case "${TARGETARCH:-amd64}" in \
-      amd64) asset=x64;   sha="${GITLEAKS_SHA256_AMD64}" ;; \
-      arm64) asset=arm64; sha="${GITLEAKS_SHA256_ARM64}" ;; \
-      *) echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac \
- && curl -fsSL -o /tmp/gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${asset}.tar.gz" \
- && echo "${sha}  /tmp/gitleaks.tar.gz" | sha256sum -c - \
- && tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks \
+ARG GITLEAKS_COMMIT=83d9cd684c87d95d656c1458ef04895a7f1cbd8e
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-mod=mod
+RUN git clone --depth 1 --branch "v${GITLEAKS_VERSION}" https://github.com/gitleaks/gitleaks.git /src/gitleaks \
+ && cd /src/gitleaks \
+ && test "$(git rev-parse HEAD)" = "${GITLEAKS_COMMIT}" \
+ && go get golang.org/x/crypto@v0.58.0 golang.org/x/text@v0.43.0 github.com/klauspost/compress@v1.20.3 \
+ && go mod tidy \
+ && go build -trimpath -ldflags "-s -w -X=github.com/zricethezav/gitleaks/v8/version.Version=${GITLEAKS_VERSION}" -o /usr/local/bin/gitleaks . \
  && /usr/local/bin/gitleaks version
 
 # ---------- runtime ----------
 FROM ${NODE_IMAGE} AS runtime
 
 # git is used by the scanners to clone repositories; tini reaps child processes and forwards signals.
+# npm, npx, corepack and yarn come with the Node image but are never used at runtime; removing them also removes
+# their bundled dependencies (and the CVEs those accumulate) from the image.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git tini ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+ && rm -rf /opt/yarn-v* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 ENV NODE_ENV=production \
     PORT=8080 \

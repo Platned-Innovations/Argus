@@ -93,7 +93,8 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | **Threat-intelligence lookups never send code or secrets.** OSV and the npm/NuGet registries receive package names and versions, EPSS and NVD receive CVE ids, and endoflife.date receives product names. The full list is in [Data sources](features/scanners-and-findings.md#data-sources-caching-and-offline-mode). `ARGUS_OFFLINE=true` turns all of these lookups off, and each URL can point at an internal mirror. | ✅ |
 | **Security news is fetched defensively.** Feeds must be HTTPS, redirects to plain HTTP are refused, responses are capped at 5 MB and 200 entries, XML is parsed without DTDs or external entities, and HTML (including scripts) is reduced to plain text before it is stored, shown or sent to AI. Links are kept only if they are http(s). | ✅ |
 | **Continuous re-matching never clones.** It reads the stored dependency inventory (package names and versions) and asks OSV and NVD about package versions and CVE ids only. | ✅ |
-| The bundled **Gitleaks binary is pinned to a version and verified against its published SHA-256 checksum** when the image is built. | ✅ |
+| The bundled **Gitleaks is built from pinned source** when the image is built: the release's exact commit (verified), a current Go toolchain pinned by image digest, and patched Go modules pinned by version and verified against the Go checksum database. Upstream release binaries are not used because they carry CVEs from their older toolchain. | ✅ |
+| **Lean runtime image.** npm, npx, corepack and Yarn, which ship with the Node base image but are never used at runtime, are removed. CI fails the build on any fixable high or critical vulnerability found by Trivy. | ✅ |
 | **Read-only tokens are enough.** The [sources guide](features/sources-and-repositories.md#access-tokens) lists the minimum permissions for each provider. | ✅ |
 
 ## 7. AI guardrails
