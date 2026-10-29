@@ -116,6 +116,19 @@ Argus only sends email over TLS, either implicit TLS on port 465 or STARTTLS on 
 
 Use **Test** on a channel to send a test message.
 
+### What the emails look like
+
+Every email Argus sends uses the same template: alerts, digests, monthly reports, shared tickets, invitations and test messages.
+
+- **Header:** the product name from **System → Branding**.
+- **Label and badge:** what kind of email it is (for example *New ticket* or *Invitation*), with a severity badge and a coloured top bar for findings.
+- **Content:** the title, a summary, the sender's message if there is one, and a table of details.
+- **Attachments:** listed by name.
+- **Button:** labelled for the email, such as *Open ticket*, *Create your account* or *Open dashboard*, with the plain link below it as a fallback.
+- **Footer:** why the recipient got the email, for example the notification rule.
+
+Each email also has a plain-text version with the same content, for mail clients that do not show HTML. The layout uses tables and inline styles only, so it renders consistently in Outlook, Gmail and mobile mail apps.
+
 ## Jira
 
 Under **Administration → Integrations → Jira**:

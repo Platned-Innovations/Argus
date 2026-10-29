@@ -106,16 +106,41 @@ describe('messages', () => {
     expect(e.html).toContain('acme/&lt;x&gt;');
     expect(e.html).toContain('Please look &lt;b&gt;now&lt;/b&gt;');
     expect(e.html).toContain('href="https://argus.example.com/tickets/1?a=1&amp;b=2"');
-    expect(e.text).toContain('Open in Argus: https://argus.example.com/tickets/1?a=1&b=2');
+    expect(e.html).toContain('Line &lt;two&gt; &amp; &quot;three&quot;');
+    expect(e.html).toContain('Line one<br>Line');
+    expect(e.text).toContain('Open ticket: https://argus.example.com/tickets/1?a=1&b=2');
     expect(emailSubject('a\r\nBcc: victim@example.com')).toBe('a Bcc: victim@example.com');
     expect(escapeHtml(`'"`)).toBe('&#39;&quot;');
   });
 
   it('uses the configured product name, escaped', () => {
-    const e = renderEmail(m, 'Contoso & Co');
+    const e = renderEmail({ ...m, event: 'test' }, 'Contoso & Co');
     expect(e.subject).toBe('[Contoso & Co] ARG-1 <script>alert(1)</script>');
     expect(e.text).toContain('Open in Contoso & Co: https://');
     expect(e.html).toContain('Sent by Contoso &amp; Co security monitoring.');
+    expect(e.html).toContain('>Open in Contoso &amp; Co</a>');
+  });
+
+  it('labels each kind of email, its button and why it was sent, in HTML and plain text', () => {
+    const alert = renderEmail(m);
+    expect(alert.html).toContain('>New ticket<');
+    expect(alert.html).toMatch(/>high<\/span>/);
+    expect(alert.html).toContain('>Open ticket</a>');
+    expect(alert.text.split('\n')[0]).toBe('Argus · New ticket · HIGH');
+    expect(alert.text).toContain('a notification rule in Argus sends new tickets to this address');
+    expect(alert.text).toContain('Message:\nPlease look <b>now</b>');
+
+    const invite = renderEmail({ event: 'invite', title: 'You are invited to Argus', summary: 'Join us.', severity: null, url: 'https://argus.example.com/invite#t', facts: [] });
+    expect(invite.html).toContain('>Create your account</a>');
+    expect(invite.html).not.toContain('text-transform:uppercase">info');
+    expect(invite.text).toContain('If you were not expecting it, you can ignore this email.');
+
+    const report = renderEmail({ event: 'monthly_report', title: 'October', summary: 'Posture', severity: null, url: null, facts: [], attachments: [{ filename: 'r<1>.pdf', contentType: 'application/pdf', content: Buffer.from('x') }] });
+    expect(report.html).toContain('Attached: <strong>r&lt;1&gt;.pdf</strong>');
+    expect(report.html).not.toContain('<a href');
+    expect(report.text).toContain('Attached: r<1>.pdf');
+
+    expect(renderEmail({ ...m, event: 'something_new' }).html).toContain('>Notification<');
   });
 
   it('renders Teams adaptive cards and Slack blocks without markup injection', () => {
