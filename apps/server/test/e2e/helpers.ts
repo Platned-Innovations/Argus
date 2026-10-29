@@ -1,5 +1,5 @@
-import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
 import { type INestApplication } from '@nestjs/common';
 import request from 'supertest';
 
@@ -40,7 +40,7 @@ export interface DbHarness {
 /** One harness per supported database, each backed by a throwaway container. */
 export function dbHarnesses(): DbHarness[] {
   let pg: StartedPostgreSqlContainer | undefined;
-  let mongo: StartedMongoDBContainer | undefined;
+  let mongo: StartedTestContainer | undefined;
   return [
     {
       name: 'postgres',
@@ -53,8 +53,14 @@ export function dbHarnesses(): DbHarness[] {
     {
       name: 'mongodb',
       async env() {
-        mongo = await new MongoDBContainer('mongo:8').start();
-        return { ARGUS_DB_TYPE: 'mongodb', ARGUS_DB_URL: `${mongo.getConnectionString()}?directConnection=true`, ARGUS_DB_NAME: 'argus_e2e' };
+        // Plain single node (Argus needs no replica set) with a small cache; see packages/data/test/mongo-container.ts.
+        mongo = await new GenericContainer('mongo:8.0')
+          .withCommand(['mongod', '--bind_ip_all', '--wiredTigerCacheSizeGB', '0.25'])
+          .withExposedPorts(27017)
+          .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))
+          .withStartupTimeout(120_000)
+          .start();
+        return { ARGUS_DB_TYPE: 'mongodb', ARGUS_DB_URL: `mongodb://${mongo.getHost()}:${mongo.getMappedPort(27017)}/?directConnection=true`, ARGUS_DB_NAME: 'argus_e2e' };
       },
       stop: async () => void (await mongo?.stop()),
     },
