@@ -53,18 +53,36 @@ export function dbHarnesses(): DbHarness[] {
     {
       name: 'mongodb',
       async env() {
-        // Plain single node (Argus needs no replica set) with a small cache; see packages/data/test/mongo-container.ts.
-        mongo = await new GenericContainer('mongo:8.0')
-          .withCommand(['mongod', '--bind_ip_all', '--wiredTigerCacheSizeGB', '0.25'])
-          .withExposedPorts(27017)
-          .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))
-          .withStartupTimeout(120_000)
-          .start();
-        return { ARGUS_DB_TYPE: 'mongodb', ARGUS_DB_URL: `mongodb://${mongo.getHost()}:${mongo.getMappedPort(27017)}/?directConnection=true`, ARGUS_DB_NAME: 'argus_e2e' };
+        // Same container setup as packages/data/test/mongo-container.ts (kept in sync).
+        const started = await startMongo();
+        mongo = started.container;
+        return { ARGUS_DB_TYPE: 'mongodb', ARGUS_DB_URL: started.url, ARGUS_DB_NAME: 'argus_e2e' };
       },
       stop: async () => void (await mongo?.stop()),
     },
   ];
+}
+
+const MONGO_IMAGE = process.env.ARGUS_TEST_MONGO_IMAGE ?? 'mongo:8.0';
+
+/** Single-node MongoDB; on failure the error includes mongod's own output so CI logs show the cause. */
+async function startMongo(): Promise<{ container: StartedTestContainer; url: string }> {
+  const output: string[] = [];
+  try {
+    const container = await new GenericContainer(MONGO_IMAGE)
+      .withCommand(['mongod', '--bind_ip_all', '--wiredTigerCacheSizeGB', '0.25'])
+      // MongoDB 8.0's TCMalloc needs glibc's rseq registration disabled on some kernels (see MongoDB production notes).
+      .withEnvironment({ GLIBC_TUNABLES: 'glibc.pthread.rseq=0' })
+      .withExposedPorts(27017)
+      .withLogConsumer((stream) => stream.on('data', (line: Buffer | string) => output.push(String(line).trimEnd())))
+      .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))
+      .withStartupTimeout(120_000)
+      .start();
+    return { container, url: `mongodb://${container.getHost()}:${container.getMappedPort(27017)}/?directConnection=true` };
+  } catch (err) {
+    const tail = output.slice(-40).join('\n');
+    throw new Error(`${err instanceof Error ? err.message : String(err)}\n--- ${MONGO_IMAGE} output ---\n${tail || '(no output)'}`);
+  }
 }
 
 export const BASE_TEST_ENV = {
