@@ -13,7 +13,36 @@ Azure Front Door / App Gateway (optional, WAF)
    Key Vault: ARGUS_MASTER_KEY, ARGUS_DB_URL (referenced from app settings)
 ```
 
-> A Bicep template that provisions all of this is planned for Phase 6. Until then, use the Azure CLI steps below.
+## Quick start: Bicep
+
+`deploy/azure/main.bicep` provisions everything in one resource group:
+
+| Resource | Notes |
+|---|---|
+| App Service plan (Linux) and Web App | Runs the Argus image. HTTPS only, TLS 1.2+, FTP off, Always On, health check on `/healthz`, system-assigned managed identity. |
+| Key Vault | RBAC, soft delete and purge protection. Holds the master key, the database URL and (optionally) the initial admin password. The web app reads them through Key Vault references and only has the *Key Vault Secrets User* role. |
+| Database | PostgreSQL Flexible Server 16 (Burstable B1ms, database `argus`, TLS required), or Cosmos DB for MongoDB vCore (M10) with `databaseType=mongodb`. |
+| Log Analytics | Receives console, HTTP and platform logs and metrics from the web app. |
+
+```bash
+cp deploy/azure/main.parameters.example.json deploy/azure/main.parameters.json   # fill in the secrets; do not commit it
+az group create -n argus-rg -l westeurope
+az deployment group what-if -g argus-rg -f deploy/azure/main.bicep -p @deploy/azure/main.parameters.json
+az deployment group create  -g argus-rg -f deploy/azure/main.bicep -p @deploy/azure/main.parameters.json
+```
+
+The outputs include the URL, the web app and the Key Vault names.
+
+- **Private images:** pass `registryServer`, `registryUsername` and `registryPassword` (or grant the web app's identity *AcrPull* on your registry).
+- **First start:** the role assignment that lets the web app read Key Vault can take a few minutes to propagate. If the first start fails to resolve the Key Vault references, restart the web app.
+- **Network:** the template allows Azure services to reach the database (firewall rule `0.0.0.0`), which is convenient but broad. For production, add VNet integration to the web app and a private endpoint to the database, then remove that rule.
+- **Custom domain:** set `publicUrl` so cookies, links in notifications and the OpenAPI document use it.
+
+The template is checked with `az bicep build` and the Bicep linter. Always run `what-if` in your subscription first: resource availability (SKUs, Cosmos DB for MongoDB vCore regions) differs between regions.
+
+## Manual setup with the Azure CLI
+
+The same result, step by step.
 
 ## 1. Push the image to Azure Container Registry
 
@@ -82,7 +111,7 @@ App Service sits behind a front end that adds `X-Forwarded-For`. The default `AR
 
 Open the **Log stream** for the Web App and look for `DEFAULT ADMIN CREATED`. Alternatively, set `ARGUS_ADMIN_PASSWORD` (as a Key Vault reference) **before** the first start. Sign in as `admin` and change the password.
 
-Configure the App Service health check path as `/readyz`.
+Configure the App Service health check path as `/healthz` (liveness). `/readyz` also checks the database, so a brief database outage would make App Service recycle every instance; use it for external monitoring instead.
 
 ## Scaling out on Azure
 

@@ -19,7 +19,7 @@ A threat-intelligence feed keeps Argus up to date with newly published vulnerabi
 
 Argus is self-hosted. It ships as a single Docker image, runs on Azure Web App for Containers, and stores its data in **PostgreSQL** or **MongoDB**.
 
-> **Status:** Phases 0–5 are complete: foundation, sources and scheduling, scanners and risk scoring, tickets and integrations, AI assistance, and threat intelligence. See the [roadmap](docs/features/README.md#roadmap) for what is built and what is coming.
+> **Status:** All phases (0–6) are complete: foundation, sources and scheduling, scanners and risk scoring, tickets and integrations, AI assistance, threat intelligence, and enterprise features (dashboards, reports, credential inventory, API tokens, metrics, Azure Bicep). See the [roadmap](docs/features/README.md#roadmap) for what is built and what is coming.
 
 ## Quick start (Docker)
 
@@ -46,6 +46,8 @@ If you prefer MongoDB, use `deploy/docker/docker-compose.mongo.yml` instead.
 | [Scanners, findings and risk scoring](docs/features/scanners-and-findings.md) | What is detected, how risk is scored, suppressions, `.argus.yml`, SBOM, data sources |
 | [Tickets, email, Jira and notifications](docs/features/tickets-and-notifications.md) | Ticket lifecycle and SLAs, Graph/SMTP email setup, Jira, Teams/Slack/webhook rules |
 | [Threat intelligence](docs/features/threat-intelligence.md) | Security news with AI extraction and review, Argus advisories, continuous re-matching, NVD |
+| [Dashboards, reports and credentials](docs/features/dashboards-and-reports.md) | Trends, MTTR, SLA compliance, printable reports, credential inventory with Entra ID import, data retention |
+| [API and automation](docs/features/api-and-automation.md) | Personal API tokens, OpenAPI, Prometheus metrics |
 | [AI assistance](docs/features/ai-assistance.md) | Claude, OpenAI or Gemini: fix suggestions, drafts, scan triage, and what is (and is never) sent |
 | [Configuration](docs/configuration.md) | Every environment variable and in-app setting |
 | [Docker deployment](docs/deployment/docker.md) | Compose, scaling out, backups |

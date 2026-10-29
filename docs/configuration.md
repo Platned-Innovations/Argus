@@ -38,6 +38,7 @@ Runtime policies (password rules, MFA, sessions) are set in the UI under **Admin
 | `ARGUS_NPM_REGISTRY_URL` | `https://registry.npmjs.org` | npm registry, or an internal proxy such as Artifactory or Azure Artifacts. |
 | `ARGUS_NUGET_URL` | `https://api.nuget.org/v3-flatcontainer` | NuGet flat-container endpoint. |
 | `ARGUS_NVD_URL` | `https://services.nvd.nist.gov/rest/json/cves/2.0` | NVD CVE API 2.0, used for CVSS scores that OSV does not provide. |
+| `ARGUS_METRICS_TOKEN` | — | Enables Prometheus metrics at `/metrics`; scrapers send it as a bearer token. At least 16 characters. |
 | `ARGUS_NVD_API_KEY` | — | Optional [NVD API key](https://nvd.nist.gov/developers/request-an-api-key). Raises NVD's rate limit from 5 to 50 requests per 30 seconds, so more scores are filled in per scan. Treat it as a secret. |
 | `ARGUS_GRAPH_URL` | `https://graph.microsoft.com` | Microsoft Graph endpoint. Change it for sovereign clouds, e.g. `https://graph.microsoft.us` (GCC High). |
 | `ARGUS_ENTRA_LOGIN_URL` | `https://login.microsoftonline.com` | Entra ID token endpoint, e.g. `https://login.microsoftonline.us`. |
@@ -46,6 +47,7 @@ Runtime policies (password rules, MFA, sessions) are set in the UI under **Admin
 | `ARGUS_WEB_DIR` | bundled | Directory containing the built web UI. |
 | `PORT` | `8080` | HTTP port. |
 | `WEBSITES_PORT` | — | Takes precedence over `PORT`. Set by Azure App Service. |
+| `ARGUS_NEW_MASTER_KEY` | — | Only for the `rotate-master-key` command; see [Rotating the master key](deployment/docker.md#rotating-the-master-key). |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. Logs are JSON on stdout. |
 
 ## In-app security settings

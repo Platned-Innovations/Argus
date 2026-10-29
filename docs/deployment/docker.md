@@ -54,6 +54,27 @@ Argus supports MongoDB 6 and later. PostgreSQL is not affected.
 |---|---|
 | `GET /healthz` | Liveness: the process is up. Used by the image `HEALTHCHECK`. |
 | `GET /readyz` | Readiness. Returns `200` when the database is reachable, otherwise `503`. Also reports the version, role, database type and the last worker heartbeat. |
+| `GET /metrics` | Prometheus metrics. Off unless `ARGUS_METRICS_TOKEN` is set; send it as `Authorization: Bearer <token>`. |
+| `GET /api/v1/openapi.json` | OpenAPI 3.1 description of the REST API, generated from the running code. |
+
+### Prometheus
+
+```yaml
+scrape_configs:
+  - job_name: argus
+    scheme: https
+    metrics_path: /metrics
+    authorization: { type: Bearer, credentials_file: /etc/prometheus/argus-metrics-token }
+    static_configs: [{ targets: ['argus.example.com'] }]
+```
+
+Metrics are computed from the database, so any one replica reports the whole installation:
+- `argus_findings_open{severity}`, `argus_findings_suppressed`, `argus_findings_fixed_7d`
+- `argus_tickets_active{severity}`, `argus_tickets_sla_breached`
+- `argus_repositories{state}`, `argus_users`, `argus_jobs{type,status}` (queue depth)
+- `argus_ai_cost_usd_month`, `argus_intel_items{status}`, `argus_advisories_active`
+- `argus_worker_heartbeat_age_seconds`: alert when this exceeds a few minutes, because no worker is running
+- `process_resident_memory_bytes`, `process_heap_used_bytes`, `process_uptime_seconds`, `argus_info{version,role,database}`
 
 ## Running the image directly
 
@@ -84,6 +105,30 @@ Terminate TLS at a reverse proxy or load balancer, then set `ARGUS_PUBLIC_URL=ht
 - **PostgreSQL:** `pg_dump`, or your provider's point-in-time restore.
 - **MongoDB:** `mongodump`, or Atlas / Cosmos DB backups.
 - **Back up `ARGUS_MASTER_KEY` separately from the database.** A database backup without the key cannot decrypt stored credentials or MFA secrets.
+
+## Rotating the master key
+
+Rotate `ARGUS_MASTER_KEY` if it may have been exposed, or on a schedule.
+
+1. Back up the database.
+2. Stop every Argus container.
+3. Run the rotation tool with the current key and the new one, using the same database settings. Try `--dry-run` first.
+
+   ```bash
+   docker run --rm --env-file .env -e ARGUS_NEW_MASTER_KEY="$(openssl rand -base64 48)" \
+     argus:latest node apps/server/dist/cli.js rotate-master-key --dry-run
+   ```
+
+   Then run the same command without `--dry-run`, using the **same** new key. Save it before running.
+4. Set `ARGUS_MASTER_KEY` to the new key everywhere, and start Argus.
+
+What the tool does:
+- **Re-encrypts every stored credential:** source tokens and webhook secrets, MFA secrets, notification-channel secrets, the Jira token, AI provider keys and the Entra import secret.
+- **Preserves existing hashes:** it keeps the keyed-hash key, encrypted with the new key. Refresh tokens, API tokens, MFA recovery codes and the identity of secret findings stay valid, so nobody is signed out and no findings are duplicated.
+- **Is safe to re-run:** values already encrypted with the new key are skipped.
+- **Reports anything unreadable:** a value it cannot decrypt with either key is listed and left unchanged.
+
+Access tokens signed with the old key expire, and browsers renew them automatically. After the rotation, the old key no longer decrypts anything; retire it.
 
 ## Upgrading
 

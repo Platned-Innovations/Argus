@@ -25,7 +25,7 @@ Argus is a TypeScript monorepo that produces **one Docker image**. The same imag
 | `apps/web` | React single-page app (Vite, Tailwind CSS, TanStack Query). Built to static files, which the API serves in production. |
 | `packages/shared` | Types, roles, permissions, validation schemas (zod) and the password policy. Shared by the server and the browser, so both enforce the same rules. |
 | `packages/data` | The `DataStore` interface and its two adapters: PostgreSQL and MongoDB. |
-| `deploy/` | Dockerfile and docker compose files. Azure infrastructure templates are added in a later phase. |
+| `deploy/` | Dockerfile, docker compose files and the Azure Bicep template (`deploy/azure/main.bicep`). |
 
 ## Runtime roles
 
@@ -100,6 +100,7 @@ Modules communicate through a small in-process event bus (`DomainEvents`) rather
 | `findings.changed` | suppressions | tickets (accept / reopen) |
 | `ticket.created`, `ticket.reopened`, `ticket.sla_breached` | tickets | notifications |
 | `intel.emerging_threats` | continuous re-matching | notifications |
+| `credential.expiring` | credential inventory (daily) | notifications |
 | `scheduler.tick` | leader scheduler | SLA checks, Jira sync, weekly digests, news-feed fetching, scheduled re-matching |
 
 Notifications are delivered through the job queue (`notification.deliver`), with retries. In split deployments, events are handled in the process that raises them (scans in workers, suppression changes in the API), and delivery always runs on a worker.
@@ -149,6 +150,14 @@ Background jobs, all through the job queue:
 | `intel.rematch` | schedule (OSV refresh), **Re-check now**, new Argus advisories | Matches every stored inventory; opens findings, publishes `findings.changed` and `intel.emerging_threats`. |
 
 Scans and re-matching share one matcher (`scanning/vulnerability-matcher.ts`) and one finding builder (`scanning/observe.ts`), so the same vulnerability always gets the same fingerprint. See [Threat intelligence](features/threat-intelligence.md).
+
+## Operations
+
+- **API tokens** authenticate in the same guard as sessions (`Authorization: Bearer argus_pat_…`); the permissions guard then requires the endpoint's permissions in both the owner's role and the token's scopes.
+- **`/metrics`** (Prometheus) and **`/api/v1/openapi.json`** are served by the API role. The OpenAPI document is generated at runtime from the controllers' route metadata and the zod schemas of their validation pipes.
+- **Dashboards** are computed on request from lean finding and ticket rows (`statsRows`), so no separate history store is needed.
+- **Retention** runs in the scheduler's housekeeping.
+- **`apps/server/dist/cli.js`** holds offline tools; today `rotate-master-key`.
 
 ## AI gateway
 

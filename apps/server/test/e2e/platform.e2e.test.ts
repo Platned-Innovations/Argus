@@ -9,6 +9,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
 import { AppConfig } from '../../src/config/app-config';
 import { DATA_STORE } from '../../src/core/tokens';
+import { CredentialsService } from '../../src/credentials/credentials.service';
+import { NotificationsService } from '../../src/integrations/notifications.service';
 import { BASE_TEST_ENV, Client, dbHarnesses } from './helpers';
 
 const harnesses = dbHarnesses();
@@ -131,7 +133,6 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       const channel = (await admin.call('post', '/api/v1/integrations/channels', { type: 'webhook', name: 'Ops hook', enabled: true, config: { url: `${graphUrl()}/hook` }, secret: 'whsec_0123456789abcdef' })).body.id;
       await admin.call('post', '/api/v1/integrations/rules', { name: 'Expiring credentials', events: ['credential_expiring'], minSeverity: 'medium', channelIds: [channel] });
       await admin.call('post', '/api/v1/credentials', { name: 'Expired DB password', kind: 'password', system: 'Azure SQL', expiresAt: new Date(Date.now() - 86_400_000).toISOString() });
-      const { CredentialsService } = await import('../../src/credentials/credentials.service');
       const svc = app.get(CredentialsService);
       // The expired password, and the imported Entra secret that expires in 12 days (its 14-day notice).
       expect(await svc.sendNotices(new Date())).toBe(2);
@@ -228,7 +229,6 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
     });
 
     it('builds the monthly report notification from the same figures', async () => {
-      const { NotificationsService } = await import('../../src/integrations/notifications.service');
       const msg = await app.get(NotificationsService).monthlyReportMessage({ id: 'r', name: 'All', enabled: true, events: ['monthly_report'], minSeverity: 'low', teamIds: [], channelIds: [], recipients: [], includeRepoRecipients: false, createdAt: new Date(), updatedAt: new Date() });
       expect(msg.title).toMatch(/^Security report — /);
       expect(msg.summary).toContain('0 open finding(s)');
