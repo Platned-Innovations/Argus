@@ -465,6 +465,11 @@ export class PgJobRepo implements JobRepo {
     const res = await this.db.deleteFrom('jobs').where('finishedAt', '<', before).where('status', 'not in', ACTIVE_JOB_STATUSES).executeTakeFirst();
     return Number(res.numDeletedRows);
   }
+  async countByStatus(): Promise<{ type: string; status: JobStatus; count: number }[]> {
+    const rows = await this.db.selectFrom('jobs').select(['type', 'status', sql<number>`count(*)::int`.as('count')]).groupBy(['type', 'status']).execute();
+    return rows.map((r) => ({ ...r, status: r.status as JobStatus }));
+  }
+
 }
 
 export class PgLockRepo implements LockRepo {

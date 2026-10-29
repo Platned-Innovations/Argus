@@ -3,7 +3,7 @@ import { type z } from 'zod';
 
 /** Validates and normalises a request body/query against a shared zod schema. */
 export class ZodPipe<S extends z.ZodType> implements PipeTransform<unknown, z.infer<S>> {
-  constructor(private readonly schema: S) {}
+  constructor(readonly schema: S) {}
 
   transform(value: unknown): z.infer<S> {
     const result = this.schema.safeParse(value ?? {});

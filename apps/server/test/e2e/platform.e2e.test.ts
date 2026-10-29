@@ -8,6 +8,7 @@ import { AppConfig } from '../../src/config/app-config';
 import { BASE_TEST_ENV, Client, dbHarnesses } from './helpers';
 
 const harnesses = dbHarnesses();
+const METRICS_TOKEN = 'metrics-token-0123456789';
 
 describe.each(harnesses)('platform e2e: $name', (h) => {
   let app: INestApplication;
@@ -23,7 +24,7 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
 
   beforeAll(async () => {
     const env = await h.env();
-    app = await createApiApp(AppConfig.fromEnv({ ...env, ...BASE_TEST_ENV, ARGUS_ADMIN_PASSWORD: 'Initial-Admin-Pass-1', ARGUS_ROLE: 'api' }));
+    app = await createApiApp(AppConfig.fromEnv({ ...env, ...BASE_TEST_ENV, ARGUS_ADMIN_PASSWORD: 'Initial-Admin-Pass-1', ARGUS_ROLE: 'api', ARGUS_METRICS_TOKEN: METRICS_TOKEN }));
     await app.init();
     admin = new Client(app);
     await admin.login('admin', 'Initial-Admin-Pass-1');
@@ -101,6 +102,41 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       const audit = (await admin.call('get', '/api/v1/audit?action=api_token.revoked')).body.items;
       expect(audit[0]).toMatchObject({ actorName: 'admin', targetId: tokenId });
       void bearer;
+    });
+  });
+
+  describe('metrics and OpenAPI', () => {
+    it('serves Prometheus metrics only with the metrics token', async () => {
+      expect((await request(app.getHttpServer()).get('/metrics')).status).toBe(401);
+      expect((await request(app.getHttpServer()).get('/metrics').set('Authorization', 'Bearer wrong-token-0123456789')).status).toBe(401);
+      const res = await request(app.getHttpServer()).get('/metrics').set('Authorization', `Bearer ${METRICS_TOKEN}`);
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/^text\/plain;.*version=0\.0\.4/);
+      expect(res.text).toMatch(/^# HELP argus_info /m);
+      expect(res.text).toContain(`role="api",database="${h.name}"} 1`);
+      expect(res.text).toMatch(/^argus_findings_open\{severity="critical"\} \d+$/m);
+      expect(res.text).toMatch(/^argus_users 2$/m);
+      expect(res.text).toMatch(/^argus_worker_heartbeat_age_seconds -?\d+$/m);
+      // Session cookies do not grant access to metrics.
+      expect((await admin.call('get', '/metrics')).status).toBe(401);
+    });
+
+    it('describes the API from the running code, with permissions and validation schemas', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/openapi.json');
+      expect(res.status).toBe(200);
+      const doc = res.body as { openapi: string; paths: Record<string, Record<string, Record<string, unknown>>> };
+      expect(doc.openapi).toBe('3.1.0');
+      const createAdvisory = doc.paths['/api/v1/intel/advisories'].post;
+      expect(createAdvisory['x-argus-permissions']).toEqual(['intel:manage']);
+      const body = (createAdvisory.requestBody as { content: { 'application/json': { schema: { properties: Record<string, unknown>; required: string[] } } } }).content['application/json'].schema;
+      expect(body.required).toEqual(expect.arrayContaining(['ecosystem', 'packageName', 'affectedRange']));
+      expect(body.properties.ecosystem).toMatchObject({ enum: ['npm', 'nuget'] });
+      const listFindings = doc.paths['/api/v1/findings'].get;
+      expect((listFindings.parameters as { name: string; in: string }[]).map((p) => p.name)).toEqual(expect.arrayContaining(['page', 'pageSize', 'repoId']));
+      expect(doc.paths['/api/v1/tickets/{id}'].get.parameters).toEqual([expect.objectContaining({ name: 'id', in: 'path' })]);
+      expect(doc.paths['/api/v1/me/tokens'].post.security).toEqual([{ session: [] }]);
+      expect(doc.paths['/healthz'].get.security).toEqual([]);
+      expect(Object.keys(doc.paths).length).toBeGreaterThan(60);
     });
   });
 });
