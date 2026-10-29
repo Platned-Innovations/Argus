@@ -21,6 +21,8 @@ RUN npm ci --no-audit --no-fund
 COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
+# The web app bundles docs/ as its in-app documentation.
+COPY docs docs
 RUN npm run build \
  && npm prune --omit=dev --no-audit --no-fund
 

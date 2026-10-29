@@ -146,6 +146,33 @@ test.describe.serial('Argus in a browser', () => {
     expect(guestErrors).toEqual([]);
   });
 
+  test('shows the bundled documentation and the live API reference', async ({ page }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.getByRole('link', { name: 'Documentation' }).click();
+    await expect(page).toHaveURL(/\/docs$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Argus documentation' })).toBeVisible();
+
+    // Links between docs stay in the app; a link to a heading scrolls to it.
+    await page.getByRole('article').getByRole('link', { name: 'User management' }).first().click();
+    await expect(page).toHaveURL(/\/docs\/features\/user-management$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'User management' })).toBeVisible();
+    await page.goto('/docs/features/user-management#invite-links');
+    await expect(page.getByRole('heading', { level: 2, name: /Invite links/ })).toBeInViewport();
+
+    await page.getByLabel('Search the docs').fill('gitleaks offline');
+    await page.getByRole('navigation', { name: 'Documentation' }).getByRole('link', { name: /Scanners, findings/ }).click();
+    await expect(page).toHaveURL(/\/docs\/features\/scanners-and-findings$/);
+
+    await page.getByRole('link', { name: 'API reference' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'API reference' })).toBeVisible();
+    await page.getByLabel('Filter endpoints').fill('invites/accept');
+    await page.getByRole('button', { name: /\/api\/v1\/invites\/accept/ }).click();
+    await expect(page.getByText('JSON body')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'username*' })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
   test('branding changes the product name on the sign-in page', async ({ page }) => {
     const errors = watchErrors(page);
     await signIn(page);

@@ -1,6 +1,6 @@
 import { type Permission } from '@argus/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode, type ReactNode } from 'react';
+import { lazy, StrictMode, Suspense, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router';
 import { Toaster } from 'sonner';
@@ -37,6 +37,9 @@ import './styles.css';
 import 'sonner/dist/styles.css';
 import { ShieldOff } from 'lucide-react';
 
+// The documentation bundles every page of docs/, so it is only downloaded when opened.
+const DocsPage = lazy(() => import('./pages/DocsPage').then((m) => ({ default: m.DocsPage })));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -72,6 +75,7 @@ function App() {
             <Routes>
               <Route index element={<DashboardPage />} />
               <Route path="profile" element={<ProfilePage />} />
+              <Route path="docs/*" element={<Suspense fallback={<CenteredSpinner />}><DocsPage /></Suspense>} />
               <Route path="repositories" element={<Allow permission="repos:read"><RepositoriesPage /></Allow>} />
               <Route path="repositories/:id" element={<Allow permission="repos:read"><RepositoryDetailPage /></Allow>} />
               <Route path="findings" element={<Allow permission="findings:read"><FindingsPage /></Allow>} />
