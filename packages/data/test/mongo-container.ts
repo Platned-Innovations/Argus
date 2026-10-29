@@ -12,6 +12,9 @@ export async function startMongo(): Promise<{ container: StartedTestContainer; u
   try {
     const container = await new GenericContainer(MONGO_IMAGE)
       .withCommand(['mongod', '--bind_ip_all', '--wiredTigerCacheSizeGB', '0.25'])
+      // MongoDB 8 refuses to start on Linux 6.19+ kernels (SERVER-121912), which GitHub's runners now use, while
+      // TCMalloc per-CPU caches are active. glibc owning rseq turns those caches off and lets mongod start.
+      .withEnvironment({ GLIBC_TUNABLES: 'glibc.pthread.rseq=1' })
       .withExposedPorts(27017)
       .withLogConsumer((stream) => stream.on('data', (line: Buffer | string) => output.push(String(line).trimEnd())))
       .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))

@@ -36,9 +36,15 @@ docker compose -f deploy/docker/docker-compose.postgres.yml logs argus | grep "D
 
 MongoDB 8.0.x and 8.3.x refuse to start on hosts running Linux kernel 6.19 or newer. They exit with *"Linux kernel versions 6.19 and newer has a known incompatibility with this version of MongoDB"* ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)). Ubuntu 26.04 ships such a kernel.
 
-If you run MongoDB yourself on such a host, either:
-- pin the compose file's `mongo` image to `mongo:7.0`, or
-- use a managed service (MongoDB Atlas, Azure Cosmos DB for MongoDB).
+MongoDB only refuses when TCMalloc's per-CPU caches are active. The supplied `docker-compose.mongo.yml` therefore sets `GLIBC_TUNABLES=glibc.pthread.rseq=1` on the `mongo` service, which turns those caches off, so mongod starts on any kernel. The cost is slightly lower memory-allocator throughput. This is the community workaround (see [docker-library/mongo#765](https://github.com/docker-library/mongo/issues/765)), not an upstream fix.
+
+If you run MongoDB yourself on such a host, choose one of:
+- set the same environment variable on your `mongo` container
+- upgrade to a MongoDB release that supports your kernel, when one is available for your version
+- pin the `mongo` image to `mongo:7.0`
+- use a managed service (MongoDB Atlas, Azure Cosmos DB for MongoDB)
+
+Argus's own tests run MongoDB the same way, because GitHub's runners now use such kernels.
 
 Argus supports MongoDB 6 and later. PostgreSQL is not affected.
 

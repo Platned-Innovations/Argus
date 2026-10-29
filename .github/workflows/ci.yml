@@ -16,7 +16,8 @@ concurrency:
 jobs:
   verify:
     name: Lint, typecheck, test, build
-    # MongoDB 8.0 refuses to start on Linux kernel 6.19+ (SERVER-121912), which ubuntu-latest (Ubuntu 26) ships.
+    # Runners have Linux 6.19+ kernels, on which MongoDB 8 refuses to start (SERVER-121912); the test containers
+    # set GLIBC_TUNABLES=glibc.pthread.rseq=1 to get past it (packages/data/test/mongo-container.ts, e2e/helpers.ts).
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
