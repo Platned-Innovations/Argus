@@ -26,6 +26,20 @@ cp .env.example .env
 docker compose -f deploy/docker/docker-compose.postgres.yml --env-file .env up -d --build
 ```
 
+### Using your own database server
+
+By default each compose file starts its own database container, and the data lives in that stack's volume. To use an existing server instead, set `ARGUS_DB_URL` in `.env`; it takes precedence over the bundled container. For MongoDB, also set `ARGUS_DB_NAME` if it is not `argus`. Then start only Argus:
+
+```bash
+docker compose -f deploy/docker/docker-compose.postgres.yml --env-file .env up -d --build --no-deps argus
+```
+
+- Use the compose file that matches the server: `docker-compose.postgres.yml` for PostgreSQL, `docker-compose.mongo.yml` for MongoDB.
+- Inside the container, `localhost` means the container itself. For a database on the Docker host, use `host.docker.internal`.
+- **Several Argus instances can share one database** (for example a VM and a workstation). The scheduler takes a database lock, so only one queues scheduled scans at a time.
+- **Instances that share a database must also share `ARGUS_MASTER_KEY`.** With a different key, an instance cannot decrypt stored MFA secrets, source tokens or channel secrets: MFA codes are rejected and scans cannot authenticate.
+- An instance on its own (bundled) database is a separate installation: its own users, MFA, sources and findings.
+
 On first start, Argus creates the database schema and the default administrator. If you did not set `ARGUS_ADMIN_PASSWORD`, read the generated password from the log:
 
 ```bash

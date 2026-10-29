@@ -1,6 +1,10 @@
 # Argus + PostgreSQL.
 #   cp .env.example .env   # then set ARGUS_MASTER_KEY
 #   docker compose -f deploy/docker/docker-compose.postgres.yml --env-file .env up -d --build
+#
+# Uses the bundled PostgreSQL container unless ARGUS_DB_URL is set in .env. To use your own server instead
+# (e.g. one shared with another Argus instance), set ARGUS_DB_URL and start only Argus:
+#   docker compose -f deploy/docker/docker-compose.postgres.yml --env-file .env up -d --build --no-deps argus
 name: argus-postgres
 
 services:
@@ -30,9 +34,12 @@ services:
         condition: service_healthy
     ports:
       - '${ARGUS_HTTP_PORT:-8080}:8080'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     environment:
       ARGUS_DB_TYPE: postgres
-      ARGUS_DB_URL: postgres://argus:${POSTGRES_PASSWORD:-argus-change-me}@postgres:5432/argus
+      # ARGUS_DB_URL from .env wins; otherwise the bundled container. Use host.docker.internal for a database on this host.
+      ARGUS_DB_URL: ${ARGUS_DB_URL:-postgres://argus:${POSTGRES_PASSWORD:-argus-change-me}@postgres:5432/argus}
       ARGUS_MASTER_KEY: ${ARGUS_MASTER_KEY:?Set ARGUS_MASTER_KEY in .env (openssl rand -base64 48)}
       ARGUS_ADMIN_PASSWORD: ${ARGUS_ADMIN_PASSWORD:-}
       ARGUS_PUBLIC_URL: ${ARGUS_PUBLIC_URL:-http://localhost:8080}
