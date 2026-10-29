@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { type Repository, type ScanRun, type Ticket } from '@argus/data';
+import { type Credential, type Repository, type ScanRun, type Ticket } from '@argus/data';
 import { type EmergingThreatDto } from '@argus/shared';
 
 /** A new advisory that matched repositories between scans. */
@@ -21,6 +21,8 @@ export interface DomainEventMap {
   'ticket.sla_breached': { ticket: Ticket };
   /** Continuous re-matching opened findings for newly published advisories. */
   'intel.emerging_threats': { threats: EmergingThreat[] };
+  /** A tracked credential reached an expiry notice threshold (daysLeft < 0 once expired). */
+  'credential.expiring': { credential: Credential; daysLeft: number };
   /** The leader scheduler ticked (at most once per interval across all workers). */
   'scheduler.tick': { now: Date };
 }

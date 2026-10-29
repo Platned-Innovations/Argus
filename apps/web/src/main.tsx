@@ -18,6 +18,8 @@ import { TeamsPage } from './pages/admin/TeamsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FindingsPage } from './pages/FindingsPage';
+import { CredentialsPage } from './pages/CredentialsPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { ThreatIntelPage } from './pages/ThreatIntelPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
 import { TicketsPage } from './pages/TicketsPage';
@@ -75,6 +77,8 @@ function App() {
               <Route path="admin/scanning" element={<Allow permission="settings:read"><ScanningSettingsPage /></Allow>} />
               <Route path="tickets" element={<Allow permission="tickets:read"><TicketsPage /></Allow>} />
               <Route path="tickets/:id" element={<Allow permission="tickets:read"><TicketDetailPage /></Allow>} />
+              <Route path="credentials" element={<Allow permission="findings:read"><CredentialsPage /></Allow>} />
+              <Route path="reports" element={<Allow permission="reports:read"><ReportsPage /></Allow>} />
               <Route path="intel" element={<Allow permission="findings:read"><ThreatIntelPage /></Allow>} />
               <Route path="admin/ai" element={<Allow permission="settings:manage"><AiSettingsPage /></Allow>} />
               <Route path="admin/integrations" element={<Allow permission="settings:manage"><IntegrationsPage /></Allow>} />

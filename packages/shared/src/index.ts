@@ -8,3 +8,7 @@ export * from './findings';
 export * from './tickets';
 export * from './ai';
 export * from './intel';
+export * from './api-tokens';
+export * from './dashboard';
+export * from './credentials';
+export * from './operations';

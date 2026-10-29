@@ -20,6 +20,8 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | GitHub and Bitbucket access tokens and per-source webhook secrets are stored with this encryption. | ✅ |
 | SMTP passwords, Microsoft Graph and OAuth2 client secrets, Teams/Slack webhook URLs, webhook signing secrets and Jira tokens are stored with the same encryption, and are write-only: the API shows only a hint (`••••abcd` or the webhook host). | ✅ |
 | AI provider keys (Anthropic, OpenAI, Gemini) are stored with the same encryption and are write-only (`••••abcd`). They are sent only to the provider's configured endpoint, never logged, and redacted from any error message. | ✅ |
+| **Master-key rotation** (`rotate-master-key` CLI) re-encrypts every stored credential with a new key and keeps keyed hashes valid; it is idempotent and reports anything it cannot decrypt. See [Docker deployment](deployment/docker.md#rotating-the-master-key). | ✅ |
+| **Credential inventory** records what a credential is, its owner and expiry, never its value. The Microsoft Entra ID import secret is encrypted and write-only, and Graph paging links are followed only on the Graph host. | ✅ |
 | **Write-only credentials.** The API never returns a stored credential; for source tokens it shows only the last four characters (`••••abcd`). Changing a token or connection setting re-tests the connection before saving. A webhook secret is shown once, when it is created or rotated. | ✅ |
 | **Detected secrets are never stored in full.** A leaked secret found in a repository is kept only as a masked preview (for example `AKIA…MPLE`; private keys show only "PEM private key") plus an HMAC-SHA256 hash, keyed by this installation, which is used to recognise the same secret across files and scans. Gitleaks' raw report is deleted as soon as it has been read. Argus never becomes a second copy of your leaked secrets. | ✅ |
 | Passwords are hashed with **argon2id** (19 MiB memory, 2 iterations; the OWASP recommendation). They are never stored reversibly or logged. | ✅ |
@@ -41,7 +43,8 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | **Recovery codes:** 10 single-use codes, shown once and stored as keyed hashes. | ✅ |
 | **Organisation-wide MFA enforcement.** When enabled, users without MFA must enroll before doing anything else, and they cannot turn MFA off. | ✅ |
 | Per-IP **rate limiting** on credential endpoints (`ARGUS_AUTH_RATE_LIMIT`, default 10 per minute). | ✅ |
-| Personal API tokens (scoped and expiring) for CI and automation. | 🔜 Phase 6 |
+| **Personal API tokens** for CI and automation: random 256-bit tokens with a recognisable prefix (`argus_pat_`), shown once and stored only as a keyed hash; chosen scopes, always limited to the owner's current role; mandatory expiry (7–365 days); revocable by the owner or an administrator; last use (time and IP) recorded. | ✅ |
+| **API tokens are default-deny.** They only reach endpoints that declare the permissions they need, and are refused on sign-in, MFA, password and token-management endpoints, so a leaked token cannot mint or hide other tokens. A token stops working when its owner is disabled or must change their password or enrol in MFA. | ✅ |
 
 ## 3. Sessions
 
@@ -73,6 +76,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | CSV export is protected against spreadsheet formula injection (cells beginning with `=`, `+`, `-` or `@` are neutralised). | ✅ |
 | Source changes are audited: creation, edits (including token rotation), deletion, webhook-secret rotation, sync requests and sync results. So are repository setting changes, bulk changes, and manual scan requests. | ✅ |
 | Suppression creation and removal, SBOM exports and scanning-settings changes are audited, with before and after values for settings. | ✅ |
+| API token creation and revocation, report exports, credential inventory changes, Entra imports, retention runs and retention-settings changes are audited. | ✅ |
 | Threat-intelligence actions are audited: news source changes, review decisions (including automatic approvals), Argus advisory creation, withdrawal and restoration, and intel settings changes. | ✅ |
 | Ticket actions (status changes with justification, assignment, labels, emails sent, Jira issues created, exports) are recorded both in the ticket's activity and in the audit log. So are changes to channels, notification rules, Jira and SLA settings. | ✅ |
 | AI actions are audited: every provider request (`ai.request`: use case, provider, model, repository, token counts, estimated cost, number of redactions, outcome), AI settings changes (including which keys changed, never the keys) and connection tests. Prompt and answer contents are never audited or logged. | ✅ |
@@ -92,6 +96,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | **Untrusted repository content is parsed defensively.**<br>• XML (`.csproj`, `packages.config`) is parsed without DTDs or external entities.<br>• YAML (`pnpm-lock.yaml`, `yarn.lock`, `.argus.yml`) is parsed with alias-expansion limits.<br>• Files are read with size caps, and binary files are skipped.<br>• Symbolic links are never followed.<br>• Nothing from a repository is ever executed. | ✅ |
 | **Threat-intelligence lookups never send code or secrets.** OSV and the npm/NuGet registries receive package names and versions, EPSS and NVD receive CVE ids, and endoflife.date receives product names. The full list is in [Data sources](features/scanners-and-findings.md#data-sources-caching-and-offline-mode). `ARGUS_OFFLINE=true` turns all of these lookups off, and each URL can point at an internal mirror. | ✅ |
 | **Security news is fetched defensively.** Feeds must be HTTPS, redirects to plain HTTP are refused, responses are capped at 5 MB and 200 entries, XML is parsed without DTDs or external entities, and HTML (including scripts) is reduced to plain text before it is stored, shown or sent to AI. Links are kept only if they are http(s). | ✅ |
+| **Live secret verification is opt-in** (off by default). When enabled, a detected GitHub, GitLab, Slack or npm token is sent only to its own issuer's official API, in one read-only request, with redirects refused and nothing logged; at most 25 per scan. | ✅ |
 | **Continuous re-matching never clones.** It reads the stored dependency inventory (package names and versions) and asks OSV and NVD about package versions and CVE ids only. | ✅ |
 | The bundled **Gitleaks is built from pinned source** when the image is built: the release's exact commit (verified), a current Go toolchain pinned by image digest, and patched Go modules pinned by version and verified against the Go checksum database. Upstream release binaries are not used because they carry CVEs from their older toolchain. | ✅ |
 | **Lean runtime image.** npm, npx, corepack and Yarn, which ship with the Node base image but are never used at runtime, are removed. CI fails the build on any fixable high or critical vulnerability found by Trivy. | ✅ |
@@ -129,6 +134,9 @@ AI features are optional and switched off until an administrator configures a pr
 | **Outbound webhooks are HMAC-signed** (`X-Argus-Signature` over timestamp and body), so receivers can verify origin and reject replays. | ✅ |
 | **Outbound calls to configured services are hardened.**<br>• Graph, Entra ID, Jira, Teams, Slack and webhooks: HTTPS only (plain HTTP only on loopback), redirects refused so a credential never follows a redirect elsewhere, 15-second timeouts.<br>• Email: TLS 1.2+ only.<br>• Errors shown to administrators are redacted of secrets. | ✅ |
 | **Notification content is escaped for each format.**<br>• HTML email escapes every value.<br>• Subjects are single-line, preventing header injection.<br>• Slack text escapes `&`, `<` and `>` so values cannot inject links or mentions.<br>• Jira descriptions use Atlassian Document Format text nodes. | ✅ |
+| **Prometheus metrics are off by default** and, when enabled, require their own bearer token (`ARGUS_METRICS_TOKEN`), compared in constant time; sessions and API tokens do not grant access. Metrics contain counts only. | ✅ |
+| **Data retention** is configurable (scan runs, fixed findings, audit log, news items, AI usage); the audit log is kept forever unless an administrator chooses otherwise. | ✅ |
+| **Azure template defaults are hardened:** HTTPS only, TLS 1.2+, FTP disabled, secrets in Key Vault (RBAC, purge protection) read through the web app's managed identity with the least-privilege *Key Vault Secrets User* role, logs to Log Analytics. | ✅ |
 | Actions that call third parties (email, Jira, channel tests, AI requests) are rate-limited per client. A failing third party returns HTTP 502 with a redacted, human-readable message. | ✅ |
 
 ## 9. Operator checklist
@@ -139,4 +147,6 @@ AI features are optional and switched off until an administrator configures a pr
 4. Create named administrator accounts for real people, and use `admin` only for break-glass access.
 5. Restrict database network access to the Argus containers only, and enable encryption at rest on the database.
 6. Review the audit log regularly, or export it to your SIEM.
-7. If you enable AI assistance, set a monthly budget, turn on only the features you need, and clear **Allow AI assistance** on repositories whose code must not leave your network. Prefer a provider account or gateway that does not retain or train on API data.
+7. Enable Prometheus metrics only with a long random `ARGUS_METRICS_TOKEN`, and give CI pipelines API tokens with the fewest scopes and the shortest lifetime that work.
+8. Rotate `ARGUS_MASTER_KEY` if it may have been exposed (see [Docker deployment](deployment/docker.md#rotating-the-master-key)).
+9. If you enable AI assistance, set a monthly budget, turn on only the features you need, and clear **Allow AI assistance** on repositories whose code must not leave your network. Prefer a provider account or gateway that does not retain or train on API data.

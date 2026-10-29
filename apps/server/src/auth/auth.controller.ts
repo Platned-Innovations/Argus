@@ -20,7 +20,7 @@ import { SettingsService } from '../core/settings.service';
 import { toMeDto } from '../users/user.mapper';
 import { AuthService, type LoginResult } from './auth.service';
 import { clearAuthCookies, REFRESH_COOKIE, setAuthCookies } from './cookies';
-import { AllowRestricted, CurrentUser, Public, SkipCsrf } from './decorators';
+import { AllowRestricted, CurrentUser, Public, SessionOnly, SkipCsrf } from './decorators';
 
 export const AUTH_RATE_LIMIT_SETTING = 'argus.authRateLimit';
 
@@ -33,6 +33,7 @@ const STRICT_LIMIT = {
 };
 
 @Controller('auth')
+@SessionOnly()
 export class AuthController {
   constructor(
     private readonly auth: AuthService,

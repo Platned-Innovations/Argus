@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { type FindingStatRow, type StatsFilter } from '../platform-models';
 import { type Kysely, type Selectable, sql } from 'kysely';
 import { type FindingStatus, type ScannerName, SCANNERS, type Severity, SEVERITIES } from '@argus/shared';
 import {
@@ -18,6 +19,9 @@ import {
 import { type Page } from '../models';
 import { type CacheRepo, type DependencyRepo, type FindingRepo, type SuppressionRepo } from '../store';
 import { type Database, type DependenciesTable, type FindingsTable, type SuppressionsTable } from './schema';
+
+/** Upper bound on rows for dashboard statistics. */
+const STATS_LIMIT = 200_000;
 
 type Db = Kysely<Database>;
 const CHUNK = 500;
@@ -194,6 +198,22 @@ export class PgFindingRepo implements FindingRepo {
         .execute();
     }
   }
+
+  async statsRows(f: StatsFilter): Promise<FindingStatRow[]> {
+    if (f.visibleTeamIds && f.visibleTeamIds.length === 0) return [];
+    let q = this.db
+      .selectFrom('findings')
+      .select(['repoId', 'scanner', 'severity', 'riskScore', 'status', 'firstSeenAt', 'fixedAt', 'title', 'details'])
+      .where((eb) => eb.or([eb('status', '!=', 'fixed'), eb('firstSeenAt', '>=', f.since), eb('fixedAt', '>=', f.since)]));
+    if (f.visibleTeamIds) q = q.where('teamId', 'in', f.visibleTeamIds);
+    if (f.teamId) q = q.where('teamId', '=', f.teamId);
+    if (f.repoId) q = q.where('repoId', '=', f.repoId);
+    return (await q.limit(STATS_LIMIT).execute()).map((r) => ({ ...r, scanner: r.scanner as ScannerName, severity: r.severity as Severity, status: r.status as FindingStatus, details: r.details ?? null }));
+  }
+  async deleteFixedBefore(before: Date): Promise<number> {
+    return Number((await this.db.deleteFrom('findings').where('status', '=', 'fixed').where('fixedAt', '<', before).executeTakeFirst()).numDeletedRows);
+  }
+
 
   async listAllForRepo(repoId: string): Promise<Finding[]> {
     return (await this.db.selectFrom('findings').selectAll().where('repoId', '=', repoId).execute()).map(toFinding);

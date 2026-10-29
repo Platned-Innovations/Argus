@@ -52,6 +52,7 @@ export async function createApiApp(config: AppConfig): Promise<NestExpressApplic
     exclude: [
       { path: 'healthz', method: RequestMethod.GET },
       { path: 'readyz', method: RequestMethod.GET },
+      { path: 'metrics', method: RequestMethod.GET },
     ],
   });
   app.enableShutdownHooks();

@@ -208,6 +208,11 @@ export function scanningContract(getStore: () => DataStore): void {
       expect(await store.jobs.complete(claimed.id, 'w1')).toBe(true);
       expect((await store.jobs.findById(claimed.id))?.status).toBe('succeeded');
       expect(await store.jobs.enqueue({ type: t, payload: {}, dedupeKey: key })).not.toBeNull();
+      const counts = (await store.jobs.countByStatus()).filter((c) => c.type === t);
+      expect(counts.sort((a, b) => a.status.localeCompare(b.status))).toEqual([
+        { type: t, status: 'queued', count: 1 },
+        { type: t, status: 'succeeded', count: 1 },
+      ]);
     });
 
     it('claims by priority then age, never twice concurrently, respecting runAt', async () => {

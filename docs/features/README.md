@@ -13,7 +13,9 @@ Status legend: ✅ available · 🔜 planned (phase shown)
 | Audit log with filtering and CSV export | ✅ | [User management](user-management.md#audit-log) |
 | PostgreSQL or MongoDB storage | ✅ | [Architecture](../architecture.md#data-layer) |
 | Single Docker image; Azure Web App support | ✅ | [Docker](../deployment/docker.md), [Azure](../deployment/azure.md) |
-| Personal API tokens for CI/automation | 🔜 Phase 6 | |
+| Personal API tokens for CI/automation (scoped, expiring, default-deny) | ✅ | [API and automation](api-and-automation.md) |
+| OpenAPI description generated from the code; Prometheus metrics | ✅ | [API and automation](api-and-automation.md) |
+| Data retention settings; master-key rotation tool; Azure Bicep template | ✅ | [Dashboards…](dashboards-and-reports.md#data-retention), [Docker](../deployment/docker.md#rotating-the-master-key), [Azure](../deployment/azure.md) |
 
 ## Sources & scanning
 
@@ -30,15 +32,15 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 | Per-repository choice of scanners | ✅ |
 | `.argus.yml` repo-level configuration (ignore paths, scanner switches, suppressions) — see [Scanners and findings](scanners-and-findings.md#argusyml) | ✅ |
 | **Secret detection** (Gitleaks, with built-in rules as a fallback) | ✅ |
-| Live verification of detected secrets against provider APIs (opt-in) | 🔜 Phase 6 |
+| Live verification of detected GitHub, GitLab, Slack and npm tokens with their issuer (opt-in) | ✅ |
 | **npm vulnerabilities, deprecations and latest versions** (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`) | ✅ |
 | **NuGet vulnerabilities and latest versions** (`PackageReference`, central package management, `packages.lock.json`, `packages.config`) | ✅ |
 | **Framework / runtime end-of-life** (.NET, .NET Framework, Node.js, Angular, React, Vue, Next.js, NestJS) | ✅ |
 | **Certificate and credential expiry** (certificates, weak keys, key stores and expiring JWTs in repositories) | ✅ |
 | License compliance policy (npm license data) | ✅ |
-| NuGet license data | 🔜 Phase 6 |
+| NuGet license data (from package .nuspec files) | ✅ |
 | CycloneDX SBOM per repository; organisation-wide package search | ✅ |
-| Credential inventory (manually tracked secrets, Entra ID app-registration secret expiry) | 🔜 Phase 6 |
+| Credential inventory (tracked secrets with expiry notices; Microsoft Entra ID app secrets and certificates imported daily) — see [Dashboards, reports and credentials](dashboards-and-reports.md#credential-inventory) | ✅ |
 
 ## Risk & tickets
 
@@ -84,9 +86,11 @@ See [Threat intelligence](threat-intelligence.md).
 
 | Feature | Status |
 |---|---|
-| Organisation, team and repository dashboards (risk trend, MTTR, SLA compliance, expiring credentials, EOL exposure) | 🔜 Phase 6 |
-| CSV and PDF reports, scheduled by email | 🔜 Phase 6 |
-| Prometheus metrics, OpenAPI documentation | 🔜 Phase 6 |
+| Organisation, team and repository dashboards (risk trend, found vs fixed, MTTR, SLA compliance, riskiest repositories, expiring credentials, EOL exposure) | ✅ |
+| Printable report (save as PDF), findings CSV export, monthly report by email | ✅ |
+| Prometheus metrics, OpenAPI documentation | ✅ |
+
+See [Dashboards, reports and credentials](dashboards-and-reports.md).
 
 ## Roadmap
 
@@ -98,4 +102,4 @@ See [Threat intelligence](threat-intelligence.md).
 | 3. Tickets & integrations | Ticket lifecycle, SLAs, email providers, Jira, notification rules, digests | ✅ |
 | 4. AI | Providers, triage, remediation, drafting, guardrails | ✅ |
 | 5. Threat intel | News crawler, AI extraction, review queue, Argus advisories, continuous re-matching, NVD | ✅ |
-| 6. Enterprise polish | Dashboards, reports, credential inventory, API tokens, Azure Bicep | 🔜 |
+| 6. Enterprise polish | Dashboards, reports, credential inventory, API tokens, metrics, OpenAPI, retention, key rotation, NuGet licenses, secret verification, Azure Bicep | ✅ |

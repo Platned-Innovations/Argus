@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button, Card, CardHeader, CenteredSpinner, Checkbox, ErrorAlert, Field, Input, PageHeader } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { ApiTokensCard } from '../../components/ApiTokens';
 
 const numberFields: { key: keyof SecuritySettings; label: string; hint: string; min: number; max: number; group: 'password' | 'session' }[] = [
   { key: 'passwordMinLength', label: 'Minimum password length', hint: '8–128 characters.', min: 8, max: 128, group: 'password' },
@@ -85,6 +86,11 @@ export function SecuritySettingsPage() {
           </div>
         )}
       </form>
+      {can('users:manage') && (
+        <div className="mt-6">
+          <ApiTokensCard all />
+        </div>
+      )}
     </>
   );
 }

@@ -1,10 +1,13 @@
 import { type User } from '@argus/data';
+import { type Permission } from '@argus/shared';
 import { type Request } from 'express';
 
 export interface RequestUser {
   user: User;
   sessionId: string;
   mfaEnrollmentRequired: boolean;
+  /** Set when the request authenticated with a personal API token instead of a session. */
+  apiToken?: { id: string; scopes: Permission[] };
 }
 
 export interface RequestContext {

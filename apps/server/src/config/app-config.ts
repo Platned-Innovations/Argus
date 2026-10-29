@@ -31,6 +31,7 @@ const envSchema = z.object({
   ARGUS_NUGET_URL: z.url().default('https://api.nuget.org/v3-flatcontainer'),
   ARGUS_NVD_URL: z.url().default('https://services.nvd.nist.gov/rest/json/cves/2.0'),
   ARGUS_NVD_API_KEY: z.string().min(1).optional(),
+  ARGUS_METRICS_TOKEN: z.string().min(16, 'must be at least 16 characters').optional(),
   ARGUS_GRAPH_URL: z.url().default('https://graph.microsoft.com'),
   ARGUS_ENTRA_LOGIN_URL: z.url().default('https://login.microsoftonline.com'),
   WEBSITES_PORT: z.coerce.number().int().positive().optional(),
@@ -69,6 +70,8 @@ export class AppConfig {
   readonly intel!: { osv: string; kev: string; epss: string; eol: string; npmRegistry: string; nuget: string; nvd: string; nvdApiKey: string | null };
   /** Microsoft cloud endpoints (override for sovereign clouds such as GCC High). */
   readonly microsoft!: { graph: string; login: string };
+  /** Bearer token Prometheus must send to /metrics; null turns the endpoint off. */
+  readonly metricsToken!: string | null;
   readonly port!: number;
   readonly logLevel!: string;
   readonly isProduction!: boolean;
@@ -119,6 +122,7 @@ export class AppConfig {
         nvdApiKey: e.ARGUS_NVD_API_KEY ?? null,
       },
       microsoft: { graph: trimSlash(e.ARGUS_GRAPH_URL), login: trimSlash(e.ARGUS_ENTRA_LOGIN_URL) },
+      metricsToken: e.ARGUS_METRICS_TOKEN ?? null,
       // Azure App Service passes the container port in WEBSITES_PORT.
       port: e.WEBSITES_PORT ?? e.PORT,
       logLevel: e.LOG_LEVEL,

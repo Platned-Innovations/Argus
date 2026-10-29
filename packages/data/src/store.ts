@@ -17,6 +17,7 @@ import {
   type DiscoveredRepo,
   type DiscoveryDefaults,
   type Job,
+  type JobStatus,
   type NewJob,
   type NewScanRun,
   type NewSource,
@@ -71,6 +72,7 @@ import {
   type NewIntelItem,
   type NewIntelSource,
 } from './intel-models';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type FindingStatRow, type NewApiToken, type NewCredential, type StatsFilter, type TicketStatRow } from './platform-models';
 import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
 import { type AiSubjectType, type AiUseCase, type Ecosystem, type IntelItemStatus } from '@argus/shared';
 
@@ -111,6 +113,8 @@ export interface SessionRepo {
 export interface AuditRepo {
   append(entry: NewAuditEntry): Promise<AuditEntry>;
   list(filter: AuditFilter): Promise<Page<AuditEntry>>;
+  /** Retention: removes entries older than `before`. */
+  deleteBefore(before: Date): Promise<number>;
 }
 
 export interface SettingsRepo {
@@ -169,6 +173,8 @@ export interface JobRepo {
   fail(id: string, workerId: string, error: string, retryAt: Date | null): Promise<boolean>;
   findById(id: string): Promise<Job | null>;
   deleteFinishedBefore(before: Date): Promise<number>;
+  /** Number of jobs per status and type, for metrics. */
+  countByStatus(): Promise<{ type: string; status: JobStatus; count: number }[]>;
 }
 
 export interface LockRepo {
@@ -193,6 +199,10 @@ export interface FindingRepo {
   setTicket(ids: string[], ticketId: string): Promise<void>;
   /** Every finding of a repository (all statuses), for ticket synchronisation. */
   listAllForRepo(repoId: string): Promise<Finding[]>;
+  /** Retention: removes findings fixed before `before`. */
+  deleteFixedBefore(before: Date): Promise<number>;
+  /** Open and suppressed findings, plus ones first seen or fixed since `since` (for dashboards). */
+  statsRows(filter: StatsFilter): Promise<FindingStatRow[]>;
 }
 
 export interface DependencyRepo {
@@ -230,12 +240,15 @@ export interface TicketRepo {
   update(id: string, patch: TicketPatch): Promise<Ticket | null>;
   /** Highest risk first. */
   list(filter: TicketListFilter): Promise<Page<Ticket>>;
-  summary(filter: { visibleTeamIds?: string[]; userId: string; now: Date }): Promise<TicketSummaryRecord>;
+  /** `userId` counts tickets assigned to that user; null when there is no current user (digests, metrics). */
+  summary(filter: { visibleTeamIds?: string[]; userId: string | null; now: Date }): Promise<TicketSummaryRecord>;
   /** Active tickets past their due date that have not been flagged yet. */
   findNewlyOverdue(now: Date, limit: number): Promise<Ticket[]>;
   /** Tickets linked to Jira that are not closed. */
   listJiraLinked(limit: number): Promise<Ticket[]>;
   setTeamForRepo(repoId: string, teamId: string | null): Promise<void>;
+  /** Active tickets, plus ones created or resolved since `since` (for dashboards). */
+  statsRows(filter: StatsFilter): Promise<TicketStatRow[]>;
   addEvent(event: NewTicketEvent): Promise<TicketEvent>;
   /** Oldest first. */
   listEvents(ticketId: string): Promise<TicketEvent[]>;
@@ -267,6 +280,8 @@ export interface AiUsageRepo {
   /** Totals grouped by provider, model and use case for [from, to). */
   summary(from: Date, to: Date): Promise<AiUsageSummaryRecord[]>;
   totalCost(from: Date, to: Date): Promise<number>;
+  /** Retention: removes usage records older than `before`. */
+  deleteBefore(before: Date): Promise<number>;
 }
 
 export interface AiInsightRepo {
@@ -296,6 +311,8 @@ export interface IntelItemRepo {
   /** Oldest first, for background processing. */
   listByStatus(status: IntelItemStatus, limit: number): Promise<IntelItem[]>;
   countByStatus(): Promise<Record<IntelItemStatus, number>>;
+  /** Retention: removes items fetched before `before` that are no longer awaiting analysis or review. */
+  deleteSettledBefore(before: Date): Promise<number>;
 }
 
 export interface AdvisoryRepo {
@@ -308,6 +325,32 @@ export interface AdvisoryRepo {
   /** Advisories that are not withdrawn for any of these packages (NuGet names compare case-insensitively). */
   listActiveForPackages(packages: { ecosystem: Ecosystem; name: string }[]): Promise<Advisory[]>;
   countActive(): Promise<number>;
+}
+
+export interface ApiTokenRepo {
+  create(input: NewApiToken): Promise<ApiToken>;
+  findById(id: string): Promise<ApiToken | null>;
+  findByHash(tokenHash: string): Promise<ApiToken | null>;
+  /** Newest first. */
+  listForUser(userId: string): Promise<ApiToken[]>;
+  /** Newest first. */
+  listAll(): Promise<ApiToken[]>;
+  /** Records use (callers throttle how often). */
+  touch(id: string, at: Date, ip: string | null): Promise<void>;
+  /** Returns true when this call revoked it. */
+  revoke(id: string): Promise<boolean>;
+  revokeAllForUser(userId: string): Promise<number>;
+}
+
+export interface CredentialRepo {
+  create(input: NewCredential): Promise<Credential>;
+  findById(id: string): Promise<Credential | null>;
+  /** Soonest expiry first. */
+  list(filter: CredentialListFilter): Promise<{ items: Credential[]; total: number }>;
+  update(id: string, patch: CredentialPatch): Promise<Credential | null>;
+  delete(id: string): Promise<boolean>;
+  /** Every credential imported from a source (archived included), for synchronisation. */
+  listBySource(source: Credential['source']): Promise<Credential[]>;
 }
 
 export type DataStoreKind = 'postgres' | 'mongodb';
@@ -337,6 +380,8 @@ export interface DataStore {
   readonly intelSources: IntelSourceRepo;
   readonly intelItems: IntelItemRepo;
   readonly advisories: AdvisoryRepo;
+  readonly apiTokens: ApiTokenRepo;
+  readonly credentials: CredentialRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

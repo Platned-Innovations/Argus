@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto';
+import { AuditService } from '../core/audit.service';
+import { SettingsService } from '../core/settings.service';
 import { hostname } from 'node:os';
 import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
 import { type DataStore } from '@argus/data';
@@ -15,7 +17,6 @@ const DUE_BATCH = 200;
 const SOURCE_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
 const HOUSEKEEPING_INTERVAL_MS = 60 * 60_000;
 const JOB_RETENTION_MS = 7 * 24 * 60 * 60_000;
-const SCAN_RUN_RETENTION_MS = 90 * 24 * 60 * 60_000;
 const INTEL_STALE_MS = 7 * 24 * 60 * 60_000;
 
 /**
@@ -37,6 +38,8 @@ export class SchedulerService implements OnApplicationBootstrap, OnApplicationSh
     private readonly config: AppConfig,
     private readonly intel: IntelService,
     private readonly events: DomainEvents,
+    private readonly settings: SettingsService,
+    private readonly audit: AuditService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -91,11 +94,24 @@ export class SchedulerService implements OnApplicationBootstrap, OnApplicationSh
   }
 
   private async housekeeping(): Promise<void> {
+    const r = await this.settings.getRetention();
+    const ago = (days: number) => new Date(Date.now() - days * 86_400_000);
     const jobs = await this.store.jobs.deleteFinishedBefore(new Date(Date.now() - JOB_RETENTION_MS));
-    const runs = await this.store.scanRuns.deleteFinishedBefore(new Date(Date.now() - SCAN_RUN_RETENTION_MS));
     // Expired intel is kept for a week so scans can fall back to it while a feed is unreachable.
     const cache = await this.store.cache.deleteExpired(new Date(Date.now() - INTEL_STALE_MS));
-    if (jobs || runs || cache) this.logger.log(`Housekeeping removed ${jobs} finished job(s), ${runs} old scan run(s) and ${cache} stale intel entries`);
+    // Data retention (Administration → Scanning settings).
+    const removed = {
+      scanRuns: await this.store.scanRuns.deleteFinishedBefore(ago(r.scanRunsDays)),
+      fixedFindings: r.fixedFindingsDays === null ? 0 : await this.store.findings.deleteFixedBefore(ago(r.fixedFindingsDays)),
+      auditEntries: r.auditDays === null ? 0 : await this.store.audit.deleteBefore(ago(r.auditDays)),
+      intelItems: await this.store.intelItems.deleteSettledBefore(ago(r.intelItemsDays)),
+      aiUsage: await this.store.aiUsage.deleteBefore(ago(r.aiUsageDays)),
+    };
+    if (jobs || cache) this.logger.log(`Housekeeping removed ${jobs} finished job(s) and ${cache} stale intel entries`);
+    if (Object.values(removed).some(Boolean)) {
+      this.logger.log(`Retention removed ${JSON.stringify(removed)}`);
+      await this.audit.record({ action: 'retention.applied', details: { ...removed, settings: r } });
+    }
     if (!this.intel.offline) await this.intel.kev().catch((err: unknown) => this.logger.warn(`CISA KEV refresh failed: ${(err as Error).message}`));
   }
 }

@@ -1,12 +1,13 @@
-import { type FindingDto, type FindingSummary, type Paged, type Severity, type TicketSummaryDto } from '@argus/shared';
+import { type DashboardDto, DASHBOARD_PERIODS, type FindingDto, type FindingSummary, type Paged, type Severity, type TicketSummaryDto } from '@argus/shared';
 import { useQuery } from '@tanstack/react-query';
 import { AlarmClock, BadgeCheck, CalendarClock, CheckCircle2, Circle, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { type ComponentType, useState } from 'react';
 import { Link } from 'react-router';
 import { FindingModal, findingLocation, SeverityBadge } from '../components/findings';
-import { Card, CardHeader, PageHeader } from '../components/ui';
+import { Card, CardHeader, ErrorAlert, PageHeader, Select } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { PostureView } from '../components/posture';
 
 const roadmap = [
   { phase: 'Foundation', detail: 'Users, teams, roles, MFA, audit log, PostgreSQL & MongoDB, Docker', done: true },
@@ -15,7 +16,7 @@ const roadmap = [
   { phase: 'Tickets & integrations', detail: 'Ticket lifecycle, SLAs, email (Graph / SMTP), Jira', done: true },
   { phase: 'AI assistance', detail: 'Claude, OpenAI or Gemini fix suggestions, Jira / email drafts, scan triage', done: true },
   { phase: 'Threat intelligence', detail: 'Security news with AI extraction, Argus advisories, continuous re-matching, NVD', done: true },
-  { phase: 'Enterprise polish', detail: 'Dashboards, reports, credential inventory, Azure Bicep', done: false },
+  { phase: 'Enterprise polish', detail: 'Dashboards, reports, API tokens, credential inventory, metrics, Azure Bicep', done: true },
 ];
 
 function Tile({ label, value, hint, to, icon: Icon, tone }: { label: string; value: number | string; hint: string; to: string; icon: ComponentType<{ className?: string }>; tone?: string }) {
@@ -45,6 +46,8 @@ export function DashboardPage() {
   });
   const tickets = useQuery({ queryKey: ['tickets', 'summary'], queryFn: () => api<TicketSummaryDto>('/tickets/summary'), enabled: can('tickets:read') });
   const s = summary.data;
+  const [days, setDays] = useState<number>(90);
+  const posture = useQuery({ queryKey: ['dashboard', { days }], queryFn: () => api<DashboardDto>('/dashboard', { query: { days } }), enabled: can('reports:read') });
   const urgent = s ? s.open.critical + s.open.high : null;
 
   return (
@@ -71,6 +74,28 @@ export function DashboardPage() {
           tone={s?.fixedLast30Days ? 'text-green-700 dark:text-green-400' : undefined}
         />
       </div>
+
+      {can('reports:read') && (
+        <section className="mt-8">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Trends</h2>
+            <div className="flex items-center gap-3">
+              <Select aria-label="Period" className="w-40" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+                {DASHBOARD_PERIODS.map((d) => (
+                  <option key={d} value={d}>
+                    Last {d} days
+                  </option>
+                ))}
+              </Select>
+              <Link to={`/reports?days=${days}`} className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">
+                Full report →
+              </Link>
+            </div>
+          </div>
+          <ErrorAlert error={posture.error} />
+          {posture.data && <PostureView data={posture.data} />}
+        </section>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {canFindings && (

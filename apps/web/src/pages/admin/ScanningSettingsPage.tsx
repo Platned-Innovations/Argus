@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button, Card, CardHeader, CenteredSpinner, ErrorAlert, Field, Input, PageHeader, Table } from '../../components/ui';
+import { RetentionCard } from '../../components/RetentionCard';
+import { Button, Card, CardHeader, CenteredSpinner, Checkbox, ErrorAlert, Field, Input, PageHeader, Table } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { formatRelative } from '../../lib/utils';
@@ -18,6 +19,8 @@ const WEIGHTS: { key: keyof RiskWeights; label: string; hint: string }[] = [
   { key: 'criticalityLow', label: 'Low business criticality', hint: 'Applied per repository setting.' },
   { key: 'criticalityHigh', label: 'High business criticality', hint: '' },
   { key: 'criticalityCritical', label: 'Critical business criticality', hint: '' },
+  { key: 'verifiedActive', label: 'Secret verified active', hint: 'Live verification found the secret still works.' },
+  { key: 'verifiedInactive', label: 'Secret rejected by its issuer', hint: 'Negative: revoked or invalid.' },
 ];
 
 const list = (s: string) =>
@@ -134,6 +137,14 @@ export function ScanningSettingsPage() {
                 {(id) => <Input id={id} type="number" min={1} max={365} value={form.expiryWarningDays} onChange={(e) => setForm({ ...form, expiryWarningDays: Number(e.target.value) })} required />}
               </Field>
             </div>
+            <div className="border-t border-slate-100 p-5 dark:border-slate-800">
+              <Checkbox
+                label="Verify detected secrets with their issuer"
+                description="For GitHub, GitLab, Slack and npm tokens, makes one read-only request to the issuer's own API to tell whether the secret still works; the risk score rises if it does and drops if it was revoked. Off by default: the detected secret is sent to its issuer (and nowhere else)."
+                checked={form.verifySecrets}
+                onChange={(e) => setForm({ ...form, verifySecrets: e.target.checked })}
+              />
+            </div>
           </Card>
         </fieldset>
         {manage && (
@@ -144,6 +155,9 @@ export function ScanningSettingsPage() {
           </div>
         )}
       </form>
+      <div className="mt-6">
+        <RetentionCard />
+      </div>
       <div className="mt-6">
         <IntelStatusCard />
       </div>

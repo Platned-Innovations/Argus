@@ -124,6 +124,10 @@ export class MongoIntelItemRepo implements IntelItemRepo {
     for (const r of await this.col.aggregate<{ _id: IntelItemStatus; n: number }>([{ $group: { _id: '$status', n: { $sum: 1 } } }]).toArray()) out[r._id] = r.n;
     return out;
   }
+  async deleteSettledBefore(before: Date): Promise<number> {
+    return (await this.col.deleteMany({ fetchedAt: { $lt: before }, status: { $nin: ['new', 'review'] } })).deletedCount;
+  }
+
 }
 
 export class MongoAdvisoryRepo implements AdvisoryRepo {

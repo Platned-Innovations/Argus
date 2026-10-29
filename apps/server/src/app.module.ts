@@ -1,5 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, DiscoveryModule } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
@@ -14,7 +14,11 @@ import { type AppConfig } from './config/app-config';
 import { CoreModule } from './core/core.module';
 import { FindingsModule } from './findings/findings.module';
 import { HealthController } from './health/health.controller';
+import { MetricsController } from './health/metrics.controller';
+import { OpenApiController, OpenApiService } from './health/openapi';
 import { IntelModule } from './intel/intel.module';
+import { ReportsModule } from './reports/reports.module';
+import { CredentialsModule } from './credentials/credentials.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ScansModule } from './scans/scans.module';
 import { SettingsController } from './settings/settings.controller';
@@ -50,6 +54,7 @@ export class AppModule {
         CoreModule.forRoot(config),
         loggerModule(config),
         ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
+        DiscoveryModule,
         AuthModule,
         UsersModule,
         JobsModule,
@@ -59,6 +64,8 @@ export class AppModule {
         TicketsModule,
         AiModule,
         IntelModule,
+        ReportsModule,
+        CredentialsModule,
         ...(config.webDir
           ? [
               ServeStaticModule.forRoot({
@@ -75,8 +82,9 @@ export class AppModule {
           : []),
         ...(config.role === 'all' ? [WorkerModule] : []),
       ],
-      controllers: [HealthController, TeamsController, AuditController, SettingsController],
+      controllers: [HealthController, MetricsController, OpenApiController, TeamsController, AuditController, SettingsController],
       providers: [
+        OpenApiService,
         // Guard order matters: rate limit, then CSRF, then authenticate, then authorise.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_GUARD, useExisting: CsrfGuard },
@@ -92,6 +100,6 @@ export class AppModule {
 @Module({})
 export class WorkerAppModule {
   static register(config: AppConfig): DynamicModule {
-    return { module: WorkerAppModule, imports: [CoreModule.forRoot(config), loggerModule(config), JobsModule, SourcesModule, ScansModule, TicketsModule, IntelModule, WorkerModule] };
+    return { module: WorkerAppModule, imports: [CoreModule.forRoot(config), loggerModule(config), JobsModule, SourcesModule, ScansModule, TicketsModule, IntelModule, CredentialsModule, WorkerModule] };
   }
 }

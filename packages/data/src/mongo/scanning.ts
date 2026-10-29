@@ -5,6 +5,7 @@ import {
   type DiscoveredRepo,
   type DiscoveryDefaults,
   type Job,
+  type JobStatus,
   type NewJob,
   type NewScanRun,
   type NewSource,
@@ -361,6 +362,11 @@ export class MongoJobRepo implements JobRepo {
   async deleteFinishedBefore(before: Date): Promise<number> {
     return (await this.col.deleteMany({ finishedAt: { $lt: before }, status: { $nin: ['queued', 'running'] } })).deletedCount;
   }
+  async countByStatus(): Promise<{ type: string; status: JobStatus; count: number }[]> {
+    const rows = await this.col.aggregate<{ _id: { type: string; status: JobStatus }; count: number }>([{ $group: { _id: { type: '$type', status: '$status' }, count: { $sum: 1 } } }]).toArray();
+    return rows.map((r) => ({ ...r._id, count: r.count }));
+  }
+
 }
 
 export class MongoLockRepo implements LockRepo {

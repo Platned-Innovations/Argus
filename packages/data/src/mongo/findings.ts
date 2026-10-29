@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { type FindingStatRow, type StatsFilter } from '../platform-models';
 import { type AnyBulkWriteOperation, type Collection, type Db, type Filter } from 'mongodb';
 import { type ScannerName, SCANNERS, type Severity, SEVERITIES } from '@argus/shared';
 import {
@@ -176,6 +177,23 @@ export class MongoFindingRepo implements FindingRepo {
   async listAllForRepo(repoId: string): Promise<Finding[]> {
     return (await this.col.find({ repoId }).toArray()).map(toFinding);
   }
+
+  async statsRows(f: StatsFilter): Promise<FindingStatRow[]> {
+    if (f.visibleTeamIds && f.visibleTeamIds.length === 0) return [];
+    const q: Filter<FindingDoc> = { $or: [{ status: { $ne: 'fixed' } }, { firstSeenAt: { $gte: f.since } }, { fixedAt: { $gte: f.since } }] };
+    if (f.visibleTeamIds) q.teamId = { $in: f.visibleTeamIds };
+    if (f.teamId) q.teamId = f.teamId;
+    if (f.repoId) q.repoId = f.repoId;
+    const docs = await this.col
+      .find(q, { projection: { _id: 0, repoId: 1, scanner: 1, severity: 1, riskScore: 1, status: 1, firstSeenAt: 1, fixedAt: 1, title: 1, details: 1 } })
+      .limit(200_000)
+      .toArray();
+    return docs.map((d) => ({ ...(d as unknown as FindingStatRow), fixedAt: d.fixedAt ?? null, details: d.details ?? null }));
+  }
+  async deleteFixedBefore(before: Date): Promise<number> {
+    return (await this.col.deleteMany({ status: 'fixed', fixedAt: { $lt: before } })).deletedCount;
+  }
+
 }
 
 export class MongoDependencyRepo implements DependencyRepo {

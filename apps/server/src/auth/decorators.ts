@@ -7,6 +7,7 @@ export const PUBLIC_KEY = 'argus:public';
 export const ALLOW_RESTRICTED_KEY = 'argus:allowRestricted';
 export const SKIP_CSRF_KEY = 'argus:skipCsrf';
 export const PERMISSIONS_KEY = 'argus:permissions';
+export const SESSION_ONLY_KEY = 'argus:sessionOnly';
 
 /** No authentication required. */
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
@@ -16,6 +17,9 @@ export const AllowRestricted = () => SetMetadata(ALLOW_RESTRICTED_KEY, true);
 
 /** Exempt from the double-submit CSRF check (only for endpoints that establish a session). */
 export const SkipCsrf = () => SetMetadata(SKIP_CSRF_KEY, true);
+
+/** Only for signed-in browser sessions, never for API tokens (sign-in, MFA, password and token management). */
+export const SessionOnly = () => SetMetadata(SESSION_ONLY_KEY, true);
 
 /** Every listed permission is required. */
 export const RequirePermissions = (...permissions: Permission[]) => SetMetadata(PERMISSIONS_KEY, permissions);

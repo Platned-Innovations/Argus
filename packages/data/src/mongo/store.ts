@@ -53,6 +53,7 @@ import {
   type TicketDoc,
   type TicketEventDoc,
 } from './tickets';
+import { type ApiTokenDoc, bootstrapPlatformIndexes, type CredentialDoc, MongoApiTokenRepo, MongoCredentialRepo } from './platform';
 import { type AdvisoryDoc, bootstrapIntelIndexes, type IntelItemDoc, type IntelSourceDoc, MongoAdvisoryRepo, MongoIntelItemRepo, MongoIntelSourceRepo } from './intel';
 import { type AiInsightDoc, type AiUsageDoc, bootstrapAiIndexes, MongoAiInsightRepo, MongoAiUsageRepo } from './ai';
 
@@ -64,7 +65,7 @@ type SettingDoc = { _id: string; value: unknown; updatedAt: Date; updatedBy: str
 type MetaDoc = { _id: string; version: number; updatedAt: Date };
 
 /** Bump when index/bootstrap definitions below change. */
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 8;
 
 async function mapDuplicate<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -211,6 +212,7 @@ class MongoTeamRepo implements TeamRepo {
     // Mirrors the ON DELETE SET NULL foreign keys of the PostgreSQL schema.
     await this.db.collection('repositories').updateMany({ teamId: id }, { $set: { teamId: null } });
     await this.db.collection('sources').updateMany({ defaultTeamId: id }, { $set: { defaultTeamId: null } });
+    await this.db.collection('credentials').updateMany({ teamId: id }, { $set: { teamId: null } });
     return true;
   }
 
@@ -275,6 +277,10 @@ class MongoAuditRepo implements AuditRepo {
     await this.col.insertOne({ _id: id, ...rest });
     return record;
   }
+  async deleteBefore(before: Date): Promise<number> {
+    return (await this.col.deleteMany({ at: { $lt: before } })).deletedCount;
+  }
+
 
   async list(filter: AuditFilter): Promise<Page<AuditEntry>> {
     const q: Filter<AuditDoc> = {};
@@ -337,6 +343,7 @@ async function bootstrap(db: Db): Promise<void> {
   await bootstrapTicketIndexes(db);
   await bootstrapAiIndexes(db);
   await bootstrapIntelIndexes(db);
+  await bootstrapPlatformIndexes(db);
   await meta.updateOne({ _id: 'schema' }, { $set: { version: SCHEMA_VERSION, updatedAt: new Date() } }, { upsert: true });
 }
 
@@ -372,6 +379,8 @@ export async function createMongoStore(url: string, dbName?: string): Promise<Da
     aiInsights: new MongoAiInsightRepo(db.collection<AiInsightDoc>('ai_insights')),
     intelSources: new MongoIntelSourceRepo(db.collection<IntelSourceDoc>('intel_sources'), db.collection<IntelItemDoc>('intel_items')),
     intelItems: new MongoIntelItemRepo(db.collection<IntelItemDoc>('intel_items')),
+    apiTokens: new MongoApiTokenRepo(db.collection<ApiTokenDoc>('api_tokens')),
+    credentials: new MongoCredentialRepo(db.collection<CredentialDoc>('credentials')),
     advisories: new MongoAdvisoryRepo(db.collection<AdvisoryDoc>('advisories'), db.collection<{ _id: string; value: number }>('counters')),
     migrate: () => bootstrap(db),
     async ping() {

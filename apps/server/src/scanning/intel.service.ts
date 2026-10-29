@@ -3,6 +3,7 @@ import { type Advisory, type DataStore } from '@argus/data';
 import { type Ecosystem } from '@argus/shared';
 import { AppConfig } from '../config/app-config';
 import { DATA_STORE } from '../core/tokens';
+import { nuspecLicense } from './parsers/nuget';
 import { highestStable } from './versions';
 
 const HOUR = 3_600_000;
@@ -310,6 +311,35 @@ export class IntelService {
       await this.recordFeed('eol', { fetchedAt: new Date().toISOString(), entries: null, error: (err as Error).message });
       throw err;
     }
+  }
+
+  /** License expression of a NuGet package version, from its .nuspec. Versions are immutable, so it is cached for a month. */
+  async nugetLicense(name: string, version: string): Promise<string | null> {
+    const id = name.toLowerCase();
+    const v = version.toLowerCase();
+    const hit = await this.store.cache.get<string | null>(`nugetlic:${id}|${v}`);
+    if (hit && hit.expiresAt.getTime() > Date.now()) return hit.value;
+    if (this.config.offline) throw new IntelError('Argus is running in offline mode (ARGUS_OFFLINE=true).');
+    let res: Response;
+    try {
+      res = await fetch(`${this.config.intel.nuget}/${encodeURIComponent(id)}/${encodeURIComponent(v)}/${encodeURIComponent(id)}.nuspec`, { headers: { 'User-Agent': 'Argus' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    } catch (err) {
+      throw new IntelError(`Could not reach the NuGet API: ${(err as Error).message}`);
+    }
+    if (res.status === 404) {
+      await res.body?.cancel().catch(() => undefined);
+      await this.store.cache.set(`nugetlic:${id}|${v}`, null, 7 * DAY);
+      return null;
+    }
+    if (!res.ok) throw new IntelError(`NuGet API returned HTTP ${res.status}`);
+    let license: string | null = null;
+    try {
+      license = nuspecLicense((await res.text()).slice(0, 1024 * 1024));
+    } catch {
+      license = null;
+    }
+    await this.store.cache.set(`nugetlic:${id}|${v}`, license, license ? 30 * DAY : 7 * DAY);
+    return license;
   }
 
   /** Latest stable version and deprecation status of a package version from the public registry. */

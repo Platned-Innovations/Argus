@@ -401,6 +401,39 @@ export interface AdvisoriesTable {
   updatedAt: Date;
 }
 
+export interface ApiTokensTable {
+  id: string;
+  userId: string;
+  name: string;
+  tokenHash: string;
+  prefix: string;
+  scopes: Json<string[]>;
+  expiresAt: Date;
+  lastUsedAt: Date | null;
+  lastUsedIp: string | null;
+  revokedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface CredentialsTable {
+  id: string;
+  name: string;
+  kind: string;
+  system: string;
+  owner: string;
+  teamId: string | null;
+  expiresAt: Date;
+  notes: string;
+  notifyEmails: Json<string[]>;
+  source: string;
+  externalId: string | null;
+  archived: boolean;
+  lastNoticeDays: number | null;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -427,4 +460,6 @@ export interface Database {
   intelSources: IntelSourcesTable;
   intelItems: IntelItemsTable;
   advisories: AdvisoriesTable;
+  apiTokens: ApiTokensTable;
+  credentials: CredentialsTable;
 }

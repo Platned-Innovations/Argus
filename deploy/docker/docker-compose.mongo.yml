@@ -58,6 +58,7 @@ services:
       ARGUS_NUGET_URL: ${ARGUS_NUGET_URL:-}
       ARGUS_NVD_URL: ${ARGUS_NVD_URL:-}
       ARGUS_NVD_API_KEY: ${ARGUS_NVD_API_KEY:-}
+      ARGUS_METRICS_TOKEN: ${ARGUS_METRICS_TOKEN:-}
 
 volumes:
   mongo-data:

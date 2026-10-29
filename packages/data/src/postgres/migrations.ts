@@ -500,6 +500,54 @@ migrations['0006_intel'] = {
   },
 };
 
+migrations['0007_api_tokens'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('api_tokens')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('user_id', 'uuid', (c) => c.notNull().references('users.id').onDelete('cascade'))
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('token_hash', 'text', (c) => c.notNull().unique())
+      .addColumn('prefix', 'text', (c) => c.notNull())
+      .addColumn('scopes', 'jsonb', (c) => c.notNull())
+      .addColumn('expires_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('last_used_at', 'timestamptz')
+      .addColumn('last_used_ip', 'text')
+      .addColumn('revoked_at', 'timestamptz')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+    await db.schema.createIndex('api_tokens_user_idx').on('api_tokens').column('user_id').execute();
+  },
+};
+
+migrations['0008_credentials'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('credentials')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('kind', 'text', (c) => c.notNull())
+      .addColumn('system', 'text', (c) => c.notNull())
+      .addColumn('owner', 'text', (c) => c.notNull())
+      .addColumn('team_id', 'uuid', (c) => c.references('teams.id').onDelete('set null'))
+      .addColumn('expires_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('notes', 'text', (c) => c.notNull())
+      .addColumn('notify_emails', 'jsonb', (c) => c.notNull())
+      .addColumn('source', 'text', (c) => c.notNull())
+      .addColumn('external_id', 'text')
+      .addColumn('archived', 'boolean', (c) => c.notNull())
+      .addColumn('last_notice_days', 'integer')
+      .addColumn('created_by', 'uuid')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .addUniqueConstraint('credentials_source_external_unique', ['source', 'external_id'])
+      .execute();
+    await db.schema.createIndex('credentials_expiry_idx').on('credentials').columns(['archived', 'expires_at']).execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

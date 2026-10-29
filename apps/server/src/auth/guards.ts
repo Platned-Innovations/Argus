@@ -7,7 +7,8 @@ import { CryptoService } from '../core/crypto.service';
 import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
 import { ACCESS_COOKIE, CSRF_COOKIE, CSRF_HEADER, REFRESH_COOKIE } from './cookies';
-import { ALLOW_RESTRICTED_KEY, PERMISSIONS_KEY, PUBLIC_KEY, SKIP_CSRF_KEY } from './decorators';
+import { ApiTokensService } from './api-tokens.service';
+import { ALLOW_RESTRICTED_KEY, PERMISSIONS_KEY, PUBLIC_KEY, SESSION_ONLY_KEY, SKIP_CSRF_KEY } from './decorators';
 import { TokenService } from './token.service';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -49,12 +50,28 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly tokens: TokenService,
     private readonly settings: SettingsService,
+    private readonly apiTokens: ApiTokensService,
     @Inject(DATA_STORE) private readonly store: DataStore,
   ) {}
+
+  /** Personal API token in "Authorization: Bearer argus_pat_…". No cookies are involved, so CSRF does not apply. */
+  private async authenticateToken(ctx: ExecutionContext, req: Request, bearer: string): Promise<boolean> {
+    if (flag(this.reflector, SESSION_ONLY_KEY, ctx)) throw new ForbiddenException('This endpoint cannot be used with an API token.');
+    const result = await this.apiTokens.authenticate(bearer, req.ip ?? null);
+    if (!result) throw new UnauthorizedException('Invalid, expired or revoked API token.');
+    const { user, token, scopes } = result;
+    const security = await this.settings.getSecurity();
+    // Tokens follow the same account restrictions as sessions.
+    if (user.mustChangePassword || (security.mfaRequired && !user.mfaEnabled)) throw new ForbiddenException('The token owner must finish account setup (password change or MFA) before the token can be used.');
+    req.argusUser = { user, sessionId: `api-token:${token.id}`, mfaEnrollmentRequired: false, apiToken: { id: token.id, scopes } };
+    return true;
+  }
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     if (ctx.getType() !== 'http' || flag(this.reflector, PUBLIC_KEY, ctx)) return true;
     const req = ctx.switchToHttp().getRequest<Request>();
+    const bearer = /^Bearer\s+(\S+)$/i.exec(req.get('authorization') ?? '')?.[1];
+    if (bearer) return this.authenticateToken(ctx, req, bearer);
     const token = (req.cookies as Record<string, string | undefined> | undefined)?.[ACCESS_COOKIE];
     if (!token) throw new UnauthorizedException();
 
@@ -87,10 +104,13 @@ export class PermissionsGuard implements CanActivate {
 
   canActivate(ctx: ExecutionContext): boolean {
     const required = this.reflector.getAllAndOverride<Permission[] | undefined>(PERMISSIONS_KEY, [ctx.getHandler(), ctx.getClass()]);
-    if (!required?.length) return true;
     const current = ctx.switchToHttp().getRequest<Request>().argusUser;
+    // API tokens are default-deny: they only reach endpoints that declare the permissions they need.
+    if (current?.apiToken && !required?.length) throw new ForbiddenException('This endpoint cannot be used with an API token.');
+    if (!required?.length) return true;
     if (!current) throw new UnauthorizedException();
     if (!required.every((p) => hasPermission(current.user.role, p))) throw new ForbiddenException('You do not have permission to do this.');
+    if (current.apiToken && !required.every((p) => current.apiToken!.scopes.includes(p))) throw new ForbiddenException(`This API token lacks the scope: ${required.filter((p) => !current.apiToken!.scopes.includes(p)).join(', ')}.`);
     return true;
   }
 }

@@ -19,6 +19,7 @@ export const PERMISSIONS = [
   'ai:use',
   'intel:manage',
   'reports:read',
+  'credentials:manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -39,6 +40,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'ai:use',
     'intel:manage',
     'reports:read',
+    'credentials:manage',
   ],
   developer: ['teams:read', 'repos:read', 'scans:run', 'findings:read', 'tickets:read', 'tickets:write', 'ai:use', 'reports:read'],
   viewer: ['teams:read', 'repos:read', 'findings:read', 'tickets:read', 'reports:read'],

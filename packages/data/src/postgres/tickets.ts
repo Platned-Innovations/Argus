@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { type StatsFilter, type TicketStatRow } from '../platform-models';
 import { type ExpressionBuilder, type Kysely, type Selectable, sql } from 'kysely';
 import { ACTIVE_TICKET_STATUSES, type ChannelType, type NotificationEvent, type ScannerName, type Severity, SEVERITIES, type TicketEventType, type TicketStatus } from '@argus/shared';
 import { type Page } from '../models';
@@ -111,7 +112,7 @@ export class PgTicketRepo implements TicketRepo {
     return { items: rows.map(toTicket), total };
   }
 
-  async summary(f: { visibleTeamIds?: string[]; userId: string; now: Date }): Promise<TicketSummaryRecord> {
+  async summary(f: { visibleTeamIds?: string[]; userId: string | null; now: Date }): Promise<TicketSummaryRecord> {
     const out: TicketSummaryRecord = { active: 0, bySeverity: Object.fromEntries(SEVERITIES.map((s) => [s, 0])) as Record<Severity, number>, slaBreached: 0, assignedTo: 0, unassigned: 0 };
     if (f.visibleTeamIds && f.visibleTeamIds.length === 0) return out;
     let q = this.db.selectFrom('tickets').where('status', 'in', ACTIVE_TICKET_STATUSES);
@@ -121,7 +122,8 @@ export class PgTicketRepo implements TicketRepo {
         'severity',
         sql<number>`count(*)::int`.as('n'),
         sql<number>`count(*) filter (where due_at < ${f.now})::int`.as('breached'),
-        sql<number>`count(*) filter (where assignee_id = ${f.userId})::int`.as('mine'),
+        // A non-uuid parameter here would fail the whole query on PostgreSQL, so "no user" is a constant 0.
+        (f.userId ? sql<number>`count(*) filter (where assignee_id = ${f.userId})::int` : sql<number>`0`).as('mine'),
         sql<number>`count(*) filter (where assignee_id is null)::int`.as('unassigned'),
       ])
       .groupBy('severity')
@@ -156,6 +158,18 @@ export class PgTicketRepo implements TicketRepo {
 
   async setTeamForRepo(repoId: string, teamId: string | null): Promise<void> {
     await this.db.updateTable('tickets').set({ teamId }).where('repoId', '=', repoId).execute();
+  }
+
+  async statsRows(f: StatsFilter): Promise<TicketStatRow[]> {
+    if (f.visibleTeamIds && f.visibleTeamIds.length === 0) return [];
+    let q = this.db
+      .selectFrom('tickets')
+      .select(['severity', 'status', 'createdAt', 'dueAt', 'resolvedAt'])
+      .where((eb) => eb.or([eb('status', 'in', ACTIVE_TICKET_STATUSES), eb('createdAt', '>=', f.since), eb('resolvedAt', '>=', f.since)]));
+    if (f.visibleTeamIds) q = q.where('teamId', 'in', f.visibleTeamIds);
+    if (f.teamId) q = q.where('teamId', '=', f.teamId);
+    if (f.repoId) q = q.where('repoId', '=', f.repoId);
+    return (await q.limit(200_000).execute()).map((r) => ({ ...r, severity: r.severity as Severity, status: r.status as TicketStatus }));
   }
 
   async addEvent(e: NewTicketEvent): Promise<TicketEvent> {
