@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { RetentionCard } from '../../components/RetentionCard';
 import { Button, Card, CardHeader, CenteredSpinner, ErrorAlert, Field, Input, PageHeader, Table } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -144,6 +145,9 @@ export function ScanningSettingsPage() {
           </div>
         )}
       </form>
+      <div className="mt-6">
+        <RetentionCard />
+      </div>
       <div className="mt-6">
         <IntelStatusCard />
       </div>

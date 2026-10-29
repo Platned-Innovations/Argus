@@ -45,6 +45,10 @@ export class MongoAiUsageRepo implements AiUsageRepo {
     const [r] = await this.col.aggregate<{ total: number }>([{ $match: { at: { $gte: from, $lt: to } } }, { $group: { _id: null, total: { $sum: '$costUsd' } } }]).toArray();
     return r?.total ?? 0;
   }
+  async deleteBefore(before: Date): Promise<number> {
+    return (await this.col.deleteMany({ at: { $lt: before } })).deletedCount;
+  }
+
 }
 
 export class MongoAiInsightRepo implements AiInsightRepo {

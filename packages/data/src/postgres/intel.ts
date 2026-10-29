@@ -126,6 +126,10 @@ export class PgIntelItemRepo implements IntelItemRepo {
     for (const r of rows) out[r.status as IntelItemStatus] = r.n;
     return out;
   }
+  async deleteSettledBefore(before: Date): Promise<number> {
+    return Number((await this.db.deleteFrom('intelItems').where('fetchedAt', '<', before).where('status', 'not in', ['new', 'review']).executeTakeFirst()).numDeletedRows);
+  }
+
 }
 
 function toAdvisory(r: Selectable<AdvisoriesTable>): Advisory {

@@ -190,6 +190,10 @@ export class MongoFindingRepo implements FindingRepo {
       .toArray();
     return docs.map((d) => ({ ...(d as unknown as FindingStatRow), fixedAt: d.fixedAt ?? null, details: d.details ?? null }));
   }
+  async deleteFixedBefore(before: Date): Promise<number> {
+    return (await this.col.deleteMany({ status: 'fixed', fixedAt: { $lt: before } })).deletedCount;
+  }
+
 }
 
 export class MongoDependencyRepo implements DependencyRepo {

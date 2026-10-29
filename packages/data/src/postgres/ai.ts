@@ -53,6 +53,10 @@ export class PgAiUsageRepo implements AiUsageRepo {
       .executeTakeFirst();
     return r?.total ?? 0;
   }
+  async deleteBefore(before: Date): Promise<number> {
+    return Number((await this.db.deleteFrom('aiUsage').where('at', '<', before).executeTakeFirst()).numDeletedRows);
+  }
+
 }
 
 export class PgAiInsightRepo implements AiInsightRepo {

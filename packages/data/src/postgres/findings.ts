@@ -210,6 +210,10 @@ export class PgFindingRepo implements FindingRepo {
     if (f.repoId) q = q.where('repoId', '=', f.repoId);
     return (await q.limit(STATS_LIMIT).execute()).map((r) => ({ ...r, scanner: r.scanner as ScannerName, severity: r.severity as Severity, status: r.status as FindingStatus, details: r.details ?? null }));
   }
+  async deleteFixedBefore(before: Date): Promise<number> {
+    return Number((await this.db.deleteFrom('findings').where('status', '=', 'fixed').where('fixedAt', '<', before).executeTakeFirst()).numDeletedRows);
+  }
+
 
   async listAllForRepo(repoId: string): Promise<Finding[]> {
     return (await this.db.selectFrom('findings').selectAll().where('repoId', '=', repoId).execute()).map(toFinding);

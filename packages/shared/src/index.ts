@@ -11,3 +11,4 @@ export * from './intel';
 export * from './api-tokens';
 export * from './dashboard';
 export * from './credentials';
+export * from './operations';

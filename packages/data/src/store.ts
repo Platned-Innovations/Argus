@@ -113,6 +113,8 @@ export interface SessionRepo {
 export interface AuditRepo {
   append(entry: NewAuditEntry): Promise<AuditEntry>;
   list(filter: AuditFilter): Promise<Page<AuditEntry>>;
+  /** Retention: removes entries older than `before`. */
+  deleteBefore(before: Date): Promise<number>;
 }
 
 export interface SettingsRepo {
@@ -197,6 +199,8 @@ export interface FindingRepo {
   setTicket(ids: string[], ticketId: string): Promise<void>;
   /** Every finding of a repository (all statuses), for ticket synchronisation. */
   listAllForRepo(repoId: string): Promise<Finding[]>;
+  /** Retention: removes findings fixed before `before`. */
+  deleteFixedBefore(before: Date): Promise<number>;
   /** Open and suppressed findings, plus ones first seen or fixed since `since` (for dashboards). */
   statsRows(filter: StatsFilter): Promise<FindingStatRow[]>;
 }
@@ -276,6 +280,8 @@ export interface AiUsageRepo {
   /** Totals grouped by provider, model and use case for [from, to). */
   summary(from: Date, to: Date): Promise<AiUsageSummaryRecord[]>;
   totalCost(from: Date, to: Date): Promise<number>;
+  /** Retention: removes usage records older than `before`. */
+  deleteBefore(before: Date): Promise<number>;
 }
 
 export interface AiInsightRepo {
@@ -305,6 +311,8 @@ export interface IntelItemRepo {
   /** Oldest first, for background processing. */
   listByStatus(status: IntelItemStatus, limit: number): Promise<IntelItem[]>;
   countByStatus(): Promise<Record<IntelItemStatus, number>>;
+  /** Retention: removes items fetched before `before` that are no longer awaiting analysis or review. */
+  deleteSettledBefore(before: Date): Promise<number>;
 }
 
 export interface AdvisoryRepo {

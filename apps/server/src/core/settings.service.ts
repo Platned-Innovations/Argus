@@ -1,7 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { type DataStore } from '@argus/data';
 import {
+  DEFAULT_RETENTION_SETTINGS,
   DEFAULT_SCANNING_SETTINGS,
+  type RetentionSettings,
+  retentionSettingsSchema,
   DEFAULT_SECURITY_SETTINGS,
   DEFAULT_TICKETING_SETTINGS,
   type ScanningSettings,
@@ -16,6 +19,7 @@ import { DATA_STORE } from './tokens';
 const SECURITY_KEY = 'security';
 const SCANNING_KEY = 'scanning';
 const TICKETING_KEY = 'ticketing';
+const RETENTION_KEY = 'retention';
 const CACHE_MS = 15_000;
 
 @Injectable()
@@ -65,6 +69,17 @@ export class SettingsService {
   async updateTicketing(value: TicketingSettings, actorId: string): Promise<TicketingSettings> {
     await this.store.settings.set(TICKETING_KEY, value, actorId);
     return this.getTicketing();
+  }
+
+  async getRetention(): Promise<RetentionSettings> {
+    const v = (await this.store.settings.get<Partial<RetentionSettings>>(RETENTION_KEY))?.value ?? {};
+    const merged = retentionSettingsSchema.safeParse({ ...DEFAULT_RETENTION_SETTINGS, ...v });
+    return merged.success ? merged.data : DEFAULT_RETENTION_SETTINGS;
+  }
+
+  async updateRetention(value: RetentionSettings, actorId: string): Promise<RetentionSettings> {
+    await this.store.settings.set(RETENTION_KEY, value, actorId);
+    return this.getRetention();
   }
 
   async getSystemValue<T>(key: string): Promise<T | null> {

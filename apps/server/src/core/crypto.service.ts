@@ -1,6 +1,14 @@
 import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit, Optional } from '@nestjs/common';
+import { type DataStore } from '@argus/data';
 import { AppConfig } from '../config/app-config';
+import { DATA_STORE } from './tokens';
+
+/**
+ * Settings key holding the keyed-hash key, encrypted with the current master key. Written by master-key rotation so
+ * hashes made before the rotation (refresh tokens, API tokens, recovery codes, secret identities) stay valid.
+ */
+export const HASH_KEY_SETTING = 'system.hashKey';
 
 const ENVELOPE_VERSION = 'v1';
 
@@ -13,15 +21,29 @@ function deriveKey(masterKey: string, purpose: string): Buffer {
  * Independent sub-keys are derived per purpose with HKDF so no key is reused across algorithms.
  */
 @Injectable()
-export class CryptoService {
+export class CryptoService implements OnModuleInit {
   private readonly encryptionKey: Buffer;
-  private readonly hashKey: Buffer;
+  private hashKey: Buffer;
   readonly jwtSecret: string;
 
-  constructor(config: AppConfig) {
+  constructor(
+    config: AppConfig,
+    @Optional() @Inject(DATA_STORE) private readonly store?: DataStore,
+  ) {
     this.encryptionKey = deriveKey(config.masterKey, 'encryption/v1');
     this.hashKey = deriveKey(config.masterKey, 'hash/v1');
     this.jwtSecret = deriveKey(config.masterKey, 'jwt/v1').toString('base64');
+  }
+
+  /** After a master-key rotation the original hash key is kept in the database; use it when present. */
+  async onModuleInit(): Promise<void> {
+    const stored = await this.store?.settings.get<string>(HASH_KEY_SETTING);
+    if (stored?.value) this.hashKey = Buffer.from(this.decrypt(stored.value), 'base64');
+  }
+
+  /** The keyed-hash key, for master-key rotation only. */
+  exportHashKey(): string {
+    return this.hashKey.toString('base64');
   }
 
   /** AES-256-GCM. Output: v1.<iv>.<tag>.<ciphertext>, base64url segments. */

@@ -328,6 +328,10 @@ class PgAuditRepo implements AuditRepo {
       .execute();
     return record;
   }
+  async deleteBefore(before: Date): Promise<number> {
+    return Number((await this.db.deleteFrom('auditLogs').where('at', '<', before).executeTakeFirst()).numDeletedRows);
+  }
+
 
   async list(filter: AuditFilter): Promise<Page<AuditEntry>> {
     let q = this.db.selectFrom('auditLogs');

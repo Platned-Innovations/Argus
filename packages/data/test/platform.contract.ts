@@ -2,6 +2,37 @@ import { describe, expect, it } from 'vitest';
 import { type DataStore } from '../src';
 
 export function platformContract(getStore: () => DataStore): void {
+  describe('retention', () => {
+    it('removes only old records: audit entries, AI usage, settled news items', async () => {
+      const store = getStore();
+      const old = new Date(Date.UTC(2001, 0, 1));
+      const cutoff = new Date(Date.UTC(2002, 0, 1));
+      const tag = `ret-${Math.random().toString(36).slice(2)}`;
+      // Audit: append now, then backdate is not possible through the API, so delete with a cutoff in the future
+      // and check only entries before it go.
+      await store.audit.append({ action: tag, actorId: null, actorName: null, targetType: null, targetId: null, outcome: 'success', details: null, ip: null });
+      expect(await store.audit.deleteBefore(old)).toBe(0);
+      expect((await store.audit.list({ action: tag, offset: 0, limit: 10 })).total).toBe(1);
+
+      await store.aiUsage.record({ provider: 'openai', model: 'm', useCase: 'remediation', userId: null, repoId: null, inputTokens: 1, outputTokens: 1, costUsd: 0, outcome: 'ok', at: old });
+      await store.aiUsage.record({ provider: 'openai', model: 'm', useCase: 'remediation', userId: null, repoId: null, inputTokens: 1, outputTokens: 1, costUsd: 0, outcome: 'ok', at: new Date(Date.UTC(2003, 0, 1)) });
+      expect(await store.aiUsage.deleteBefore(cutoff)).toBe(1);
+      expect((await store.aiUsage.summary(new Date(Date.UTC(2003, 0, 1)), new Date(Date.UTC(2003, 1, 1))))[0].requests).toBe(1);
+
+      const src = await store.intelSources.create({ name: tag, url: 'https://example.com/f', enabled: false, intervalMinutes: 60 });
+      const [a, b] = await store.intelItems.insertNew([
+        { sourceId: src.id, guid: `${tag}-a`, title: 'settled', link: null, publishedAt: null, summary: '' },
+        { sourceId: src.id, guid: `${tag}-b`, title: 'awaiting review', link: null, publishedAt: null, summary: '' },
+      ]);
+      await store.intelItems.update(a.id, { status: 'no_match' });
+      await store.intelItems.update(b.id, { status: 'review' });
+      expect(await store.intelItems.deleteSettledBefore(new Date(Date.now() + 60_000))).toBeGreaterThanOrEqual(1);
+      expect(await store.intelItems.findById(a.id)).toBeNull();
+      expect(await store.intelItems.findById(b.id)).not.toBeNull();
+      expect(await store.findings.deleteFixedBefore(old)).toBe(0);
+    });
+  });
+
   describe('credential inventory', () => {
     it('stores credentials, lists by expiry with filters, tracks imports and clears a deleted team', async () => {
       const store = getStore();

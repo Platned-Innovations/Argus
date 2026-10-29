@@ -277,6 +277,10 @@ class MongoAuditRepo implements AuditRepo {
     await this.col.insertOne({ _id: id, ...rest });
     return record;
   }
+  async deleteBefore(before: Date): Promise<number> {
+    return (await this.col.deleteMany({ at: { $lt: before } })).deletedCount;
+  }
+
 
   async list(filter: AuditFilter): Promise<Page<AuditEntry>> {
     const q: Filter<AuditDoc> = {};

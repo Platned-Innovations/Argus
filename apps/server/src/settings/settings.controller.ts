@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, Req } from '@nestjs/common';
-import { type ScanningSettings, scanningSettingsSchema, type SecuritySettings, securitySettingsSchema } from '@argus/shared';
+import { type RetentionSettings, retentionSettingsSchema, type ScanningSettings, scanningSettingsSchema, type SecuritySettings, securitySettingsSchema } from '@argus/shared';
 import { type Request } from 'express';
 import { CurrentUser, RequirePermissions } from '../auth/decorators';
 import { type RequestUser, requestContext } from '../common/request';
@@ -38,6 +38,21 @@ export class SettingsController {
       details: { changed, before: Object.fromEntries(changed.map((k) => [k, before[k]])), after: Object.fromEntries(changed.map((k) => [k, after[k]])) },
       ip: requestContext(req).ip,
     });
+    return after;
+  }
+
+  @Get('retention')
+  @RequirePermissions('settings:read')
+  getRetention(): Promise<RetentionSettings> {
+    return this.settings.getRetention();
+  }
+
+  @Put('retention')
+  @RequirePermissions('settings:manage')
+  async updateRetention(@Body(new ZodPipe(retentionSettingsSchema)) body: RetentionSettings, @CurrentUser() me: RequestUser, @Req() req: Request): Promise<RetentionSettings> {
+    const before = await this.settings.getRetention();
+    const after = await this.settings.updateRetention(body, me.user.id);
+    await this.audit.record({ action: 'settings.retention_updated', actor: me.user, details: { before, after }, ip: requestContext(req).ip });
     return after;
   }
 
