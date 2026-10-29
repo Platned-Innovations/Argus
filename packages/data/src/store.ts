@@ -45,6 +45,20 @@ import {
   type ReconcileResult,
   type Suppression,
 } from './findings-models';
+import {
+  type Channel,
+  type ChannelPatch,
+  type NewChannel,
+  type NewNotificationRule,
+  type NewTicket,
+  type NewTicketEvent,
+  type NotificationRule,
+  type Ticket,
+  type TicketEvent,
+  type TicketListFilter,
+  type TicketPatch,
+  type TicketSummaryRecord,
+} from './tickets-models';
 
 export interface UserRepo {
   create(input: NewUser): Promise<User>;
@@ -161,6 +175,10 @@ export interface FindingRepo {
   update(id: string, patch: Partial<Pick<Finding, 'status' | 'suppressionId'>>): Promise<Finding | null>;
   summary(filter: { repoId?: string; visibleTeamIds?: string[]; fixedSince: Date }): Promise<FindingSummaryRecord>;
   setTeamForRepo(repoId: string, teamId: string | null): Promise<void>;
+  /** Links findings to the ticket that tracks them. */
+  setTicket(ids: string[], ticketId: string): Promise<void>;
+  /** Every finding of a repository (all statuses), for ticket synchronisation. */
+  listAllForRepo(repoId: string): Promise<Finding[]>;
 }
 
 export interface DependencyRepo {
@@ -190,6 +208,46 @@ export interface CacheRepo {
   deleteExpired(before: Date): Promise<number>;
 }
 
+export interface TicketRepo {
+  create(input: NewTicket): Promise<Ticket>;
+  findById(id: string): Promise<Ticket | null>;
+  /** Every ticket of a repository, any status (one per group key). */
+  listForRepo(repoId: string): Promise<Ticket[]>;
+  update(id: string, patch: TicketPatch): Promise<Ticket | null>;
+  /** Highest risk first. */
+  list(filter: TicketListFilter): Promise<Page<Ticket>>;
+  summary(filter: { visibleTeamIds?: string[]; userId: string; now: Date }): Promise<TicketSummaryRecord>;
+  /** Active tickets past their due date that have not been flagged yet. */
+  findNewlyOverdue(now: Date, limit: number): Promise<Ticket[]>;
+  /** Tickets linked to Jira that are not closed. */
+  listJiraLinked(limit: number): Promise<Ticket[]>;
+  setTeamForRepo(repoId: string, teamId: string | null): Promise<void>;
+  addEvent(event: NewTicketEvent): Promise<TicketEvent>;
+  /** Oldest first. */
+  listEvents(ticketId: string): Promise<TicketEvent[]>;
+}
+
+export interface CounterRepo {
+  /** Atomically increments and returns the named counter (first value is 1). */
+  next(name: string): Promise<number>;
+}
+
+export interface ChannelRepo {
+  create(input: NewChannel): Promise<Channel>;
+  findById(id: string): Promise<Channel | null>;
+  list(): Promise<Channel[]>;
+  update(id: string, patch: ChannelPatch): Promise<Channel | null>;
+  delete(id: string): Promise<boolean>;
+}
+
+export interface NotificationRuleRepo {
+  create(input: NewNotificationRule): Promise<NotificationRule>;
+  findById(id: string): Promise<NotificationRule | null>;
+  list(): Promise<NotificationRule[]>;
+  update(id: string, patch: Partial<NewNotificationRule>): Promise<NotificationRule | null>;
+  delete(id: string): Promise<boolean>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -208,6 +266,10 @@ export interface DataStore {
   readonly dependencies: DependencyRepo;
   readonly suppressions: SuppressionRepo;
   readonly cache: CacheRepo;
+  readonly tickets: TicketRepo;
+  readonly counters: CounterRepo;
+  readonly channels: ChannelRepo;
+  readonly notificationRules: NotificationRuleRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

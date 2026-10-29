@@ -5,6 +5,7 @@ import { type DataStore, type Dependency, type ObservedFinding, type Repository,
 import { type ScannerName, type ScannerRunResult, SCANNERS, type ScanStats, type Severity, SEVERITIES } from '@argus/shared';
 import { AppConfig } from '../config/app-config';
 import { CryptoService } from '../core/crypto.service';
+import { DomainEvents } from '../core/domain-events';
 import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
 import { compileGlobs } from './glob';
@@ -51,6 +52,7 @@ export class ScanPipeline {
     @Inject(DATA_STORE) private readonly store: DataStore,
     private readonly settings: SettingsService,
     private readonly crypto: CryptoService,
+    private readonly events: DomainEvents,
     intel: IntelService,
     config: AppConfig,
   ) {
@@ -147,6 +149,9 @@ export class ScanPipeline {
       }));
       await this.store.dependencies.replaceForRepo(repo.id, deps);
     }
+
+    // Tickets are opened, updated and resolved from the reconciled findings.
+    await this.events.emit('scan.completed', { repo, run });
 
     const open = Object.fromEntries(SEVERITIES.map((s) => [s, 0])) as Record<Severity, number>;
     for (const o of observed) if (!o.suppressionId) open[o.severity]++;

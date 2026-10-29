@@ -32,6 +32,16 @@ On first start, Argus creates the database schema and the default administrator.
 docker compose -f deploy/docker/docker-compose.postgres.yml logs argus | grep "DEFAULT ADMIN"
 ```
 
+## MongoDB and Linux kernel 6.19+
+
+MongoDB 8.0.x and 8.3.x refuse to start on hosts running Linux kernel 6.19 or newer. They exit with *"Linux kernel versions 6.19 and newer has a known incompatibility with this version of MongoDB"* ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)). Ubuntu 26.04 ships such a kernel.
+
+If you run MongoDB yourself on such a host, either:
+- pin the compose file's `mongo` image to `mongo:7.0`, or
+- use a managed service (MongoDB Atlas, Azure Cosmos DB for MongoDB).
+
+Argus supports MongoDB 6 and later. PostgreSQL is not affected.
+
 ## Health endpoints
 
 | Endpoint | Purpose |

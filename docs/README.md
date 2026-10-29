@@ -6,6 +6,7 @@
   - [User management](features/user-management.md)
   - [Sources, repositories and scans](features/sources-and-repositories.md)
   - [Scanners, findings and risk scoring](features/scanners-and-findings.md)
+  - [Tickets, email, Jira and notifications](features/tickets-and-notifications.md)
 - **[Configuration](configuration.md):** environment variables and in-app settings.
 - **Deployment**
   - [Docker and docker compose](deployment/docker.md)

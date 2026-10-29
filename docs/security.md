@@ -18,7 +18,8 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | **One master key.** Everything sensitive is protected by keys derived from `ARGUS_MASTER_KEY` (at least 32 characters). HKDF-SHA256 derives a separate sub-key for each purpose (encryption, token signing, keyed hashing), so no key is reused across algorithms. | ✅ |
 | **Authenticated encryption.** Stored secrets are encrypted with AES-256-GCM, using a fresh random 96-bit IV per value and a versioned envelope (`v1.iv.tag.ciphertext`). Any tampering is detected on decryption. Today this covers TOTP secrets, source-control tokens and webhook secrets. | ✅ |
 | GitHub and Bitbucket access tokens and per-source webhook secrets are stored with this encryption. | ✅ |
-| SMTP and Microsoft Graph secrets, Jira tokens and AI provider keys are stored with the same encryption. | 🔜 Phases 3 and 4 |
+| SMTP passwords, Microsoft Graph and OAuth2 client secrets, Teams/Slack webhook URLs, webhook signing secrets and Jira tokens are stored with the same encryption, and are write-only: the API shows only a hint (`••••abcd` or the webhook host). | ✅ |
+| AI provider keys are stored with the same encryption. | 🔜 Phase 4 |
 | **Write-only credentials.** The API never returns a stored credential; for source tokens it shows only the last four characters (`••••abcd`). Changing a token or connection setting re-tests the connection before saving. A webhook secret is shown once, when it is created or rotated. | ✅ |
 | **Detected secrets are never stored in full.** A leaked secret found in a repository is kept only as a masked preview (for example `AKIA…MPLE`; private keys show only "PEM private key") plus an HMAC-SHA256 hash, keyed by this installation, which is used to recognise the same secret across files and scans. Gitleaks' raw report is deleted as soon as it has been read. Argus never becomes a second copy of your leaked secrets. | ✅ |
 | Passwords are hashed with **argon2id** (19 MiB memory, 2 iterations; the OWASP recommendation). They are never stored reversibly or logged. | ✅ |
@@ -60,6 +61,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | **Role-based access control** with four roles: Administrator, Security Manager, Developer and Viewer. Each endpoint declares the permissions it needs, and the server checks them on every request. The UI hides what you cannot do, but the server is the authority. | ✅ |
 | **Team scoping.** Developers and Viewers only see repositories, scan runs, findings, dependency inventories, package-search results and suppressions owned by their teams. Anything outside their teams returns *404 Not found* rather than *403*, so its existence is not revealed. When a repository moves to another team, its findings, inventory and scan history move with it. Tickets follow the same rule from Phase 3. | ✅ |
 | **Suppressing findings needs triage rights** (Administrator or Security Manager). Every suppression carries a justification and an optional expiry, and is audited. | ✅ |
+| **Tickets follow team scoping.** Developers can work tickets of their teams and assign them only to themselves. Closing a ticket, accepting a risk or marking a false positive needs triage rights. Risk acceptance creates an audited, optionally expiring suppression for exactly that issue. | ✅ |
 | **Self-lockout and last-admin protection.** Administrators cannot disable themselves or change their own role, and the last active administrator cannot be removed. | ✅ |
 
 ## 5. Audit trail
@@ -71,7 +73,8 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | CSV export is protected against spreadsheet formula injection (cells beginning with `=`, `+`, `-` or `@` are neutralised). | ✅ |
 | Source changes are audited: creation, edits (including token rotation), deletion, webhook-secret rotation, sync requests and sync results. So are repository setting changes, bulk changes, and manual scan requests. | ✅ |
 | Suppression creation and removal, SBOM exports and scanning-settings changes are audited, with before and after values for settings. | ✅ |
-| Ticket, integration and AI actions are audited as those features arrive. | 🔜 Phases 3–4 |
+| Ticket actions (status changes with justification, assignment, labels, emails sent, Jira issues created, exports) are recorded both in the ticket's activity and in the audit log. So are changes to channels, notification rules, Jira and SLA settings. | ✅ |
+| AI actions are audited. | 🔜 Phase 4 |
 
 ## 6. Source-code handling
 
@@ -115,7 +118,10 @@ AI features are optional and switched off until an administrator configures a pr
 | **Dependency hygiene.** CI fails on high or critical `npm audit` findings in production dependencies, and the image is scanned with Trivy. | ✅ |
 | **Inbound push webhooks are authenticated** with an HMAC-SHA256 signature (`X-Hub-Signature-256` / `X-Hub-Signature`) over the raw request body, using a per-source random secret. Signatures are compared in constant time, and unsigned or mis-signed calls are rejected with 401. | ✅ |
 | Source-connection tests have their own rate limit (20/min), so Argus cannot be used to amplify requests to third-party APIs. | ✅ |
-| Outbound webhooks are HMAC-signed. | 🔜 Phase 3 |
+| **Outbound webhooks are HMAC-signed** (`X-Argus-Signature` over timestamp and body), so receivers can verify origin and reject replays. | ✅ |
+| **Outbound calls to configured services are hardened.**<br>• Graph, Entra ID, Jira, Teams, Slack and webhooks: HTTPS only (plain HTTP only on loopback), redirects refused so a credential never follows a redirect elsewhere, 15-second timeouts.<br>• Email: TLS 1.2+ only.<br>• Errors shown to administrators are redacted of secrets. | ✅ |
+| **Notification content is escaped for each format.**<br>• HTML email escapes every value.<br>• Subjects are single-line, preventing header injection.<br>• Slack text escapes `&`, `<` and `>` so values cannot inject links or mentions.<br>• Jira descriptions use Atlassian Document Format text nodes. | ✅ |
+| Actions that call third parties (email, Jira, channel tests) are rate-limited per client. | ✅ |
 
 ## 9. Operator checklist
 

@@ -3,6 +3,7 @@ import { createDataStore, type DataStore } from '@argus/data';
 import { AppConfig } from '../config/app-config';
 import { AuditService } from './audit.service';
 import { CryptoService } from './crypto.service';
+import { DomainEvents } from './domain-events';
 import { SettingsService } from './settings.service';
 import { DATA_STORE } from './tokens';
 
@@ -38,8 +39,9 @@ export class CoreModule {
         CryptoService,
         AuditService,
         SettingsService,
+        DomainEvents,
       ],
-      exports: [AppConfig, DATA_STORE, CryptoService, AuditService, SettingsService],
+      exports: [AppConfig, DATA_STORE, CryptoService, AuditService, SettingsService, DomainEvents],
     };
   }
 }

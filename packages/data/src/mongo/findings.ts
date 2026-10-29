@@ -27,12 +27,32 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Documents written before a field existed get its default. */
 function toFinding({ _id, ...rest }: FindingDoc): Finding {
-  return { id: _id, ...rest };
+  return { id: _id, ...rest, ticketId: rest.ticketId ?? null };
 }
 
+/** Only the scanner-owned fields; links such as ticketId are never overwritten by a scan. */
 function observedFields(o: ObservedFinding) {
-  return { ...o, status: o.suppressionId ? ('suppressed' as const) : ('open' as const) };
+  return {
+    scanner: o.scanner,
+    ruleId: o.ruleId,
+    fingerprint: o.fingerprint,
+    title: o.title,
+    description: o.description,
+    severity: o.severity,
+    riskScore: o.riskScore,
+    riskFactors: o.riskFactors,
+    path: o.path,
+    line: o.line,
+    package: o.package,
+    advisory: o.advisory,
+    secret: o.secret,
+    details: o.details,
+    remediation: o.remediation,
+    suppressionId: o.suppressionId,
+    status: o.suppressionId ? ('suppressed' as const) : ('open' as const),
+  };
 }
 
 export class MongoFindingRepo implements FindingRepo {
@@ -69,6 +89,7 @@ export class MongoFindingRepo implements FindingRepo {
               firstRunId: ctx.runId,
               lastRunId: ctx.runId,
               fixedAt: null,
+              ticketId: null,
             },
           },
         });
@@ -147,6 +168,14 @@ export class MongoFindingRepo implements FindingRepo {
   async setTeamForRepo(repoId: string, teamId: string | null): Promise<void> {
     await this.col.updateMany({ repoId }, { $set: { teamId } });
   }
+
+  async setTicket(ids: string[], ticketId: string): Promise<void> {
+    if (ids.length) await this.col.updateMany({ _id: { $in: ids } }, { $set: { ticketId } });
+  }
+
+  async listAllForRepo(repoId: string): Promise<Finding[]> {
+    return (await this.col.find({ repoId }).toArray()).map(toFinding);
+  }
 }
 
 export class MongoDependencyRepo implements DependencyRepo {
@@ -200,12 +229,12 @@ export class MongoSuppressionRepo implements SuppressionRepo {
 
   async findById(id: string): Promise<Suppression | null> {
     const d = await this.col.findOne({ _id: id });
-    return d ? { id: d._id, ...stripId(d) } : null;
+    return d ? toSuppression(d) : null;
   }
 
   async list(filter: { repoId?: string } = {}): Promise<Suppression[]> {
     const q: Filter<SuppressionDoc> = filter.repoId ? { $or: [{ repoId: filter.repoId }, { repoId: null }] } : {};
-    return (await this.col.find(q).sort({ createdAt: -1 }).toArray()).map((d) => ({ id: d._id, ...stripId(d) }));
+    return (await this.col.find(q).sort({ createdAt: -1 }).toArray()).map(toSuppression);
   }
 
   async listApplicable(repoId: string, now: Date): Promise<Suppression[]> {
@@ -213,12 +242,17 @@ export class MongoSuppressionRepo implements SuppressionRepo {
       .find({ $and: [{ $or: [{ repoId }, { repoId: null }] }, { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] }] })
       .sort({ createdAt: 1 })
       .toArray();
-    return docs.map((d) => ({ id: d._id, ...stripId(d) }));
+    return docs.map(toSuppression);
   }
 
   async delete(id: string): Promise<boolean> {
     return (await this.col.deleteOne({ _id: id })).deletedCount > 0;
   }
+}
+
+/** Suppressions created before ticket links existed get null defaults. */
+function toSuppression(d: SuppressionDoc): Suppression {
+  return { id: d._id, ...stripId(d), groupKey: d.groupKey ?? null, ticketId: d.ticketId ?? null };
 }
 
 function stripId<T extends { _id: string }>(d: T): Omit<T, '_id'> {

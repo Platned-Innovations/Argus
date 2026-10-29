@@ -91,6 +91,8 @@ export interface FindingDto {
   details: Record<string, unknown> | null;
   remediation: string | null;
   suppressionId: string | null;
+  /** Ticket tracking this finding, if one has been opened. */
+  ticketId: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
   fixedAt: string | null;
@@ -189,6 +191,8 @@ export interface SuppressionDto {
   createdBy: string | null;
   createdByName: string | null;
   createdAt: string;
+  /** Set when the suppression was created by risk-accepting a ticket. */
+  ticketId: string | null;
   matchedFindings?: number;
 }
 

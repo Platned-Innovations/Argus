@@ -22,15 +22,15 @@ const sections: { title?: string; items: NavItem[] }[] = [
       { to: '/repositories', label: 'Repositories', icon: FolderGit2, permission: 'repos:read' },
       { to: '/packages', label: 'Package search', icon: PackageSearch, permission: 'repos:read' },
       { to: '/suppressions', label: 'Suppressions', icon: ShieldOff, permission: 'findings:read' },
-      { to: '/tickets', label: 'Tickets', icon: ShieldAlert, permission: 'tickets:read', soon: true },
+      { to: '/tickets', label: 'Tickets', icon: ShieldAlert, permission: 'tickets:read' },
       { to: '/intel', label: 'Threat intel', icon: Radar, permission: 'findings:read', soon: true },
-      { to: '/notifications', label: 'Notifications', icon: BellRing, permission: 'settings:read', soon: true },
     ],
   },
   {
     title: 'Administration',
     items: [
       { to: '/admin/sources', label: 'Sources', icon: Plug, permission: 'sources:manage' },
+      { to: '/admin/integrations', label: 'Integrations', icon: BellRing, permission: 'settings:manage' },
       { to: '/admin/users', label: 'Users', icon: Users, permission: 'users:read' },
       { to: '/admin/teams', label: 'Teams', icon: UsersRound, permission: 'teams:read' },
       { to: '/admin/audit', label: 'Audit log', icon: ScrollText, permission: 'audit:read' },

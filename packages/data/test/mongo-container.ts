@@ -12,8 +12,6 @@ export async function startMongo(): Promise<{ container: StartedTestContainer; u
   try {
     const container = await new GenericContainer(MONGO_IMAGE)
       .withCommand(['mongod', '--bind_ip_all', '--wiredTigerCacheSizeGB', '0.25'])
-      // MongoDB 8.0's TCMalloc needs glibc's rseq registration disabled on some kernels (see MongoDB production notes).
-      .withEnvironment({ GLIBC_TUNABLES: 'glibc.pthread.rseq=0' })
       .withExposedPorts(27017)
       .withLogConsumer((stream) => stream.on('data', (line: Buffer | string) => output.push(String(line).trimEnd())))
       .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))

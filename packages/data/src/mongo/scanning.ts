@@ -96,7 +96,9 @@ export class MongoSourceRepo implements SourceRepo {
     const repoIds = (await this.repos.find({ sourceId: id }, { projection: { _id: 1 } }).toArray()).map((r) => r._id);
     await this.runs.deleteMany({ sourceId: id });
     // Mirrors the ON DELETE CASCADE foreign keys of the PostgreSQL schema.
-    for (const name of ['findings', 'dependencies', 'suppressions']) await this.db.collection(name).deleteMany({ repoId: { $in: repoIds } });
+    const ticketIds = (await this.db.collection<{ _id: string }>('tickets').find({ repoId: { $in: repoIds } }, { projection: { _id: 1 } }).toArray()).map((t) => t._id);
+    await this.db.collection('ticket_events').deleteMany({ ticketId: { $in: ticketIds } });
+    for (const name of ['findings', 'dependencies', 'suppressions', 'tickets']) await this.db.collection(name).deleteMany({ repoId: { $in: repoIds } });
     await this.repos.deleteMany({ sourceId: id });
     return true;
   }

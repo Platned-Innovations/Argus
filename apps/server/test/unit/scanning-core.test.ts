@@ -158,7 +158,7 @@ describe('.argus.yml and suppressions', () => {
     expect(buildSuppressionRules('repo', [], cfg, new Date())[0].id).toBe(rules[0].id);
     expect(matchSuppression(rules, 'dependencies', draft())?.source).toBe('repo-file');
 
-    const db = [{ id: 'db1', repoId: null, scanner: 'secrets' as const, ruleId: null, pathPattern: 'test/**', packageName: null, reason: 'r', expiresAt: null, createdBy: null, createdByName: null, createdAt: new Date() }];
+    const db = [{ id: 'db1', repoId: null, scanner: 'secrets' as const, ruleId: null, pathPattern: 'test/**', packageName: null, groupKey: null, ticketId: null, reason: 'r', expiresAt: null, createdBy: null, createdByName: null, createdAt: new Date() }];
     const dbRules = buildSuppressionRules('repo', db, parseRepoConfig(''), new Date());
     expect(matchSuppression(dbRules, 'dependencies', draft())).toBeNull();
     expect(matchSuppression(dbRules, 'secrets', draft())?.id).toBe('db1');

@@ -3,6 +3,7 @@ import { hostname } from 'node:os';
 import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
 import { type DataStore } from '@argus/data';
 import { AppConfig } from '../config/app-config';
+import { DomainEvents } from '../core/domain-events';
 import { DATA_STORE } from '../core/tokens';
 import { IntelService } from '../scanning/intel.service';
 import { SourcesService } from '../sources/sources.service';
@@ -35,6 +36,7 @@ export class SchedulerService implements OnApplicationBootstrap, OnApplicationSh
     private readonly sources: SourcesService,
     private readonly config: AppConfig,
     private readonly intel: IntelService,
+    private readonly events: DomainEvents,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -56,6 +58,8 @@ export class SchedulerService implements OnApplicationBootstrap, OnApplicationSh
       if (!(await this.store.locks.acquire(LOCK_NAME, this.owner, Math.max(60_000, this.config.schedulerIntervalMs * 3)))) return;
       await this.queueDueScans();
       await this.queueSourceSyncs();
+      // SLA checks, Jira sync and digests run on the leader only; each handler throttles itself.
+      await this.events.emit('scheduler.tick', { now: new Date() });
       if (Date.now() - this.lastHousekeeping > HOUSEKEEPING_INTERVAL_MS) {
         this.lastHousekeeping = Date.now();
         await this.housekeeping();

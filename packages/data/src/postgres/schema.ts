@@ -195,6 +195,7 @@ export interface FindingsTable {
   details: Json<Record<string, unknown> | null> | null;
   remediation: string | null;
   suppressionId: string | null;
+  ticketId: string | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
   firstRunId: string;
@@ -226,6 +227,8 @@ export interface SuppressionsTable {
   ruleId: string | null;
   pathPattern: string | null;
   packageName: string | null;
+  groupKey: string | null;
+  ticketId: string | null;
   reason: string;
   expiresAt: Date | null;
   createdBy: string | null;
@@ -238,6 +241,80 @@ export interface IntelCacheTable {
   value: Json<unknown>;
   fetchedAt: Date;
   expiresAt: Date;
+}
+
+export interface TicketsTable {
+  id: string;
+  key: string;
+  repoId: string;
+  sourceId: string;
+  teamId: string | null;
+  scanner: string;
+  groupKey: string;
+  title: string;
+  description: string | null;
+  severity: string;
+  riskScore: number;
+  status: string;
+  assigneeId: string | null;
+  watcherIds: Json<string[]>;
+  labels: Json<string[]>;
+  findingIds: Json<string[]>;
+  openFindings: number;
+  remediation: string | null;
+  dueAt: Date | null;
+  slaBreachedAt: Date | null;
+  suppressionId: string | null;
+  jira: Json<Record<string, unknown> | null> | null;
+  resolvedAt: Date | null;
+  closedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  lastActivityAt: Date;
+}
+
+export interface TicketEventsTable {
+  id: string;
+  ticketId: string;
+  type: string;
+  actorId: string | null;
+  actorName: string | null;
+  body: string | null;
+  data: Json<Record<string, unknown> | null> | null;
+  createdAt: Date;
+}
+
+export interface CountersTable {
+  name: string;
+  value: number;
+}
+
+export interface NotificationChannelsTable {
+  id: string;
+  name: string;
+  type: string;
+  enabled: boolean;
+  config: Json<Record<string, unknown>>;
+  secretEnc: string | null;
+  secretHint: string | null;
+  lastUsedAt: Date | null;
+  lastError: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NotificationRulesTable {
+  id: string;
+  name: string;
+  enabled: boolean;
+  events: Json<string[]>;
+  minSeverity: string;
+  teamIds: Json<string[]>;
+  channelIds: Json<string[]>;
+  recipients: Json<string[]>;
+  includeRepoRecipients: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Database {
@@ -256,4 +333,9 @@ export interface Database {
   dependencies: DependenciesTable;
   suppressions: SuppressionsTable;
   intelCache: IntelCacheTable;
+  tickets: TicketsTable;
+  ticketEvents: TicketEventsTable;
+  counters: CountersTable;
+  notificationChannels: NotificationChannelsTable;
+  notificationRules: NotificationRulesTable;
 }

@@ -2,6 +2,7 @@ import { type FindingDto, SCANNER_LABELS, type Severity, type SuppressionDto } f
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertOctagon, ExternalLink, Flame, ShieldOff } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -147,6 +148,11 @@ export function FindingModal({ findingId, onClose }: { findingId: string; onClos
                   <Flame className="mr-1 size-3" />
                   Known exploited
                 </Badge>
+              )}
+              {f.ticketId && (
+                <Link to={`/tickets/${f.ticketId}`} className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400" onClick={onClose}>
+                  View ticket →
+                </Link>
               )}
               {can('tickets:triage') && f.status === 'open' && (
                 <Button size="sm" variant="secondary" className="ml-auto" icon={<ShieldOff className="size-4" />} onClick={() => setSuppressing(true)}>

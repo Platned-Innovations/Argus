@@ -3,15 +3,19 @@ import { type DataStore } from '@argus/data';
 import {
   DEFAULT_SCANNING_SETTINGS,
   DEFAULT_SECURITY_SETTINGS,
+  DEFAULT_TICKETING_SETTINGS,
   type ScanningSettings,
   scanningSettingsSchema,
   type SecuritySettings,
   securitySettingsSchema,
+  type TicketingSettings,
+  ticketingSettingsSchema,
 } from '@argus/shared';
 import { DATA_STORE } from './tokens';
 
 const SECURITY_KEY = 'security';
 const SCANNING_KEY = 'scanning';
+const TICKETING_KEY = 'ticketing';
 const CACHE_MS = 15_000;
 
 @Injectable()
@@ -50,6 +54,17 @@ export class SettingsService {
   async updateScanning(value: ScanningSettings, actorId: string): Promise<ScanningSettings> {
     await this.store.settings.set(SCANNING_KEY, value, actorId);
     return this.getScanning();
+  }
+
+  async getTicketing(): Promise<TicketingSettings> {
+    const v = (await this.store.settings.get<Partial<TicketingSettings>>(TICKETING_KEY))?.value ?? {};
+    const merged = ticketingSettingsSchema.safeParse({ ...DEFAULT_TICKETING_SETTINGS, ...v, slaDays: { ...DEFAULT_TICKETING_SETTINGS.slaDays, ...(v.slaDays ?? {}) } });
+    return merged.success ? merged.data : DEFAULT_TICKETING_SETTINGS;
+  }
+
+  async updateTicketing(value: TicketingSettings, actorId: string): Promise<TicketingSettings> {
+    await this.store.settings.set(TICKETING_KEY, value, actorId);
+    return this.getTicketing();
   }
 
   async getSystemValue<T>(key: string): Promise<T | null> {

@@ -24,6 +24,8 @@ export interface Finding {
   details: Record<string, unknown> | null;
   remediation: string | null;
   suppressionId: string | null;
+  /** Ticket tracking this finding, once one exists. */
+  ticketId: string | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
   firstRunId: string;
@@ -32,7 +34,7 @@ export interface Finding {
 }
 
 /** A finding as produced by a scan, before reconciliation with stored state. */
-export type ObservedFinding = Omit<Finding, 'id' | 'repoId' | 'sourceId' | 'teamId' | 'status' | 'firstSeenAt' | 'lastSeenAt' | 'firstRunId' | 'lastRunId' | 'fixedAt'>;
+export type ObservedFinding = Omit<Finding, 'id' | 'repoId' | 'sourceId' | 'teamId' | 'status' | 'ticketId' | 'firstSeenAt' | 'lastSeenAt' | 'firstRunId' | 'lastRunId' | 'fixedAt'>;
 
 export interface ReconcileContext {
   repoId: string;
@@ -108,6 +110,9 @@ export interface Suppression {
   ruleId: string | null;
   pathPattern: string | null;
   packageName: string | null;
+  /** Matches findings of one ticket's issue (set when a ticket is risk-accepted or marked a false positive). */
+  groupKey: string | null;
+  ticketId: string | null;
   reason: string;
   expiresAt: Date | null;
   createdBy: string | null;

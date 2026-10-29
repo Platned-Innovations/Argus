@@ -94,6 +94,7 @@ export class ReposService {
       this.store.findings.setTeamForRepo(repo.id, patch.teamId),
       this.store.dependencies.setTeamForRepo(repo.id, patch.teamId),
       this.store.scanRuns.setTeamForRepo(repo.id, patch.teamId),
+      this.store.tickets.setTeamForRepo(repo.id, patch.teamId),
     ]);
   }
 

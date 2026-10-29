@@ -89,6 +89,20 @@ Every request goes through these global guards, in order:
 
 Request bodies and query strings are validated with the zod schemas from `packages/shared`.
 
+## Domain events
+
+Modules communicate through a small in-process event bus (`DomainEvents`) rather than calling each other, so features stay decoupled:
+
+| Event | Published by | Handled by |
+|---|---|---|
+| `scan.completed` | scan pipeline | tickets (open / update / resolve) |
+| `scan.failed` | scan executor | notifications |
+| `findings.changed` | suppressions | tickets (accept / reopen) |
+| `ticket.created`, `ticket.reopened`, `ticket.sla_breached` | tickets | notifications |
+| `scheduler.tick` | leader scheduler | SLA checks, Jira sync, weekly digests |
+
+Notifications are delivered through the job queue (`notification.deliver`), with retries. In split deployments, events are handled in the process that raises them (scans in workers, suppression changes in the API), and delivery always runs on a worker.
+
 ## Scan lifecycle
 
 A scan runs as follows:
