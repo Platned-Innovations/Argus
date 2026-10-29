@@ -13,7 +13,7 @@ import {
 import { type RequestContext } from '../common/request';
 import { AppConfig } from '../config/app-config';
 import { AuditService } from '../core/audit.service';
-import { DomainEvents } from '../core/domain-events';
+import { DomainEvents, type EmergingThreat } from '../core/domain-events';
 import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
 import { JobRunner, PermanentJobError } from '../jobs/job-runner.service';
@@ -33,6 +33,7 @@ interface NotifyPayload {
   repoId?: string;
   runId?: string;
   error?: string;
+  threat?: EmergingThreat;
 }
 
 /** ISO week id such as "2026-W44", used so each weekly digest is sent once. */
@@ -79,6 +80,12 @@ export class NotificationsService implements OnModuleInit {
       }
     });
     this.events.on('scheduler.tick', ({ now }) => this.maybeSendDigests(now));
+    this.events.on('intel.emerging_threats', async ({ threats }) => {
+      for (const threat of threats) {
+        const rules = (await this.matchingRules('emerging_threat', null, threat.severity)).filter((r) => !r.teamIds.length || threat.teamIds.some((t) => t !== null && r.teamIds.includes(t)));
+        for (const rule of rules) await this.enqueue({ ruleId: rule.id, event: 'emerging_threat', threat });
+      }
+    });
   }
 
   // ------------------------------------------------------------------ rules
@@ -165,7 +172,28 @@ export class NotificationsService implements OnModuleInit {
     const repo = p.repoId ? await this.store.repositories.findById(p.repoId) : null;
 
     let message: Message;
+    let extraRecipients: string[] = [];
     if (p.event === 'weekly_digest') message = await this.digestMessage(rule);
+    else if (p.event === 'emerging_threat' && p.threat) {
+      const t = p.threat;
+      // A team-scoped rule only names that team's repositories.
+      const repos = (await this.store.repositories.findByIds(t.repoIds)).filter((r) => !rule.teamIds.length || (r.teamId !== null && rule.teamIds.includes(r.teamId)));
+      if (!repos.length) return;
+      if (rule.includeRepoRecipients) extraRecipients = repos.flatMap((r) => r.notifyEmails);
+      message = {
+        event: p.event,
+        title: `Emerging threat: ${t.packageName} — ${t.title}`.slice(0, 250),
+        summary: `A newly published advisory (${t.advisoryId}) affects ${repos.length} repository(ies) in their current dependencies. Argus opened ${t.findings} finding(s) without waiting for the next scan.`,
+        severity: t.severity,
+        url: this.link('/intel'),
+        facts: [
+          { name: 'Advisory', value: t.advisoryId },
+          { name: 'Package', value: `${t.packageName} (${t.ecosystem})` },
+          { name: 'Severity', value: t.severity },
+          { name: 'Repositories', value: repos.slice(0, 10).map((r) => r.fullName).join(', ') + (repos.length > 10 ? ` and ${repos.length - 10} more` : '') },
+        ],
+      };
+    }
     else if (p.event === 'scan_failed') {
       message = {
         event: p.event,
@@ -181,7 +209,7 @@ export class NotificationsService implements OnModuleInit {
       message = this.ticketMessage(p.event, ticket, repo);
     }
 
-    const recipients = [...new Set([...rule.recipients, ...(rule.includeRepoRecipients && repo ? repo.notifyEmails : [])])];
+    const recipients = [...new Set([...rule.recipients, ...(rule.includeRepoRecipients && repo ? repo.notifyEmails : []), ...extraRecipients])];
     const failures: string[] = [];
     let delivered = 0;
     for (const id of rule.channelIds) {

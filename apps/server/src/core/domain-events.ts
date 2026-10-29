@@ -1,5 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { type Repository, type ScanRun, type Ticket } from '@argus/data';
+import { type EmergingThreatDto } from '@argus/shared';
+
+/** A new advisory that matched repositories between scans. */
+export interface EmergingThreat extends EmergingThreatDto {
+  repoIds: string[];
+  teamIds: (string | null)[];
+}
 
 /** Events published by one module and handled by others, so modules do not depend on each other directly. */
 export interface DomainEventMap {
@@ -12,6 +19,8 @@ export interface DomainEventMap {
   'ticket.created': { ticket: Ticket };
   'ticket.reopened': { ticket: Ticket };
   'ticket.sla_breached': { ticket: Ticket };
+  /** Continuous re-matching opened findings for newly published advisories. */
+  'intel.emerging_threats': { threats: EmergingThreat[] };
   /** The leader scheduler ticked (at most once per interval across all workers). */
   'scheduler.tick': { now: Date };
 }

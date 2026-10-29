@@ -92,7 +92,10 @@ export const aiSettingsSchema = z.object({
   enabled: z.boolean(),
   defaultProvider: z.enum(AI_PROVIDERS),
   providers: z.object({ anthropic: providerInput, openai: providerInput, gemini: providerInput }),
-  useCases: z.object({ remediation: useCaseSettings, ticket_draft: useCaseSettings, secret_triage: useCaseSettings, vuln_applicability: useCaseSettings, advisory_extraction: useCaseSettings }),
+  useCases: z.object({ remediation: useCaseSettings, ticket_draft: useCaseSettings, secret_triage: useCaseSettings, vuln_applicability: useCaseSettings,
+    // Added in Phase 5; optional so earlier clients keep working.
+    advisory_extraction: useCaseSettings.default({ enabled: false, provider: null }),
+  }),
   /** Requests stop once the estimated spend this calendar month (UTC) reaches the budget. null = no cap. */
   monthlyBudgetUsd: z.number().min(0).max(1_000_000).nullable(),
   /** Upper bound on the characters of repository content (code snippets, finding details) in one prompt. */

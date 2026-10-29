@@ -40,7 +40,8 @@ export class AiUnavailableError extends BadRequestException {}
 
 export interface AiRunRequest<T> {
   useCase: AiUseCase;
-  repo: Repository;
+  /** The repository the content comes from (its AI opt-out applies), or null for content not tied to one (security news). */
+  repo: Repository | null;
   /** null for background work (scans). */
   actor: User | null;
   /** Use-case specific instructions, appended to the shared preamble. */
@@ -150,7 +151,7 @@ export class AiService {
   }
 
   /** Whether a background use case may run for this repository (no exception, for scans). */
-  async canRun(useCase: AiUseCase, repo: Repository): Promise<boolean> {
+  async canRun(useCase: AiUseCase, repo: Repository | null): Promise<boolean> {
     try {
       await this.prepare(useCase, repo);
       return true;
@@ -185,11 +186,11 @@ export class AiService {
     return createAiClient(name, { model: p.model, apiKey: this.crypto.decrypt(p.keyEnc), baseUrl: p.baseUrl });
   }
 
-  private async prepare(useCase: AiUseCase, repo: Repository) {
+  private async prepare(useCase: AiUseCase, repo: Repository | null) {
     const s = await this.stored();
     if (!s.enabled) throw new AiUnavailableError('AI assistance is turned off.');
     if (!s.useCases[useCase].enabled) throw new AiUnavailableError('This AI feature is turned off.');
-    if (!repo.aiEnabled) throw new AiUnavailableError(`${repo.fullName} is excluded from AI assistance.`);
+    if (repo && !repo.aiEnabled) throw new AiUnavailableError(`${repo.fullName} is excluded from AI assistance.`);
     const name = s.useCases[useCase].provider ?? s.defaultProvider;
     const client = this.clientFor(name, s.providers[name]);
     if (await this.overBudget(s)) throw new AiUnavailableError('The monthly AI budget has been reached.');
@@ -204,13 +205,13 @@ export class AiService {
 
     const account = async (outcome: 'ok' | 'error' | 'invalid_output', model: string, inputTokens = 0, outputTokens = 0) => {
       const costUsd = this.cost(provider, model, inputTokens, outputTokens);
-      await this.store.aiUsage.record({ provider: name, model, useCase: req.useCase, userId: req.actor?.id ?? null, repoId: req.repo.id, inputTokens, outputTokens, costUsd, outcome });
+      await this.store.aiUsage.record({ provider: name, model, useCase: req.useCase, userId: req.actor?.id ?? null, repoId: req.repo?.id ?? null, inputTokens, outputTokens, costUsd, outcome });
       await this.audit.record({
         action: 'ai.request',
         actor: req.actor,
         target: req.subject,
         outcome: outcome === 'ok' ? 'success' : 'failure',
-        details: { useCase: req.useCase, provider: name, model, repo: req.repo.fullName, inputTokens, outputTokens, costUsd: Math.round(costUsd * 1e6) / 1e6, redactions: redacted.redactions, outcome },
+        details: { useCase: req.useCase, provider: name, model, repo: req.repo?.fullName ?? null, inputTokens, outputTokens, costUsd: Math.round(costUsd * 1e6) / 1e6, redactions: redacted.redactions, outcome },
       });
     };
 

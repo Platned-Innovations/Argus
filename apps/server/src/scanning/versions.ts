@@ -62,6 +62,15 @@ export function satisfies(ecosystem: Ecosystem, version: string, range: string):
   return semver.satisfies(n, normalizedRange, { loose: true, includePrerelease: true });
 }
 
+/** Whether an npm-style range (as used in Argus advisories) can be parsed. */
+export function isValidRange(range: string): boolean {
+  try {
+    return semver.validRange(range, { loose: true }) !== null;
+  } catch {
+    return false;
+  }
+}
+
 /** Minimum version satisfying a declared npm range (for manifests without a lockfile). */
 export function minVersionOf(range: string): string | null {
   try {

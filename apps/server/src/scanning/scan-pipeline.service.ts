@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { open, readFile } from 'node:fs/promises';
 import { Inject, Injectable } from '@nestjs/common';
 import { type DataStore, type Dependency, type ObservedFinding, type Repository, type ScanRun } from '@argus/data';
@@ -12,13 +11,13 @@ import { ScanAiTriage } from './ai-triage';
 import { compileGlobs } from './glob';
 import { IntelService } from './intel.service';
 import { EMPTY_REPO_CONFIG, parseRepoConfig, REPO_CONFIG_FILES, type RepoScanConfig } from './repo-config';
-import { computeRisk } from './risk';
 import { CertificatesScanner } from './scanners/certificates';
 import { DependenciesScanner } from './scanners/dependencies';
 import { FrameworksScanner } from './scanners/frameworks';
 import { LicensesScanner } from './scanners/licenses';
 import { SecretsScanner } from './scanners/secrets';
-import { buildSuppressionRules, matchSuppression } from './suppression-matcher';
+import { toObservedFinding } from './observe';
+import { buildSuppressionRules } from './suppression-matcher';
 import { type RepoFile, type ScanInput, type Scanner, type SharedScanState } from './types';
 
 export interface PipelineResult {
@@ -100,28 +99,9 @@ export class ScanPipeline {
       try {
         const out = await scanner.run(input, shared);
         for (const d of out.findings) {
-          const risk = computeRisk({ ...d.risk, publicRepo: repo.visibility === 'public', criticality: repo.criticality }, settings.riskWeights);
-          const suppression = matchSuppression(rules, scanner.name, d);
-          const fingerprint = createHash('sha256').update([scanner.name, d.ruleId, ...d.identity].join('\u0000')).digest('hex').slice(0, 40);
-          if (d.secretValue) secretValues.set(fingerprint, d.secretValue);
-          observed.push({
-            scanner: scanner.name,
-            ruleId: d.ruleId,
-            fingerprint,
-            title: d.title.slice(0, 500),
-            description: d.description?.slice(0, 4000) ?? null,
-            severity: risk.severity,
-            riskScore: risk.score,
-            riskFactors: risk.factors,
-            path: d.path,
-            line: d.line,
-            package: d.package,
-            advisory: d.advisory,
-            secret: d.secret,
-            details: suppression ? { ...(d.details ?? {}), suppression: { source: suppression.source, reason: suppression.reason } } : d.details,
-            remediation: d.remediation,
-            suppressionId: suppression?.id ?? null,
-          });
+          const o = toObservedFinding(repo, scanner.name, d, settings.riskWeights, rules);
+          if (d.secretValue) secretValues.set(o.fingerprint, d.secretValue);
+          observed.push(o);
         }
         if (out.status === 'ok') completed.push(scanner.name);
         else warnings.push(`${scanner.name}: ${out.message ?? 'partial results'}`);
