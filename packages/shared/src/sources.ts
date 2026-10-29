@@ -51,17 +51,33 @@ const sourceFields = {
   baseUrl: z.url().max(500).nullable().optional(),
   /** GitHub organisation, Bitbucket Cloud workspace or Bitbucket Data Center project key. */
   scope: optionalText(200),
-  /** Bitbucket username / Atlassian account email for basic auth; leave empty for bearer-style tokens. */
+  /**
+   * Bitbucket username / Atlassian account email for basic auth; leave empty for bearer-style tokens.
+   * For GitHub, the App ID when authenticating as a GitHub App (the token is then the app's private key).
+   */
   username: optionalText(200),
-  token: z.string().trim().min(1).max(4096),
+  token: z.string().trim().min(1).max(8192),
   /** Comma-separated glob patterns (e.g. "payments/*, *-api") matched against the full name of newly discovered repositories. */
   autoActivatePattern: optionalText(500),
   defaultTeamId: z.uuid().nullable().optional(),
 };
 
+/** How a source authenticates. A GitHub source with an App ID authenticates as a GitHub App. */
+export const SOURCE_AUTH_METHODS = ['token', 'github_app'] as const;
+export type SourceAuthMethod = (typeof SOURCE_AUTH_METHODS)[number];
+
+/** GitHub App sources need the App ID, the organisation or account it is installed on, and the app's private key. */
+function checkGitHubApp(s: { provider?: Provider; scope?: string | null; username?: string | null; token?: string }, ctx: z.RefinementCtx): void {
+  if (s.provider !== 'github' || !s.username?.trim()) return;
+  if (!/^\d{1,12}$/.test(s.username.trim())) ctx.addIssue({ code: 'custom', path: ['username'], message: 'The GitHub App ID is a number, shown on the app\'s settings page.' });
+  if (!s.scope?.trim()) ctx.addIssue({ code: 'custom', path: ['scope'], message: 'Enter the organisation or account the GitHub App is installed on.' });
+  if (s.token !== undefined && !/-----BEGIN (RSA )?PRIVATE KEY-----/.test(s.token)) ctx.addIssue({ code: 'custom', path: ['token'], message: 'Paste the GitHub App private key (.pem file).' });
+}
+
 export const sourceCreateSchema = z.object(sourceFields).superRefine((s, ctx) => {
   if (s.provider === 'bitbucket_server' && !s.baseUrl) ctx.addIssue({ code: 'custom', path: ['baseUrl'], message: 'The server URL is required for Bitbucket Data Center.' });
   if (s.provider === 'bitbucket_cloud' && !s.scope) ctx.addIssue({ code: 'custom', path: ['scope'], message: 'The workspace is required for Bitbucket Cloud.' });
+  checkGitHubApp(s, ctx);
 });
 export type SourceCreateInput = z.infer<typeof sourceCreateSchema>;
 
@@ -69,13 +85,15 @@ export type SourceCreateInput = z.infer<typeof sourceCreateSchema>;
 export const sourceUpdateSchema = z.object(sourceFields).omit({ provider: true }).partial();
 export type SourceUpdateInput = z.infer<typeof sourceUpdateSchema>;
 
-export const sourceTestSchema = z.object({
-  provider: sourceFields.provider,
-  baseUrl: sourceFields.baseUrl,
-  scope: sourceFields.scope,
-  username: sourceFields.username,
-  token: sourceFields.token,
-});
+export const sourceTestSchema = z
+  .object({
+    provider: sourceFields.provider,
+    baseUrl: sourceFields.baseUrl,
+    scope: sourceFields.scope,
+    username: sourceFields.username,
+    token: sourceFields.token,
+  })
+  .superRefine(checkGitHubApp);
 export type SourceTestInput = z.infer<typeof sourceTestSchema>;
 
 export const repoUpdateSchema = z
@@ -128,6 +146,7 @@ export interface SourceDto {
   baseUrl: string | null;
   scope: string | null;
   username: string | null;
+  authMethod: SourceAuthMethod;
   /** Masked hint of the stored token, e.g. "••••3f9a". The token itself is never returned. */
   tokenHint: string;
   autoActivatePattern: string | null;

@@ -24,7 +24,7 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 
 | Feature | Status |
 |---|---|
-| GitHub (github.com and Enterprise Server) and Bitbucket (Cloud and Data Center) connections, verified before saving, with daily and on-demand repository sync | ✅ |
+| GitHub (github.com and Enterprise Server, with a personal access token or as a GitHub App) and Bitbucket (Cloud and Data Center) connections, verified before saving, with daily and on-demand repository sync | ✅ |
 | List repositories in a source and activate them individually or in bulk; auto-activate new repos matching a pattern | ✅ |
 | Per-repository scan schedule (hourly, daily, weekly or custom cron), manual "Scan now", scan-on-push webhooks (HMAC-verified) | ✅ |
 | Repository settings: branch, business criticality, owning team, Jira project, notification recipients | ✅ |

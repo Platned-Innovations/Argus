@@ -59,8 +59,7 @@ export class ScanExecutor implements OnModuleInit {
 
     const conn = this.sources.connection(source);
     const client = this.sources.clientFor(source);
-    const authHeader = client.gitAuthHeader();
-    redactor = new Redactor([conn.token, authHeader, authHeader.replace(/^Authorization:\s*\S+\s+/, '')]);
+    redactor = new Redactor([conn.token]);
     const workdir = join(this.config.scanWorkdir, run.id);
     let stats: ScanStatsRecord | null = null;
 
@@ -69,6 +68,11 @@ export class ScanExecutor implements OnModuleInit {
 
     try {
       const cloneUrl = assertCloneUrlAllowed(client, repo.cloneUrl);
+      // Minted on demand for GitHub Apps, so it is only known here; it is redacted like the stored token.
+      const authHeader = await client.gitAuthHeader();
+      const encoded = authHeader.replace(/^Authorization:\s*\S+\s+/, '');
+      const decodedSecret = /^Authorization:\s*Basic\s/i.test(authHeader) ? Buffer.from(encoded, 'base64').toString('utf8').split(':').slice(1).join(':') : null;
+      redactor = new Redactor([conn.token, authHeader, encoded, decodedSecret]);
       await mkdir(this.config.scanWorkdir, { recursive: true });
       await rm(workdir, { recursive: true, force: true });
 

@@ -9,6 +9,7 @@ import { DATA_STORE } from '../core/tokens';
 import { JobRunner, PermanentJobError } from '../jobs/job-runner.service';
 import { compilePatterns, DEFAULT_SCHEDULE } from '../scans/schedule';
 import { createProviderClient, type ProviderClient, type ProviderConnection, ProviderError } from './providers';
+import { isGitHubApp } from './providers/github';
 
 export const SOURCE_SYNC_JOB = 'source.sync';
 
@@ -20,7 +21,8 @@ function toDto(s: Source | SourceWithCounts): SourceDto {
     baseUrl: s.baseUrl,
     scope: s.scope,
     username: s.username,
-    tokenHint: `••••${s.tokenLast4}`,
+    authMethod: isGitHubApp(s) ? 'github_app' : 'token',
+    tokenHint: isGitHubApp(s) ? 'private key' : `••••${s.tokenLast4}`,
     autoActivatePattern: s.autoActivatePattern,
     defaultTeamId: s.defaultTeamId,
     status: s.status,

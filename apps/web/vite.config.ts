@@ -1,11 +1,14 @@
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-const apiTarget = process.env.ARGUS_API_URL ?? 'http://localhost:8080';
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, fileURLToPath(new URL('../..', import.meta.url)), '');
+  const apiTarget =
+    process.env.ARGUS_API_URL ?? env.ARGUS_API_URL ?? `http://localhost:${env.PORT ?? 8080}`;
 
-export default defineConfig({
+  return {
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -14,7 +17,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: Number(process.env.WEB_PORT ?? env.WEB_PORT ?? 5173),
+    strictPort: true,
     proxy: {
       '/api': apiTarget,
       '/healthz': apiTarget,
@@ -25,4 +29,5 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
   },
+  };
 });
