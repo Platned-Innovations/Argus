@@ -2,7 +2,11 @@ import { execFile } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { isTestPath } from '../risk';
+import { type SecretVerifier } from '../secret-verifier';
 import { type DraftFinding, type ScanInput, type Scanner, type ScannerOutput } from '../types';
+
+/** Upper bound on live verifications per scan. */
+const MAX_VERIFICATIONS = 25;
 
 const execFileAsync = promisify(execFile);
 
@@ -137,17 +141,47 @@ export class SecretsScanner implements Scanner {
   constructor(
     private readonly gitleaksBinary: string,
     private readonly timeoutMs: number,
+    /** Live verification with the issuer; used only when the scanning setting is on and Argus is online. */
+    private readonly verifier: SecretVerifier | null = null,
   ) {}
 
   async run(input: ScanInput): Promise<ScannerOutput> {
     const allowed = new Set(input.files.map((f) => f.path));
     const version = await gitleaksVersion(this.gitleaksBinary);
+    let out: ScannerOutput;
     if (version) {
       input.log(`Secrets: running Gitleaks ${version}`);
-      return { status: 'ok', message: `Gitleaks ${version}`, findings: await this.runGitleaks(input, allowed) };
+      out = { status: 'ok', message: `Gitleaks ${version}`, findings: await this.runGitleaks(input, allowed) };
+    } else {
+      input.log('Secrets: Gitleaks is not installed; using Argus built-in rules');
+      out = { status: 'ok', message: 'Built-in rules (Gitleaks not installed)', findings: await this.runBuiltin(input) };
     }
-    input.log('Secrets: Gitleaks is not installed; using Argus built-in rules');
-    return { status: 'ok', message: 'Built-in rules (Gitleaks not installed)', findings: await this.runBuiltin(input) };
+    if (this.verifier && input.settings.verifySecrets) await this.verify(out.findings, input);
+    return out;
+  }
+
+  /** Checks each distinct supported secret once with its issuer, and records the result on every finding of it. */
+  private async verify(findings: DraftFinding[], input: ScanInput): Promise<void> {
+    const verifier = this.verifier!;
+    const byValue = new Map<string, DraftFinding[]>();
+    for (const f of findings) {
+      if (!f.secretValue || !verifier.supports(f.ruleId)) continue;
+      byValue.set(f.secretValue, [...(byValue.get(f.secretValue) ?? []), f]);
+    }
+    let checked = 0;
+    const counts = { active: 0, inactive: 0, unknown: 0 };
+    for (const [value, group] of byValue) {
+      if (checked >= MAX_VERIFICATIONS) break;
+      checked++;
+      const result = await verifier.verify(group[0].ruleId, value);
+      if (!result) continue;
+      counts[result.status]++;
+      for (const f of group) {
+        f.details = { ...(f.details ?? {}), verification: { status: result.status, issuer: result.issuer, checkedAt: new Date().toISOString() } };
+        if (result.status !== 'unknown') f.risk = { ...f.risk, verified: result.status };
+      }
+    }
+    if (checked) input.log(`Secrets: verified ${checked} secret(s) with their issuers: ${counts.active} active, ${counts.inactive} revoked or invalid, ${counts.unknown} inconclusive`);
   }
 
   private async runGitleaks(input: ScanInput, allowed: Set<string>): Promise<DraftFinding[]> {

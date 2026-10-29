@@ -209,6 +209,10 @@ export const riskWeightsSchema = z.object({
   criticalityLow: z.number().min(-50).max(50),
   criticalityHigh: z.number().min(-50).max(50),
   criticalityCritical: z.number().min(-50).max(50),
+  /** Secret verified as working by its issuer (opt-in live verification). */
+  verifiedActive: z.number().min(0).max(50).default(15),
+  /** Secret rejected by its issuer: revoked or invalid. */
+  verifiedInactive: z.number().min(-50).max(0).default(-30),
 });
 export type RiskWeights = z.infer<typeof riskWeightsSchema>;
 
@@ -222,6 +226,11 @@ export const scanningSettingsSchema = z.object({
   eolWarningDays: z.number().int().min(0).max(730),
   /** Warn this many days before a certificate or token expires. */
   expiryWarningDays: z.number().int().min(1).max(365),
+  /**
+   * Check detected GitHub, GitLab, Slack and npm tokens with their issuer (one read-only request each) to tell
+   * whether they still work. Off by default: it sends the detected secret to its own issuer.
+   */
+  verifySecrets: z.boolean().default(false),
 });
 export type ScanningSettings = z.infer<typeof scanningSettingsSchema>;
 
@@ -236,11 +245,14 @@ export const DEFAULT_SCANNING_SETTINGS: ScanningSettings = {
     criticalityLow: -10,
     criticalityHigh: 5,
     criticalityCritical: 10,
+    verifiedActive: 15,
+    verifiedInactive: -30,
   },
   licenseDeny: ['AGPL-*', 'GPL-2.0*', 'GPL-3.0*', 'SSPL-1.0', 'CPAL-1.0', 'OSL-3.0'],
   licenseReview: ['LGPL-*', 'MPL-2.0', 'EPL-*', 'CDDL-*', 'UNLICENSED'],
   eolWarningDays: 180,
   expiryWarningDays: 30,
+  verifySecrets: false,
 };
 
 export interface IntelStatusDto {

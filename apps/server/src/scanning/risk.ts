@@ -11,6 +11,8 @@ export interface RiskInput {
   dev?: boolean;
   transitive?: boolean;
   testPath?: boolean;
+  /** Result of live verification with the secret's issuer. */
+  verified?: 'active' | 'inactive';
   publicRepo: boolean;
   criticality: Criticality;
 }
@@ -35,6 +37,8 @@ export function computeRisk(input: RiskInput, w: RiskWeights): RiskResult {
   if (input.dev) add('dev_dependency', 'Development-only dependency', w.devDependency);
   else if (input.transitive) add('transitive_dependency', 'Transitive dependency', w.transitiveDependency);
   if (input.testPath) add('test_path', 'Located in test or example code', w.testPath);
+  if (input.verified === 'active') add('verified_active', 'Verified active with its issuer', w.verifiedActive);
+  if (input.verified === 'inactive') add('verified_inactive', 'Rejected by its issuer (revoked or invalid)', w.verifiedInactive);
   if (input.publicRepo) add('public_repo', 'Repository is public', w.publicRepo);
   if (input.criticality === 'low') add('criticality', 'Low business criticality', w.criticalityLow);
   if (input.criticality === 'high') add('criticality', 'High business criticality', w.criticalityHigh);

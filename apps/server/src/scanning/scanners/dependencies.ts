@@ -144,6 +144,20 @@ export class DependenciesScanner implements Scanner {
       }
     }
 
+    // 3. NuGet licenses (npm lockfiles carry them; NuGet manifests do not), for the license scanner.
+    const unlicensed = inventory.filter((d) => d.ecosystem === 'nuget' && !d.license).slice(0, MAX_REGISTRY_LOOKUPS);
+    if (!this.intel.offline && unlicensed.length) {
+      let failures = 0;
+      await mapLimit(unlicensed, 8, async (dep) => {
+        try {
+          dep.license = await this.intel.nugetLicense(dep.name, dep.version);
+        } catch {
+          failures++;
+        }
+      });
+      if (failures) problems.push(`NuGet license data unavailable for ${failures} package(s)`);
+    }
+
     // Without vulnerability data the result is incomplete: do not let missing findings count as "fixed".
     return { status: matched.incomplete ? 'partial' : 'ok', message: problems.length ? problems.join('; ') : null, findings };
   }

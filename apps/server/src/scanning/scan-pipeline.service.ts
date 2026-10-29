@@ -8,6 +8,7 @@ import { DomainEvents } from '../core/domain-events';
 import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
 import { ScanAiTriage } from './ai-triage';
+import { SecretVerifier } from './secret-verifier';
 import { compileGlobs } from './glob';
 import { IntelService } from './intel.service';
 import { EMPTY_REPO_CONFIG, parseRepoConfig, REPO_CONFIG_FILES, type RepoScanConfig } from './repo-config';
@@ -58,7 +59,7 @@ export class ScanPipeline {
     config: AppConfig,
   ) {
     // Order matters: the license scanner reuses the dependency inventory.
-    this.scanners = [new SecretsScanner(config.gitleaksPath, config.scanTimeoutMs), new DependenciesScanner(intel), new LicensesScanner(), new FrameworksScanner(intel), new CertificatesScanner()];
+    this.scanners = [new SecretsScanner(config.gitleaksPath, config.scanTimeoutMs, config.offline ? null : new SecretVerifier()), new DependenciesScanner(intel), new LicensesScanner(), new FrameworksScanner(intel), new CertificatesScanner()];
   }
 
   async run(repo: Repository, run: ScanRun, workdir: string, allFiles: RepoFile[], log: (m: string) => void): Promise<PipelineResult> {

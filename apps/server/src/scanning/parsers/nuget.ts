@@ -113,3 +113,35 @@ export function projectTargetFrameworks(text: string): string[] {
   }
   return [...out];
 }
+
+/** Well-known license URLs used by older packages (before license expressions). */
+const LICENSE_URLS: [RegExp, string][] = [
+  [/^https?:\/\/licenses\.nuget\.org\/(.+)$/i, '$1'],
+  [/opensource\.org\/licenses\/mit/i, 'MIT'],
+  [/apache\.org\/licenses\/LICENSE-2\.0/i, 'Apache-2.0'],
+  [/opensource\.org\/licenses\/BSD-3-Clause/i, 'BSD-3-Clause'],
+  [/opensource\.org\/licenses\/BSD-2-Clause/i, 'BSD-2-Clause'],
+  [/gnu\.org\/licenses\/gpl-3\.0/i, 'GPL-3.0-only'],
+  [/gnu\.org\/licenses\/lgpl/i, 'LGPL-3.0-only'],
+];
+
+/** SPDX license expression from a .nuspec, or null when the package only ships a license file or none. */
+export function nuspecLicense(text: string): string | null {
+  // The shared parser reads <package> as a list (packages.config has many).
+  const root = parseXml(text).package as XmlNode | XmlNode[] | undefined;
+  const metadata = (Array.isArray(root) ? root[0] : root)?.metadata as XmlNode | undefined;
+  if (!metadata) return null;
+  const license = metadata.license as XmlNode | string | undefined;
+  if (license && typeof license === 'object') {
+    if (license['@_type'] === 'expression') return str(license['#text']);
+    return null;
+  }
+  if (typeof license === 'string' && license.trim()) return license.trim();
+  const url = str(metadata.licenseUrl);
+  if (!url) return null;
+  for (const [re, id] of LICENSE_URLS) {
+    const m = re.exec(url);
+    if (m) return decodeURIComponent(id.replace('$1', m[1] ?? ''));
+  }
+  return null;
+}
