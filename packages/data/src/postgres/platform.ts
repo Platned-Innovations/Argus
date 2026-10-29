@@ -160,7 +160,7 @@ export class PgSavedViewRepo implements SavedViewRepo {
 }
 
 function toInvite(r: Selectable<InvitesTable>): Invite {
-  return { ...r, role: r.role as Role, teamIds: (r.teamIds ?? []) as string[] };
+  return { ...r, role: r.role as Role, teamIds: (r.teamIds ?? []) as string[], emails: (r.emails ?? []) as string[], usedEmails: (r.usedEmails ?? []) as string[] };
 }
 
 export class PgInviteRepo implements InviteRepo {
@@ -170,7 +170,7 @@ export class PgInviteRepo implements InviteRepo {
     const id = randomUUID();
     await this.db
       .insertInto('invites')
-      .values({ ...input, id, teamIds: JSON.stringify(input.teamIds), uses: 0, createdAt: new Date(), lastUsedAt: null, revokedAt: null })
+      .values({ ...input, id, teamIds: JSON.stringify(input.teamIds), emails: JSON.stringify(input.emails), usedEmails: '[]', uses: 0, createdAt: new Date(), lastUsedAt: null, revokedAt: null })
       .execute();
     return (await this.findById(id))!;
   }
@@ -189,20 +189,27 @@ export class PgInviteRepo implements InviteRepo {
     return (await this.db.selectFrom('invites').selectAll().orderBy('createdAt', 'desc').orderBy('id').execute()).map(toInvite);
   }
 
-  async consume(id: string, now: Date): Promise<boolean> {
+  async consume(id: string, now: Date, email: string | null): Promise<boolean> {
+    const one = JSON.stringify([email ?? '']);
     const res = await this.db
       .updateTable('invites')
-      .set({ uses: sql`uses + 1`, lastUsedAt: now })
+      .set({ uses: sql`uses + 1`, lastUsedAt: now, usedEmails: email ? sql`used_emails || ${one}::jsonb` : sql`used_emails` })
       .where('id', '=', id)
       .where('revokedAt', 'is', null)
       .where('expiresAt', '>', now)
       .where('uses', '<', sql<number>`max_uses`)
+      .where(sql<boolean>`(emails = '[]'::jsonb or (emails @> ${one}::jsonb and not used_emails @> ${one}::jsonb))`)
       .executeTakeFirst();
     return Number(res.numUpdatedRows) > 0;
   }
 
-  async release(id: string): Promise<void> {
-    await this.db.updateTable('invites').set({ uses: sql`uses - 1` }).where('id', '=', id).where('uses', '>', 0).execute();
+  async release(id: string, email: string | null): Promise<void> {
+    await this.db
+      .updateTable('invites')
+      .set({ uses: sql`uses - 1`, usedEmails: email ? sql`used_emails - ${email}::text` : sql`used_emails` })
+      .where('id', '=', id)
+      .where('uses', '>', 0)
+      .execute();
   }
 
   async revoke(id: string): Promise<boolean> {

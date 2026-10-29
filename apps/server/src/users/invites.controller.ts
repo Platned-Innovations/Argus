@@ -1,17 +1,21 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { inviteAcceptSchema, inviteCreateSchema, inviteLookupSchema } from '@argus/shared';
+import { inviteAcceptSchema, inviteCreateSchema, inviteLookupSchema, inviteSendSchema } from '@argus/shared';
 import { type Request } from 'express';
 import { type z } from 'zod';
 import { STRICT_LIMIT } from '../auth/auth.controller';
 import { CurrentUser, Public, RequirePermissions, SessionOnly, SkipCsrf } from '../auth/decorators';
 import { type RequestUser, requestContext } from '../common/request';
 import { ZodPipe } from '../common/zod.pipe';
+import { ChannelsService } from '../integrations/channels.service';
 import { InvitesService } from './invites.service';
 
 @Controller('invites')
 export class InvitesController {
-  constructor(private readonly invites: InvitesService) {}
+  constructor(
+    private readonly invites: InvitesService,
+    private readonly channels: ChannelsService,
+  ) {}
 
   @Get()
   @SessionOnly()
@@ -26,6 +30,22 @@ export class InvitesController {
   @RequirePermissions('users:manage')
   create(@Body(new ZodPipe(inviteCreateSchema)) body: z.infer<typeof inviteCreateSchema>, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.invites.create(body, me.user, requestContext(req));
+  }
+
+  /** Email channels to send invites with (names only). */
+  @Get('email-channels')
+  @SessionOnly()
+  @RequirePermissions('users:manage')
+  emailChannels() {
+    return this.channels.emailChannels();
+  }
+
+  @Post(':id/send')
+  @HttpCode(200)
+  @SessionOnly()
+  @RequirePermissions('users:manage')
+  send(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(inviteSendSchema)) body: z.infer<typeof inviteSendSchema>, @CurrentUser() me: RequestUser, @Req() req: Request) {
+    return this.invites.send(id, body, me.user, requestContext(req));
   }
 
   @Delete(':id')

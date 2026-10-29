@@ -167,29 +167,47 @@ export function platformContract(getStore: () => DataStore): void {
       const store = getStore();
       const now = new Date();
       const tag = randomTag();
-      const inv = await store.invites.create({ tokenHash: `inv-a-${tag}`, role: 'developer', teamIds: ['00000000-0000-4000-8000-000000000001'], email: null, maxUses: 2, expiresAt: new Date(now.getTime() + 86_400_000), note: 'contractors', createdBy: null });
+      const inv = await store.invites.create({ tokenHash: `inv-a-${tag}`, role: 'developer', teamIds: ['00000000-0000-4000-8000-000000000001'], emails: [], maxUses: 2, expiresAt: new Date(now.getTime() + 86_400_000), note: 'contractors', createdBy: null });
       expect(inv).toMatchObject({ role: 'developer', teamIds: ['00000000-0000-4000-8000-000000000001'], uses: 0, maxUses: 2, note: 'contractors', revokedAt: null, lastUsedAt: null });
       expect((await store.invites.findByHash(`inv-a-${tag}`))?.id).toBe(inv.id);
       expect(await store.invites.findByHash('nope')).toBeNull();
-      await expect(store.invites.create({ tokenHash: `inv-a-${tag}`, role: 'viewer', teamIds: [], email: null, maxUses: 1, expiresAt: now, note: '', createdBy: null })).rejects.toThrow();
+      await expect(store.invites.create({ tokenHash: `inv-a-${tag}`, role: 'viewer', teamIds: [], emails: [], maxUses: 1, expiresAt: now, note: '', createdBy: null })).rejects.toThrow();
 
-      const results = await Promise.all([1, 2, 3].map(() => store.invites.consume(inv.id, now)));
+      const results = await Promise.all([1, 2, 3].map(() => store.invites.consume(inv.id, now, null)));
       expect(results.filter(Boolean)).toHaveLength(2);
       expect(await store.invites.findById(inv.id)).toMatchObject({ uses: 2 });
       expect((await store.invites.findById(inv.id))!.lastUsedAt!.getTime()).toBe(now.getTime());
-      await store.invites.release(inv.id);
-      expect(await store.invites.consume(inv.id, now)).toBe(true);
+      await store.invites.release(inv.id, null);
+      expect(await store.invites.consume(inv.id, now, null)).toBe(true);
 
-      const expired = await store.invites.create({ tokenHash: `inv-b-${tag}`, role: 'viewer', teamIds: [], email: 'a@example.com', maxUses: 1, expiresAt: new Date(now.getTime() - 1000), note: '', createdBy: null });
-      expect(await store.invites.consume(expired.id, now)).toBe(false);
+      const expired = await store.invites.create({ tokenHash: `inv-b-${tag}`, role: 'viewer', teamIds: [], emails: ['a@example.com'], maxUses: 1, expiresAt: new Date(now.getTime() - 1000), note: '', createdBy: null });
+      expect(await store.invites.consume(expired.id, now, null)).toBe(false);
 
-      const revoked = await store.invites.create({ tokenHash: `inv-c-${tag}`, role: 'viewer', teamIds: [], email: null, maxUses: 1, expiresAt: new Date(now.getTime() + 60_000), note: '', createdBy: null });
+      const revoked = await store.invites.create({ tokenHash: `inv-c-${tag}`, role: 'viewer', teamIds: [], emails: [], maxUses: 1, expiresAt: new Date(now.getTime() + 60_000), note: '', createdBy: null });
       expect(await store.invites.revoke(revoked.id)).toBe(true);
       expect(await store.invites.revoke(revoked.id)).toBe(false);
-      expect(await store.invites.consume(revoked.id, now)).toBe(false);
+      expect(await store.invites.consume(revoked.id, now, null)).toBe(false);
 
       const listed = (await store.invites.list()).filter((i) => [inv.id, expired.id, revoked.id].includes(i.id));
       expect(listed.map((i) => i.id)).toEqual([revoked.id, expired.id, inv.id]);
+    });
+
+    it('lets each listed address use an address-limited invite once', async () => {
+      const store = getStore();
+      const now = new Date();
+      const inv = await store.invites.create({ tokenHash: `inv-d-${randomTag()}`, role: 'viewer', teamIds: [], emails: ['ann@example.com', 'bob@example.com'], maxUses: 2, expiresAt: new Date(now.getTime() + 60_000), note: '', createdBy: null });
+      expect(inv).toMatchObject({ emails: ['ann@example.com', 'bob@example.com'], usedEmails: [] });
+      expect(await store.invites.consume(inv.id, now, null)).toBe(false);
+      expect(await store.invites.consume(inv.id, now, 'eve@example.com')).toBe(false);
+      const twice = await Promise.all([1, 2].map(() => store.invites.consume(inv.id, now, 'ann@example.com')));
+      expect(twice.filter(Boolean)).toHaveLength(1);
+      expect(await store.invites.findById(inv.id)).toMatchObject({ uses: 1, usedEmails: ['ann@example.com'] });
+
+      await store.invites.release(inv.id, 'ann@example.com');
+      expect(await store.invites.findById(inv.id)).toMatchObject({ uses: 0, usedEmails: [] });
+      expect(await store.invites.consume(inv.id, now, 'bob@example.com')).toBe(true);
+      expect(await store.invites.consume(inv.id, now, 'ann@example.com')).toBe(true);
+      expect(await store.invites.findById(inv.id)).toMatchObject({ uses: 2, usedEmails: ['bob@example.com', 'ann@example.com'] });
     });
   });
 }

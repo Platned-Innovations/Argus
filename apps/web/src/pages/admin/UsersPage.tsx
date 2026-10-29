@@ -1,6 +1,6 @@
-import { type CreatedUserResponse, type InviteCreatedDto, type InviteDto, type InviteStatus, MAX_INVITE_DAYS, MAX_INVITE_USES, type Paged, type Role, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type TeamDto, type UserDto, type UserStatus } from '@argus/shared';
+import { type CreatedUserResponse, type InviteCreatedDto, type InviteDto, type InviteSendResultDto, type InviteStatus, MAX_INVITE_DAYS, MAX_INVITE_USES, type Paged, type Role, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type TeamDto, type UserDto, type UserStatus } from '@argus/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link2, Lock, Plus, Search, ShieldCheck, Users } from 'lucide-react';
+import { Link2, Lock, Mail, Plus, Search, ShieldCheck, Users } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
@@ -118,10 +118,16 @@ const DAY = 86_400_000;
 const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const inviteLink = (res: InviteCreatedDto) => res.url ?? `${window.location.origin}/invite#${res.token}`;
 
+/** Addresses typed or pasted as a list: commas, semicolons, spaces or new lines between them. */
+const parseEmails = (text: string) => [...new Set(text.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))];
+const textareaClass =
+  'block w-full rounded-md border-0 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-indigo-600 focus:ring-inset dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700';
+
 function InviteModal({ open, onClose, onCreated }: { open: boolean; onClose(): void; onCreated(res: InviteCreatedDto): void }) {
   const qc = useQueryClient();
-  const blank = () => ({ role: 'developer' as Role, teamIds: [] as string[], email: '', maxUses: 1, expires: isoDate(new Date(Date.now() + 7 * DAY)), note: '' });
+  const blank = () => ({ role: 'developer' as Role, teamIds: [] as string[], emails: '', maxUses: 1, expires: isoDate(new Date(Date.now() + 7 * DAY)), note: '' });
   const [form, setForm] = useState(blank);
+  const emails = parseEmails(form.emails);
   const mutation = useMutation({
     mutationFn: () =>
       api<InviteCreatedDto>('/invites', {
@@ -129,8 +135,8 @@ function InviteModal({ open, onClose, onCreated }: { open: boolean; onClose(): v
         body: {
           role: form.role,
           teamIds: form.teamIds,
-          email: form.email || null,
-          maxUses: form.email ? 1 : form.maxUses,
+          emails,
+          maxUses: emails.length || form.maxUses,
           // Valid until the end of the chosen day, in the administrator's time zone.
           expiresAt: new Date(`${form.expires}T23:59:59`).toISOString(),
           note: form.note,
@@ -173,12 +179,14 @@ function InviteModal({ open, onClose, onCreated }: { open: boolean; onClose(): v
               <Input id={id} type="date" required value={form.expires} min={isoDate(new Date(Date.now() + DAY))} max={isoDate(new Date(Date.now() + MAX_INVITE_DAYS * DAY))} onChange={(e) => setForm({ ...form, expires: e.target.value })} />
             )}
           </Field>
-          <Field label="For one email address (optional)" hint="Only this address can use the link, once.">
-            {(id) => <Input id={id} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Email addresses (optional)" hint="Only these addresses can use the link, once each. You can email it to them next. Separate them with commas or new lines.">
+            {(id) => <textarea id={id} rows={2} value={form.emails} onChange={(e) => setForm({ ...form, emails: e.target.value })} className={textareaClass} placeholder="ann@example.com, bob@example.com" />}
           </Field>
-          <Field label="Number of accounts" hint={form.email ? 'One, for the address above.' : 'How many people can sign up with this link.'}>
+          <Field label="Number of accounts" hint={emails.length ? 'One for each address.' : 'How many people can sign up with this link.'}>
             {(id) => (
-              <Input id={id} type="number" min={1} max={MAX_INVITE_USES} required disabled={!!form.email} value={form.email ? 1 : form.maxUses} onChange={(e) => setForm({ ...form, maxUses: Number(e.target.value) })} />
+              <Input id={id} type="number" min={1} max={MAX_INVITE_USES} required disabled={emails.length > 0} value={emails.length || form.maxUses} onChange={(e) => setForm({ ...form, maxUses: Number(e.target.value) })} />
             )}
           </Field>
         </div>
@@ -187,6 +195,74 @@ function InviteModal({ open, onClose, onCreated }: { open: boolean; onClose(): v
           {(id) => <Input id={id} maxLength={200} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />}
         </Field>
       </form>
+    </Modal>
+  );
+}
+
+/** Shown once after creating an invite: copy the link, or email it to the invited addresses. */
+function ShareInviteModal({ created, onClose }: { created: InviteCreatedDto; onClose(): void }) {
+  const { invite } = created;
+  const qc = useQueryClient();
+  const canEmail = invite.emails.length > 0;
+  const channels = useQuery({ queryKey: ['invite-email-channels'], queryFn: () => api<{ id: string; name: string }[]>('/invites/email-channels'), enabled: canEmail });
+  const [channelId, setChannelId] = useState('');
+  const [message, setMessage] = useState('');
+  const channel = channelId || channels.data?.[0]?.id || '';
+  const send = useMutation({
+    mutationFn: (only?: string[]) => api<InviteSendResultDto>(`/invites/${invite.id}/send`, { method: 'POST', body: { token: created.token, channelId: channel, baseUrl: window.location.origin, message, only } }),
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+      if (res.sent.length) toast.success(`Invite emailed to ${res.sent.length} ${res.sent.length === 1 ? 'address' : 'addresses'}.`);
+    },
+  });
+  const failed = send.data?.failed ?? [];
+  return (
+    <Modal open onClose={onClose} title="Invite link created" description="Copy the link or email it. It will not be shown again once you close this window." wide footer={<Button onClick={onClose}>Done</Button>}>
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium">Copy link</h3>
+        <SecretReveal value={inviteLink(created)} />
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {ROLE_LABELS[invite.role]}
+          {canEmail ? ` · for ${invite.emails.length} ${invite.emails.length === 1 ? 'address' : 'addresses'}, once each` : ` · up to ${invite.maxUses} account${invite.maxUses === 1 ? '' : 's'}`} · expires {formatDateTime(invite.expiresAt)}
+        </p>
+      </div>
+      <div className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+        <h3 className="text-sm font-medium">Send by email</h3>
+        {!canEmail ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Add email addresses to an invite to send it by email. This one is for anyone with the link, so copy it instead.</p>
+        ) : channels.isLoading ? (
+          <CenteredSpinner />
+        ) : !channels.data?.length ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            No email channel is set up. Add one under <strong>Integrations</strong> to send invites by email, or copy the link.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Each address gets its own message, with the link and their address filled in: {invite.emails.join(', ')}.</p>
+            <ErrorAlert error={send.error ?? channels.error} />
+            {failed.length > 0 && <ErrorAlert error={new Error(`Not sent to ${failed.map((f) => `${f.email} (${f.error})`).join('; ')}`)} />}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Send with">
+                {(id) => (
+                  <Select id={id} value={channel} onChange={(e) => setChannelId(e.target.value)}>
+                    {channels.data.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            </div>
+            <Field label="Message (optional)" hint="Added at the top of the email.">
+              {(id) => <textarea id={id} rows={2} maxLength={2000} value={message} onChange={(e) => setMessage(e.target.value)} className={textareaClass} />}
+            </Field>
+            <Button icon={<Mail className="size-4" />} loading={send.isPending} disabled={send.data && !failed.length} onClick={() => send.mutate(failed.length ? failed.map((f) => f.email) : undefined)}>
+              {send.data && !failed.length ? 'Sent' : failed.length ? 'Try again' : `Send to ${invite.emails.length} ${invite.emails.length === 1 ? 'address' : 'addresses'}`}
+            </Button>
+          </>
+        )}
+      </div>
     </Modal>
   );
 }
@@ -225,8 +301,14 @@ function InvitesCard({ teamNames }: { teamNames: Map<string, string> }) {
             <tr key={i.id}>
               <td className="px-4 py-3">
                 <Badge tone={i.role === 'admin' ? 'indigo' : i.role === 'security_manager' ? 'blue' : 'slate'}>{ROLE_LABELS[i.role]}</Badge>
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {[i.email, i.note, i.createdByName && `by ${i.createdByName}`].filter(Boolean).join(' · ')}
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400" title={i.emails.length ? i.emails.map((e) => (i.usedEmails.includes(e) ? `${e} (signed up)` : e)).join('\n') : undefined}>
+                  {[
+                    i.emails.length && (i.emails.length <= 2 ? i.emails.join(', ') : `${i.emails[0]} and ${i.emails.length - 1} more`),
+                    i.note,
+                    i.createdByName && `by ${i.createdByName}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </div>
               </td>
               <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{i.teamIds.map((id) => teamNames.get(id)).filter(Boolean).join(', ') || '—'}</td>
@@ -497,23 +579,7 @@ export function UsersPage() {
           setInvited(res);
         }}
       />
-      <Modal
-        open={!!invited}
-        onClose={() => setInvited(null)}
-        title="Invite link created"
-        description="Send this link to the people you are inviting. It will not be shown again."
-        footer={<Button onClick={() => setInvited(null)}>Done</Button>}
-      >
-        {invited && (
-          <>
-            <SecretReveal value={inviteLink(invited)} />
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {ROLE_LABELS[invited.invite.role]}
-              {invited.invite.email ? ` · only ${invited.invite.email}` : ` · up to ${invited.invite.maxUses} account${invited.invite.maxUses === 1 ? '' : 's'}`} · expires {formatDateTime(invited.invite.expiresAt)}
-            </p>
-          </>
-        )}
-      </Modal>
+      {invited && <ShareInviteModal key={invited.invite.id} created={invited} onClose={() => setInvited(null)} />}
       <CreateUserModal
         open={creating}
         onClose={() => setCreating(false)}

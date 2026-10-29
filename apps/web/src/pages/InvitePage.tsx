@@ -1,4 +1,4 @@
-import { type InvitePreviewDto, ROLE_LABELS } from '@argus/shared';
+import { type InvitePreviewDto, parseInviteFragment, ROLE_LABELS } from '@argus/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Link2Off } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
@@ -11,14 +11,15 @@ import { formatDateTime } from '../lib/utils';
 
 /**
  * Public page behind an invite link: the invitee picks a username and password, then is signed in.
- * The token is in the URL fragment (/invite#<token>), so it never reaches server or proxy logs.
+ * The token is in the URL fragment (/invite#<token>, or #<token>&email=<address> in emailed links), so it never
+ * reaches server or proxy logs.
  */
 export function InvitePage() {
-  const token = useLocation().hash.slice(1);
+  const { token, email } = parseInviteFragment(useLocation().hash);
   const branding = useBranding();
   const { me, login, logout } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: '', displayName: '', email: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ username: '', displayName: '', email: email ?? '', password: '', confirm: '' });
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const invite = useQuery({
@@ -90,8 +91,8 @@ export function InvitePage() {
                 {(id) => <Input id={id} autoComplete="username" autoFocus required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />}
               </Field>
               <Field label="Display name">{(id) => <Input id={id} autoComplete="name" required value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />}</Field>
-              <Field label="Email" hint={data.email ? 'The invite is for this address.' : 'Optional. Used for notifications and sign-in.'}>
-                {(id) => <Input id={id} type="email" autoComplete="email" disabled={!!data.email} value={data.email ?? form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />}
+              <Field label="Email" hint={data.emailRequired ? 'Use the address this invite was sent to.' : 'Optional. Used for notifications and sign-in.'}>
+                {(id) => <Input id={id} type="email" autoComplete="email" required={data.emailRequired} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />}
               </Field>
               <Field label="Password">{(id) => <Input id={id} type="password" autoComplete="new-password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />}</Field>
               <Field label="Confirm password">{(id) => <Input id={id} type="password" autoComplete="new-password" required value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} />}</Field>
