@@ -65,6 +65,8 @@ Open a finding to see exactly which factors produced its score.
 | **Suppressed** | It matches a suppression (accepted risk or false positive). It stays visible but doesn't count as open risk. |
 | **Fixed** | A later scan, in which its scanner completed successfully, no longer finds it. |
 
+**AI hints.** If AI triage is turned on, new secret findings can be marked *likely a real secret*, *likely a false positive* or *uncertain*, and vulnerable packages *likely affected* or *likely not affected*. Each hint shows the model's confidence and reasoning. Hints only help you prioritise: they never change a finding's status, score or suppression. See [AI assistance](ai-assistance.md).
+
 **Re-detection.** If a fixed issue comes back, its finding is reopened and keeps its history (first seen, last seen).
 
 **Partial scans are safe.** If a scanner could not complete, its previous findings are left as they were rather than being marked fixed. This happens when a vulnerability feed is unreachable, for example. The scan log and the scan-run view show which scanners were `ok`, `partial`, `failed` or `skipped`.

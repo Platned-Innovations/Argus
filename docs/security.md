@@ -16,10 +16,10 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Control | Status |
 |---|---|
 | **One master key.** Everything sensitive is protected by keys derived from `ARGUS_MASTER_KEY` (at least 32 characters). HKDF-SHA256 derives a separate sub-key for each purpose (encryption, token signing, keyed hashing), so no key is reused across algorithms. | ✅ |
-| **Authenticated encryption.** Stored secrets are encrypted with AES-256-GCM, using a fresh random 96-bit IV per value and a versioned envelope (`v1.iv.tag.ciphertext`). Any tampering is detected on decryption. Today this covers TOTP secrets, source-control tokens and webhook secrets. | ✅ |
+| **Authenticated encryption.** Stored secrets are encrypted with AES-256-GCM, using a fresh random 96-bit IV per value and a versioned envelope (`v1.iv.tag.ciphertext`). Any tampering is detected on decryption. This covers TOTP secrets, source-control tokens, webhook secrets, integration credentials and AI provider keys. | ✅ |
 | GitHub and Bitbucket access tokens and per-source webhook secrets are stored with this encryption. | ✅ |
 | SMTP passwords, Microsoft Graph and OAuth2 client secrets, Teams/Slack webhook URLs, webhook signing secrets and Jira tokens are stored with the same encryption, and are write-only: the API shows only a hint (`••••abcd` or the webhook host). | ✅ |
-| AI provider keys are stored with the same encryption. | 🔜 Phase 4 |
+| AI provider keys (Anthropic, OpenAI, Gemini) are stored with the same encryption and are write-only (`••••abcd`). They are sent only to the provider's configured endpoint, never logged, and redacted from any error message. | ✅ |
 | **Write-only credentials.** The API never returns a stored credential; for source tokens it shows only the last four characters (`••••abcd`). Changing a token or connection setting re-tests the connection before saving. A webhook secret is shown once, when it is created or rotated. | ✅ |
 | **Detected secrets are never stored in full.** A leaked secret found in a repository is kept only as a masked preview (for example `AKIA…MPLE`; private keys show only "PEM private key") plus an HMAC-SHA256 hash, keyed by this installation, which is used to recognise the same secret across files and scans. Gitleaks' raw report is deleted as soon as it has been read. Argus never becomes a second copy of your leaked secrets. | ✅ |
 | Passwords are hashed with **argon2id** (19 MiB memory, 2 iterations; the OWASP recommendation). They are never stored reversibly or logged. | ✅ |
@@ -74,7 +74,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Source changes are audited: creation, edits (including token rotation), deletion, webhook-secret rotation, sync requests and sync results. So are repository setting changes, bulk changes, and manual scan requests. | ✅ |
 | Suppression creation and removal, SBOM exports and scanning-settings changes are audited, with before and after values for settings. | ✅ |
 | Ticket actions (status changes with justification, assignment, labels, emails sent, Jira issues created, exports) are recorded both in the ticket's activity and in the audit log. So are changes to channels, notification rules, Jira and SLA settings. | ✅ |
-| AI actions are audited. | 🔜 Phase 4 |
+| AI actions are audited: every provider request (`ai.request`: use case, provider, model, repository, token counts, estimated cost, number of redactions, outcome), AI settings changes (including which keys changed, never the keys) and connection tests. Prompt and answer contents are never audited or logged. | ✅ |
 
 ## 6. Source-code handling
 
@@ -95,16 +95,20 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 
 ## 7. AI guardrails
 
-AI features are optional and switched off until an administrator configures a provider (Anthropic Claude, OpenAI or Google Gemini).
+AI features are optional and switched off until an administrator configures a provider (Anthropic Claude, OpenAI or Google Gemini). Every request goes through one gateway (`AiService`) that applies all of the controls below; no feature can call a provider directly. Details: [AI assistance](features/ai-assistance.md).
 
 | Control | Status |
 |---|---|
-| **Secrets are always redacted before any prompt is sent.** Detected secret values, and anything matching Argus's secret patterns in surrounding code, are replaced with placeholders before text leaves Argus. | 🔜 Phase 4 |
-| **Minimal context.** The code sent to a model is capped in size and limited to the lines around a finding. Administrators can exclude specific repositories from AI processing entirely. | 🔜 Phase 4 |
-| **Per-use-case switches** (secret triage, remediation advice, advisory extraction and others), with token usage and cost tracked against a monthly budget cap. | 🔜 Phase 4 |
-| **Humans decide.** AI output is always labelled as AI-assisted and shows its reasoning. AI can suggest a likely false positive or a fix, but it **never closes or suppresses a ticket on its own**. | 🔜 Phase 4 |
-| Model responses must match a strict JSON schema; anything else is rejected. | 🔜 Phase 4 |
-| Every AI request is audited (use case, provider, model and token counts; prompt contents are not logged). | 🔜 Phase 4 |
+| **Secrets are always redacted before any prompt is sent.** The detected secret value itself, private key blocks, URL credentials and `Authorization` headers, every pattern of Argus's secret detector, credential-like assignments and long random-looking tokens are replaced with `[REDACTED:…]` markers before text leaves Argus. Secret triage never sends the value, only its characteristics (length, entropy, character classes). | ✅ |
+| **Minimal context.** Remediation and drafting send ticket and finding facts, not source code. Scan triage sends only a few lines around a finding or around imports of a vulnerable package. Every prompt is capped at the configured context limit (default 12,000 characters). | ✅ |
+| **Per-repository opt-out.** A repository with *Allow AI assistance* turned off is never sent to a provider, by any feature. | ✅ |
+| **Per-use-case switches** (remediation, drafting, secret triage, vulnerability applicability), each routable to a chosen provider. Token usage and estimated cost are recorded per request, and requests stop once the monthly budget cap is reached. | ✅ |
+| **Humans decide.** AI output is always labelled *AI-assisted* with the model and its reasoning. AI can suggest a fix or flag a likely false positive, but it **never changes a ticket's status, suppresses a finding or alters a risk score**. Drafts are only filled into a form for a person to edit and send. | ✅ |
+| **Strict output validation.** Providers are asked for JSON matching a schema, and every answer is validated again in Argus (required fields, ranges, allowed verdicts). Anything else is discarded and counted as a failure. | ✅ |
+| **Prompt-injection mitigation.** Repository and advisory content is wrapped in tags, and the model is told to treat it as untrusted data and not follow instructions in it. Since this cannot be guaranteed, AI output is advisory only (see *Humans decide*). | ✅ |
+| **Hardened provider calls.** Custom endpoints must be HTTPS (plain HTTP only on loopback), redirects are refused for OpenAI and Gemini, and requests time out after 2 minutes. `ARGUS_OFFLINE=true` blocks the providers' public APIs; only a configured private endpoint stays usable. Generating suggestions and drafts is rate-limited (10/min per client). | ✅ |
+| Every AI request is audited (see [Audit trail](#5-audit-trail)); prompt and answer contents are not logged. | ✅ |
+| AI extraction of advisories from security news (with an admin review queue). | 🔜 Phase 5 |
 
 ## 8. Platform hardening
 
@@ -121,7 +125,7 @@ AI features are optional and switched off until an administrator configures a pr
 | **Outbound webhooks are HMAC-signed** (`X-Argus-Signature` over timestamp and body), so receivers can verify origin and reject replays. | ✅ |
 | **Outbound calls to configured services are hardened.**<br>• Graph, Entra ID, Jira, Teams, Slack and webhooks: HTTPS only (plain HTTP only on loopback), redirects refused so a credential never follows a redirect elsewhere, 15-second timeouts.<br>• Email: TLS 1.2+ only.<br>• Errors shown to administrators are redacted of secrets. | ✅ |
 | **Notification content is escaped for each format.**<br>• HTML email escapes every value.<br>• Subjects are single-line, preventing header injection.<br>• Slack text escapes `&`, `<` and `>` so values cannot inject links or mentions.<br>• Jira descriptions use Atlassian Document Format text nodes. | ✅ |
-| Actions that call third parties (email, Jira, channel tests) are rate-limited per client. | ✅ |
+| Actions that call third parties (email, Jira, channel tests, AI requests) are rate-limited per client. A failing third party returns HTTP 502 with a redacted, human-readable message. | ✅ |
 
 ## 9. Operator checklist
 
@@ -131,3 +135,4 @@ AI features are optional and switched off until an administrator configures a pr
 4. Create named administrator accounts for real people, and use `admin` only for break-glass access.
 5. Restrict database network access to the Argus containers only, and enable encryption at rest on the database.
 6. Review the audit log regularly, or export it to your SIEM.
+7. If you enable AI assistance, set a monthly budget, turn on only the features you need, and clear **Allow AI assistance** on repositories whose code must not leave your network. Prefer a provider account or gateway that does not retain or train on API data.

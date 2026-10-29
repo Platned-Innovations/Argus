@@ -29,7 +29,7 @@ Runtime policies (password rules, MFA, sessions) are set in the UI under **Admin
 | `ARGUS_SCAN_WORKDIR` | `<os temp>/argus-scans` | Parent directory for the temporary scan checkouts. Each scan uses a subdirectory, deleted when the scan ends. Needs free space for your largest repository. |
 | `ARGUS_SCAN_TIMEOUT_MINUTES` | `30` | Maximum time a clone may take. |
 | `ARGUS_SCHEDULER_INTERVAL_SECONDS` | `30` | How often the scheduler checks for due scans and stale sources. |
-| `ARGUS_OFFLINE` | `false` | `true` turns off every outbound threat-intelligence lookup (OSV, KEV, EPSS, endoflife.date, registries). See [offline mode](features/scanners-and-findings.md#data-sources-caching-and-offline-mode). |
+| `ARGUS_OFFLINE` | `false` | `true` turns off every outbound threat-intelligence lookup (OSV, KEV, EPSS, endoflife.date, registries) and the AI providers' public APIs (a provider with a private base URL keeps working). See [offline mode](features/scanners-and-findings.md#data-sources-caching-and-offline-mode). |
 | `ARGUS_GITLEAKS_PATH` | `gitleaks` | Gitleaks binary used by the secrets scanner. The Docker image includes it. Without Gitleaks, built-in rules are used. |
 | `ARGUS_OSV_URL` | `https://api.osv.dev` | OSV API base URL, or an internal mirror. |
 | `ARGUS_KEV_URL` | CISA feed URL | URL of the CISA Known Exploited Vulnerabilities JSON feed. |

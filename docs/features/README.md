@@ -30,7 +30,7 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 | Per-repository choice of scanners | ✅ |
 | `.argus.yml` repo-level configuration (ignore paths, scanner switches, suppressions) — see [Scanners and findings](scanners-and-findings.md#argusyml) | ✅ |
 | **Secret detection** (Gitleaks, with built-in rules as a fallback) | ✅ |
-| Live verification of detected secrets against provider APIs (opt-in) | 🔜 Phase 4 |
+| Live verification of detected secrets against provider APIs (opt-in) | 🔜 Phase 6 |
 | **npm vulnerabilities, deprecations and latest versions** (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`) | ✅ |
 | **NuGet vulnerabilities and latest versions** (`PackageReference`, central package management, `packages.lock.json`, `packages.config`) | ✅ |
 | **Framework / runtime end-of-life** (.NET, .NET Framework, Node.js, Angular, React, Vue, Next.js, NestJS) | ✅ |
@@ -58,12 +58,15 @@ See [Tickets, email, Jira and notifications](tickets-and-notifications.md).
 
 ## AI
 
+See [AI assistance](ai-assistance.md).
+
 | Feature | Status |
 |---|---|
-| Choice of provider (Anthropic Claude, OpenAI, Google Gemini), configured by an administrator | 🔜 Phase 4 |
-| AI triage of uncertain findings (likely false positives, dev-only usage) | 🔜 Phase 4 |
-| AI remediation suggestions on tickets | 🔜 Phase 4 |
-| Guardrails: secret redaction, minimal context, per-repository opt-out, budget caps; see [security](../security.md#7-ai-guardrails) | 🔜 Phase 4 |
+| Choice of provider (Anthropic Claude, OpenAI, Google Gemini), configured by an administrator, with optional private endpoints and per-feature routing | ✅ |
+| AI remediation suggestions on tickets (regenerate, post as comment) | ✅ |
+| AI drafting of Jira issues and ticket emails | ✅ |
+| AI triage during scans: likely false-positive secrets, and whether a vulnerable package is used in an affected way | ✅ |
+| Guardrails: secret redaction, context cap, per-repository opt-out, schema-validated answers, usage and cost tracking with a monthly budget, audit; see [security](../security.md#7-ai-guardrails) | ✅ |
 
 ## Threat intelligence
 
@@ -90,6 +93,6 @@ See [Tickets, email, Jira and notifications](tickets-and-notifications.md).
 | 1. Sources & scheduling | GitHub and Bitbucket connectors, repository activation, job queue, scheduler, scan runs, push webhooks | ✅ |
 | 2. Scanners & risk | Advisory sources, all scanners, findings, risk scoring, SBOM, package search, suppressions | ✅ |
 | 3. Tickets & integrations | Ticket lifecycle, SLAs, email providers, Jira, notification rules, digests | ✅ |
-| 4. AI | Providers, triage, remediation, guardrails | 🔜 |
+| 4. AI | Providers, triage, remediation, drafting, guardrails | ✅ |
 | 5. Threat intel | News crawler, AI extraction, review queue, continuous re-matching | 🔜 |
 | 6. Enterprise polish | Dashboards, reports, credential inventory, API tokens, Azure Bicep | 🔜 |
