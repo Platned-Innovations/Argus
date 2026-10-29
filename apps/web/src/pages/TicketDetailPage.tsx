@@ -49,6 +49,8 @@ function eventText(e: TicketEventDto): string {
       return `created Jira issue ${d.key}`;
     case 'jira_status':
       return `saw ${d.key} move to "${d.status}" in Jira`;
+    case 'ai_suggestion':
+      return `generated an AI-assisted remediation suggestion (${d.provider} · ${d.model})`;
   }
 }
 

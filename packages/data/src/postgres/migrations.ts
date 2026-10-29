@@ -394,6 +394,47 @@ migrations['0004_tickets'] = {
   },
 };
 
+migrations['0005_ai'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema.alterTable('repositories').addColumn('ai_enabled', 'boolean', (c) => c.notNull().defaultTo(true)).execute();
+
+    // No foreign keys: usage is kept for cost reporting after repositories and users are deleted.
+    await db.schema
+      .createTable('ai_usage')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('at', 'timestamptz', (c) => c.notNull())
+      .addColumn('provider', 'text', (c) => c.notNull())
+      .addColumn('model', 'text', (c) => c.notNull())
+      .addColumn('use_case', 'text', (c) => c.notNull())
+      .addColumn('user_id', 'uuid')
+      .addColumn('repo_id', 'uuid')
+      .addColumn('input_tokens', 'integer', (c) => c.notNull())
+      .addColumn('output_tokens', 'integer', (c) => c.notNull())
+      .addColumn('cost_usd', 'double precision', (c) => c.notNull())
+      .addColumn('outcome', 'text', (c) => c.notNull())
+      .execute();
+    await db.schema.createIndex('ai_usage_at_idx').on('ai_usage').column('at').execute();
+
+    await db.schema
+      .createTable('ai_insights')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('subject_type', 'text', (c) => c.notNull())
+      .addColumn('subject_id', 'uuid', (c) => c.notNull())
+      .addColumn('repo_id', 'uuid', (c) => c.notNull().references('repositories.id').onDelete('cascade'))
+      .addColumn('use_case', 'text', (c) => c.notNull())
+      .addColumn('provider', 'text', (c) => c.notNull())
+      .addColumn('model', 'text', (c) => c.notNull())
+      .addColumn('output', 'jsonb', (c) => c.notNull())
+      .addColumn('redactions', 'integer', (c) => c.notNull())
+      .addColumn('created_by', 'uuid')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addUniqueConstraint('ai_insights_subject_unique', ['subject_type', 'subject_id', 'use_case'])
+      .execute();
+    await db.schema.createIndex('ai_insights_repo_idx').on('ai_insights').column('repo_id').execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

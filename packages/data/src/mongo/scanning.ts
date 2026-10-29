@@ -34,7 +34,7 @@ function strip<T extends { _id: string }>(doc: T): Omit<T, '_id'> & { id: string
 
 /** Repository documents written before a field existed get its default. */
 function toRepository(doc: RepositoryDoc): Repository {
-  return { ...strip(doc), disabledScanners: doc.disabledScanners ?? [] };
+  return { ...strip(doc), disabledScanners: doc.disabledScanners ?? [], aiEnabled: doc.aiEnabled ?? true };
 }
 
 function escapeRegex(s: string): string {
@@ -98,7 +98,7 @@ export class MongoSourceRepo implements SourceRepo {
     // Mirrors the ON DELETE CASCADE foreign keys of the PostgreSQL schema.
     const ticketIds = (await this.db.collection<{ _id: string }>('tickets').find({ repoId: { $in: repoIds } }, { projection: { _id: 1 } }).toArray()).map((t) => t._id);
     await this.db.collection('ticket_events').deleteMany({ ticketId: { $in: ticketIds } });
-    for (const name of ['findings', 'dependencies', 'suppressions', 'tickets']) await this.db.collection(name).deleteMany({ repoId: { $in: repoIds } });
+    for (const name of ['findings', 'dependencies', 'suppressions', 'tickets', 'ai_insights']) await this.db.collection(name).deleteMany({ repoId: { $in: repoIds } });
     await this.repos.deleteMany({ sourceId: id });
     return true;
   }
@@ -144,6 +144,7 @@ export class MongoRepositoryRepo implements RepositoryRepo {
             jiraProjectKey: null,
             notifyEmails: [],
             disabledScanners: [],
+            aiEnabled: true,
             nextScanAt: active ? defaults.firstScanAt : null,
             lastScanAt: null,
             lastScanStatus: null,

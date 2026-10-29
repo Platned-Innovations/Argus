@@ -91,13 +91,15 @@ export const repoUpdateSchema = z
     notifyEmails: z.array(z.email()).max(20),
     /** Scanners turned off for this repository. */
     disabledScanners: z.array(z.enum(SCANNERS)).max(SCANNERS.length),
+    /** false excludes the repository from every AI feature. */
+    aiEnabled: z.boolean(),
   })
   .partial();
 export type RepoUpdateInput = z.infer<typeof repoUpdateSchema>;
 
 export const repoBulkUpdateSchema = z.object({
   ids: z.array(z.uuid()).min(1).max(500),
-  patch: repoUpdateSchema.pick({ active: true, teamId: true, criticality: true, schedule: true, scanOnPush: true, disabledScanners: true }),
+  patch: repoUpdateSchema.pick({ active: true, teamId: true, criticality: true, schedule: true, scanOnPush: true, disabledScanners: true, aiEnabled: true }),
 });
 export type RepoBulkUpdateInput = z.infer<typeof repoBulkUpdateSchema>;
 
@@ -179,6 +181,7 @@ export interface RepositoryDto {
   jiraProjectKey: string | null;
   notifyEmails: string[];
   disabledScanners: ScannerName[];
+  aiEnabled: boolean;
   nextScanAt: string | null;
   lastScanAt: string | null;
   lastScanStatus: ScanStatus | null;

@@ -35,6 +35,7 @@ export const TICKET_EVENT_TYPES = [
   'email_sent',
   'jira_created',
   'jira_status',
+  'ai_suggestion',
 ] as const;
 export type TicketEventType = (typeof TICKET_EVENT_TYPES)[number];
 
@@ -158,6 +159,9 @@ export const ticketJiraSchema = z.object({
   /** Defaults to the repository's Jira project key. */
   projectKey: z.string().trim().regex(/^[A-Z][A-Z0-9_]{0,49}$/).optional(),
   issueType: z.string().trim().min(1).max(60).optional(),
+  /** Overrides the generated summary and description, e.g. after editing an AI draft. */
+  summary: z.string().trim().min(1).max(250).optional(),
+  description: z.string().trim().min(1).max(30_000).optional(),
 });
 export type TicketJiraInput = z.infer<typeof ticketJiraSchema>;
 

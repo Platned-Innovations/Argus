@@ -73,6 +73,8 @@ export interface Repository extends DiscoveredRepo {
   jiraProjectKey: string | null;
   notifyEmails: string[];
   disabledScanners: ScannerName[];
+  /** false excludes the repository from every AI feature. */
+  aiEnabled: boolean;
   nextScanAt: Date | null;
   lastScanAt: Date | null;
   lastScanStatus: ScanStatus | null;
@@ -84,7 +86,7 @@ export interface Repository extends DiscoveredRepo {
 export type RepositoryPatch = Partial<
   Pick<
     Repository,
-    'active' | 'teamId' | 'criticality' | 'branch' | 'schedule' | 'scanOnPush' | 'jiraProjectKey' | 'notifyEmails' | 'disabledScanners' | 'nextScanAt' | 'lastScanAt' | 'lastScanStatus' | 'lastScanRunId'
+    'active' | 'teamId' | 'criticality' | 'branch' | 'schedule' | 'scanOnPush' | 'jiraProjectKey' | 'notifyEmails' | 'disabledScanners' | 'aiEnabled' | 'nextScanAt' | 'lastScanAt' | 'lastScanStatus' | 'lastScanRunId'
   >
 >;
 

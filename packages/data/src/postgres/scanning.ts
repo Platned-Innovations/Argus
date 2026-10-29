@@ -51,6 +51,7 @@ function toRepo(r: Selectable<RepositoriesTable>): Repository {
     schedule: r.schedule as RepoSchedule,
     notifyEmails: r.notifyEmails ?? [],
     disabledScanners: (r.disabledScanners ?? []) as Repository['disabledScanners'],
+    aiEnabled: r.aiEnabled ?? true,
     lastScanStatus: r.lastScanStatus as ScanStatus | null,
   };
 }
@@ -169,6 +170,7 @@ export class PgRepositoryRepo implements RepositoryRepo {
           jiraProjectKey: null,
           notifyEmails: '[]' as never,
           disabledScanners: '[]' as never,
+          aiEnabled: true,
           nextScanAt: active ? defaults.firstScanAt : null,
           lastScanAt: null,
           lastScanStatus: null,

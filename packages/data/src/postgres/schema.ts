@@ -117,6 +117,7 @@ export interface RepositoriesTable {
   jiraProjectKey: string | null;
   notifyEmails: Json<string[]>;
   disabledScanners: Json<string[]>;
+  aiEnabled: boolean;
   nextScanAt: Date | null;
   lastScanAt: Date | null;
   lastScanStatus: string | null;
@@ -317,6 +318,34 @@ export interface NotificationRulesTable {
   updatedAt: Date;
 }
 
+export interface AiUsageTable {
+  id: string;
+  at: Date;
+  provider: string;
+  model: string;
+  useCase: string;
+  userId: string | null;
+  repoId: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: ColumnType<number, number, number>;
+  outcome: string;
+}
+
+export interface AiInsightsTable {
+  id: string;
+  subjectType: string;
+  subjectId: string;
+  repoId: string;
+  useCase: string;
+  provider: string;
+  model: string;
+  output: Json<Record<string, unknown>>;
+  redactions: number;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -338,4 +367,6 @@ export interface Database {
   counters: CountersTable;
   notificationChannels: NotificationChannelsTable;
   notificationRules: NotificationRulesTable;
+  aiUsage: AiUsageTable;
+  aiInsights: AiInsightsTable;
 }
