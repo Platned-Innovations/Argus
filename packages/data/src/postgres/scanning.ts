@@ -50,6 +50,7 @@ function toRepo(r: Selectable<RepositoriesTable>): Repository {
     criticality: r.criticality as Criticality,
     schedule: r.schedule as RepoSchedule,
     notifyEmails: r.notifyEmails ?? [],
+    disabledScanners: (r.disabledScanners ?? []) as Repository['disabledScanners'],
     lastScanStatus: r.lastScanStatus as ScanStatus | null,
   };
 }
@@ -167,6 +168,7 @@ export class PgRepositoryRepo implements RepositoryRepo {
           scanOnPush: true,
           jiraProjectKey: null,
           notifyEmails: '[]' as never,
+          disabledScanners: '[]' as never,
           nextScanAt: active ? defaults.firstScanAt : null,
           lastScanAt: null,
           lastScanStatus: null,
@@ -231,13 +233,14 @@ export class PgRepositoryRepo implements RepositoryRepo {
   }
 
   async update(id: string, patch: RepositoryPatch): Promise<Repository | null> {
-    const { schedule, notifyEmails, ...rest } = patch;
+    const { schedule, notifyEmails, disabledScanners, ...rest } = patch;
     await this.db
       .updateTable('repositories')
       .set({
         ...rest,
         ...(schedule !== undefined ? { schedule: JSON.stringify(schedule) } : {}),
         ...(notifyEmails !== undefined ? { notifyEmails: JSON.stringify(notifyEmails) } : {}),
+        ...(disabledScanners !== undefined ? { disabledScanners: JSON.stringify(disabledScanners) } : {}),
         updatedAt: new Date(),
       })
       .where('id', '=', id)
@@ -346,6 +349,10 @@ export class PgScanRunRepo implements ScanRunRepo {
         .execute(),
     ]);
     return { items: rows.map((r) => toRun({ ...r, log: [] as never })), total };
+  }
+
+  async setTeamForRepo(repoId: string, teamId: string | null): Promise<void> {
+    await this.db.updateTable('scanRuns').set({ teamId }).where('repoId', '=', repoId).execute();
   }
 
   async deleteFinishedBefore(before: Date): Promise<number> {

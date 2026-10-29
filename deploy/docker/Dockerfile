@@ -22,6 +22,24 @@ COPY apps apps
 RUN npm run build \
  && npm prune --omit=dev --no-audit --no-fund
 
+# ---------- gitleaks (secret scanner), pinned and checksum-verified ----------
+FROM debian:bookworm-slim AS gitleaks
+ARG TARGETARCH
+ARG GITLEAKS_VERSION=8.30.1
+ARG GITLEAKS_SHA256_AMD64=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+ARG GITLEAKS_SHA256_ARM64=e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl ca-certificates \
+ && case "${TARGETARCH:-amd64}" in \
+      amd64) asset=x64;   sha="${GITLEAKS_SHA256_AMD64}" ;; \
+      arm64) asset=arm64; sha="${GITLEAKS_SHA256_ARM64}" ;; \
+      *) echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL -o /tmp/gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${asset}.tar.gz" \
+ && echo "${sha}  /tmp/gitleaks.tar.gz" | sha256sum -c - \
+ && tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks \
+ && /usr/local/bin/gitleaks version
+
 # ---------- runtime ----------
 FROM ${NODE_IMAGE} AS runtime
 
@@ -34,6 +52,8 @@ ENV NODE_ENV=production \
     PORT=8080 \
     ARGUS_ROLE=all \
     ARGUS_WEB_DIR=/app/apps/web/dist
+
+COPY --from=gitleaks /usr/local/bin/gitleaks /usr/local/bin/gitleaks
 
 WORKDIR /app
 COPY --from=build --chown=node:node /src/package.json ./

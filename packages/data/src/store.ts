@@ -31,6 +31,20 @@ import {
   type SourceWithCounts,
   type SyncResult,
 } from './scanning-models';
+import {
+  type CacheEntry,
+  type Dependency,
+  type DependencyListFilter,
+  type DependencySearchFilter,
+  type Finding,
+  type FindingListFilter,
+  type FindingSummaryRecord,
+  type NewSuppression,
+  type ObservedFinding,
+  type ReconcileContext,
+  type ReconcileResult,
+  type Suppression,
+} from './findings-models';
 
 export interface UserRepo {
   create(input: NewUser): Promise<User>;
@@ -110,6 +124,7 @@ export interface ScanRunRepo {
   /** Newest first. */
   list(filter: ScanRunListFilter): Promise<Page<ScanRun>>;
   deleteFinishedBefore(before: Date): Promise<number>;
+  setTeamForRepo(repoId: string, teamId: string | null): Promise<void>;
 }
 
 export interface JobRepo {
@@ -134,6 +149,47 @@ export interface LockRepo {
   release(name: string, owner: string): Promise<void>;
 }
 
+export interface FindingRepo {
+  /**
+   * Applies a scan result: inserts new findings, refreshes ones seen again (re-opening fixed ones),
+   * and marks open/suppressed findings of the completed scanners that were not seen as fixed.
+   */
+  reconcile(ctx: ReconcileContext, observed: ObservedFinding[]): Promise<ReconcileResult>;
+  findById(id: string): Promise<Finding | null>;
+  /** Highest risk first. */
+  list(filter: FindingListFilter): Promise<Page<Finding>>;
+  update(id: string, patch: Partial<Pick<Finding, 'status' | 'suppressionId'>>): Promise<Finding | null>;
+  summary(filter: { repoId?: string; visibleTeamIds?: string[]; fixedSince: Date }): Promise<FindingSummaryRecord>;
+  setTeamForRepo(repoId: string, teamId: string | null): Promise<void>;
+}
+
+export interface DependencyRepo {
+  /** Replaces the repository's dependency inventory with the result of the latest scan. */
+  replaceForRepo(repoId: string, deps: Dependency[]): Promise<void>;
+  listForRepo(repoId: string, filter: DependencyListFilter): Promise<Page<Dependency>>;
+  /** Every repository that uses a package, newest inventory only. */
+  search(filter: DependencySearchFilter): Promise<Dependency[]>;
+  setTeamForRepo(repoId: string, teamId: string | null): Promise<void>;
+}
+
+export interface SuppressionRepo {
+  create(input: NewSuppression): Promise<Suppression>;
+  findById(id: string): Promise<Suppression | null>;
+  /** All suppressions, or those for one repository plus global ones. */
+  list(filter?: { repoId?: string }): Promise<Suppression[]>;
+  /** Unexpired suppressions that apply to a repository (its own and global ones). */
+  listApplicable(repoId: string, now: Date): Promise<Suppression[]>;
+  delete(id: string): Promise<boolean>;
+}
+
+/** Key-value cache for threat-intelligence lookups (advisories, KEV, EPSS, end-of-life data, registry metadata). */
+export interface CacheRepo {
+  get<T = unknown>(key: string): Promise<CacheEntry<T> | null>;
+  getMany<T = unknown>(keys: string[]): Promise<Map<string, CacheEntry<T>>>;
+  set<T = unknown>(key: string, value: T, ttlMs: number): Promise<void>;
+  deleteExpired(before: Date): Promise<number>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -148,6 +204,10 @@ export interface DataStore {
   readonly scanRuns: ScanRunRepo;
   readonly jobs: JobRepo;
   readonly locks: LockRepo;
+  readonly findings: FindingRepo;
+  readonly dependencies: DependencyRepo;
+  readonly suppressions: SuppressionRepo;
+  readonly cache: CacheRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

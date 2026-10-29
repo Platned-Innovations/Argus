@@ -20,7 +20,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | GitHub and Bitbucket access tokens and per-source webhook secrets are stored with this encryption. | ✅ |
 | SMTP and Microsoft Graph secrets, Jira tokens and AI provider keys are stored with the same encryption. | 🔜 Phases 3 and 4 |
 | **Write-only credentials.** The API never returns a stored credential; for source tokens it shows only the last four characters (`••••abcd`). Changing a token or connection setting re-tests the connection before saving. A webhook secret is shown once, when it is created or rotated. | ✅ |
-| **Detected secrets are never stored in full.** A leaked secret found in a repository is kept only as a masked preview (for example `ghp_****abcd`) plus a salted, keyed hash used for de-duplication. Argus itself never becomes a second copy of your leaked secrets. | 🔜 Phase 2 |
+| **Detected secrets are never stored in full.** A leaked secret found in a repository is kept only as a masked preview (for example `AKIA…MPLE`; private keys show only "PEM private key") plus an HMAC-SHA256 hash, keyed by this installation, which is used to recognise the same secret across files and scans. Gitleaks' raw report is deleted as soon as it has been read. Argus never becomes a second copy of your leaked secrets. | ✅ |
 | Passwords are hashed with **argon2id** (19 MiB memory, 2 iterations; the OWASP recommendation). They are never stored reversibly or logged. | ✅ |
 | Refresh tokens and MFA recovery codes are stored only as keyed HMAC-SHA256 hashes. | ✅ |
 
@@ -58,7 +58,8 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Control | Status |
 |---|---|
 | **Role-based access control** with four roles: Administrator, Security Manager, Developer and Viewer. Each endpoint declares the permissions it needs, and the server checks them on every request. The UI hides what you cannot do, but the server is the authority. | ✅ |
-| **Team scoping.** Developers and Viewers only see repositories and scan runs owned by their teams. Anything outside their teams returns *404 Not found* rather than *403*, so its existence is not revealed. Findings and tickets follow the same rule from Phases 2 and 3. | ✅ |
+| **Team scoping.** Developers and Viewers only see repositories, scan runs, findings, dependency inventories, package-search results and suppressions owned by their teams. Anything outside their teams returns *404 Not found* rather than *403*, so its existence is not revealed. When a repository moves to another team, its findings, inventory and scan history move with it. Tickets follow the same rule from Phase 3. | ✅ |
+| **Suppressing findings needs triage rights** (Administrator or Security Manager). Every suppression carries a justification and an optional expiry, and is audited. | ✅ |
 | **Self-lockout and last-admin protection.** Administrators cannot disable themselves or change their own role, and the last active administrator cannot be removed. | ✅ |
 
 ## 5. Audit trail
@@ -69,6 +70,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Each entry records the actor, target, outcome, source IP and structured details. **Secrets are never written to the audit log.** | ✅ |
 | CSV export is protected against spreadsheet formula injection (cells beginning with `=`, `+`, `-` or `@` are neutralised). | ✅ |
 | Source changes are audited: creation, edits (including token rotation), deletion, webhook-secret rotation, sync requests and sync results. So are repository setting changes, bulk changes, and manual scan requests. | ✅ |
+| Suppression creation and removal, SBOM exports and scanning-settings changes are audited, with before and after values for settings. | ✅ |
 | Ticket, integration and AI actions are audited as those features arrive. | 🔜 Phases 3–4 |
 
 ## 6. Source-code handling
@@ -82,7 +84,10 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | **Hardened git.** Git runs with: <br>• no user or system git configuration<br>• no interactive prompts<br>• HTTPS/HTTP transports only<br>• symbolic links checked out as plain files<br>• Git LFS downloads disabled<br>• no submodules or tags<br>• a timeout (`ARGUS_SCAN_TIMEOUT_MINUTES`)<br>Repository hooks are never executed. | ✅ |
 | **Redacted scan logs.** Scan logs and error messages are scrubbed of the token, the authorisation header and any `user:password@` URL credentials before they are stored or shown. | ✅ |
 | Source servers must use **HTTPS**. Plain HTTP is accepted only for loopback addresses (local development). | ✅ |
-| Only findings and the dependency inventory (package names and versions, for SBOMs and re-matching against new advisories) are persisted. | 🔜 Phase 2 |
+| Only findings and the dependency inventory (package names, versions and licenses, for SBOMs and package search) are persisted. File contents are not stored; a finding records only its path and line. | ✅ |
+| **Untrusted repository content is parsed defensively.**<br>• XML (`.csproj`, `packages.config`) is parsed without DTDs or external entities.<br>• YAML (`pnpm-lock.yaml`, `yarn.lock`, `.argus.yml`) is parsed with alias-expansion limits.<br>• Files are read with size caps, and binary files are skipped.<br>• Symbolic links are never followed.<br>• Nothing from a repository is ever executed. | ✅ |
+| **Threat-intelligence lookups never send code or secrets.** OSV and the npm/NuGet registries receive package names and versions, EPSS receives CVE ids, and endoflife.date receives product names. The full list is in [Data sources](features/scanners-and-findings.md#data-sources-caching-and-offline-mode). `ARGUS_OFFLINE=true` turns all of these lookups off, and each URL can point at an internal mirror. | ✅ |
+| The bundled **Gitleaks binary is pinned to a version and verified against its published SHA-256 checksum** when the image is built. | ✅ |
 | **Read-only tokens are enough.** The [sources guide](features/sources-and-repositories.md#access-tokens) lists the minimum permissions for each provider. | ✅ |
 
 ## 7. AI guardrails

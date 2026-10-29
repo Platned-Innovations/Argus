@@ -91,7 +91,21 @@ Request bodies and query strings are validated with the zod schemas from `packag
 
 ## Scan lifecycle
 
-The scanner steps marked Phase 2 below are added in that phase. Today a scan clones the repository, records its inventory, and cleans up.
+A scan runs as follows:
+
+1. Clone the repository.
+2. List its files, skipping vendored folders and `.argus.yml` ignore paths.
+3. Run the scanners in order:
+   1. secrets
+   2. dependencies (which builds the inventory)
+   3. licenses (which reuses that inventory)
+   4. frameworks
+   5. certificates
+4. Turn each scanner result into findings: compute the risk score, apply suppressions from the database and from `.argus.yml`, then reconcile with the stored findings.
+5. Replace the repository's dependency inventory.
+6. Delete the workspace.
+
+Scanners talk to the outside world only through `IntelService`, which caches every lookup in the database (`intel_cache`). See [Scanners and findings](features/scanners-and-findings.md).
 
 ```
 schedule / manual / push webhook

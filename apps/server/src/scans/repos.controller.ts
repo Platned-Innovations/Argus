@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
-import { listReposQuerySchema, listScanRunsQuerySchema, repoBulkUpdateSchema, repoUpdateSchema } from '@argus/shared';
-import { type Request } from 'express';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { listDependenciesQuerySchema, listReposQuerySchema, listScanRunsQuerySchema, repoBulkUpdateSchema, repoUpdateSchema } from '@argus/shared';
+import { type Request, type Response } from 'express';
 import { type z } from 'zod';
 import { CurrentUser, RequirePermissions } from '../auth/decorators';
 import { type RequestUser, requestContext } from '../common/request';
@@ -45,6 +45,22 @@ export class ReposController {
   @RequirePermissions('scans:run')
   scanNow(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.repos.scanNow(id, me.user, requestContext(req));
+  }
+
+  @Get(':id/dependencies')
+  @RequirePermissions('repos:read')
+  dependencies(@Param('id', ParseUUIDPipe) id: string, @Query(new ZodPipe(listDependenciesQuerySchema)) q: z.infer<typeof listDependenciesQuerySchema>, @CurrentUser() me: RequestUser) {
+    return this.repos.dependencies(id, q, me.user);
+  }
+
+  /** CycloneDX 1.5 SBOM of the latest scan. */
+  @Get(':id/sbom')
+  @RequirePermissions('repos:read')
+  async sbom(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const { fileName, document } = await this.repos.sbom(id, me.user, requestContext(req));
+    res.setHeader('Content-Type', 'application/vnd.cyclonedx+json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return document;
   }
 
   @Get(':id/scans')

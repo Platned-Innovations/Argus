@@ -1,4 +1,4 @@
-import { type ScanRunDto, type ScanStatus, type ScanTrigger, SCHEDULE_LABELS, type Schedule } from '@argus/shared';
+import { SCANNER_LABELS, type ScanRunDto, type ScanStatus, type ScanTrigger, SCHEDULE_LABELS, type Schedule } from '@argus/shared';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
 import { api } from '../lib/api';
@@ -77,6 +77,28 @@ export function ScanRunModal({ runId, onClose }: { runId: string; onClose(): voi
               <div className="flex flex-wrap gap-1.5">
                 {run.stats.ecosystems.length ? run.stats.ecosystems.map((e) => <Badge key={e} tone="indigo">{e}</Badge>) : <span className="text-slate-500">No supported ecosystems detected</span>}
               </div>
+              {run.stats.findings && (
+                <div>
+                  Findings: {run.stats.findings.new} new, {run.stats.findings.fixed} fixed, {run.stats.findings.reopened} reopened
+                  {run.stats.dependencies !== undefined && ` · ${run.stats.dependencies} dependencies`}
+                </div>
+              )}
+              {run.stats.scanners && (
+                <table className="w-full text-xs">
+                  <tbody>
+                    {run.stats.scanners.map((s) => (
+                      <tr key={s.scanner}>
+                        <td className="py-0.5 pr-2">{SCANNER_LABELS[s.scanner]}</td>
+                        <td className="py-0.5 pr-2">
+                          <Badge tone={s.status === 'ok' ? 'green' : s.status === 'skipped' ? 'slate' : s.status === 'partial' ? 'amber' : 'red'}>{s.status}</Badge>
+                        </td>
+                        <td className="py-0.5 pr-2 tabular-nums">{s.findings} finding(s)</td>
+                        <td className="py-0.5 text-slate-500">{s.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
               {run.stats.manifests.length > 0 && (
                 <details>
                   <summary className="cursor-pointer text-slate-600 dark:text-slate-300">{run.stats.manifests.length} manifest file(s)</summary>

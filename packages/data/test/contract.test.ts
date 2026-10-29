@@ -1,7 +1,9 @@
-import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { type StartedTestContainer } from 'testcontainers';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDataStore, type DataStore, DuplicateKeyError, type NewUser } from '../src';
+import { findingsContract } from './findings.contract';
+import { startMongo } from './mongo-container';
 import { scanningContract } from './scanning.contract';
 
 /**
@@ -15,7 +17,7 @@ interface Harness {
 }
 
 let pg: StartedPostgreSqlContainer | undefined;
-let mongo: StartedMongoDBContainer | undefined;
+let mongo: StartedTestContainer | undefined;
 let dbCounter = 0;
 
 const harnesses: Harness[] = [
@@ -32,8 +34,9 @@ const harnesses: Harness[] = [
   {
     name: 'mongodb',
     async start() {
-      mongo = await new MongoDBContainer('mongo:8').start();
-      return createDataStore({ kind: 'mongodb', url: `${mongo.getConnectionString()}?directConnection=true`, dbName: `argus_test_${++dbCounter}` });
+      const started = await startMongo();
+      mongo = started.container;
+      return createDataStore({ kind: 'mongodb', url: started.url, dbName: `argus_test_${++dbCounter}` });
     },
     async stop() {
       await mongo?.stop();
@@ -196,6 +199,7 @@ describe.each(harnesses)('DataStore contract: $name', (h) => {
   });
 
   scanningContract(() => store);
+  findingsContract(() => store);
 
   describe('settings', () => {
     it('round-trips JSON values and upserts', async () => {

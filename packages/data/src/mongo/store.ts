@@ -30,6 +30,17 @@ import {
   type ScanRunDoc,
   type SourceDoc,
 } from './scanning';
+import {
+  bootstrapFindingIndexes,
+  type CacheDoc,
+  type DependencyDoc,
+  type FindingDoc,
+  MongoCacheRepo,
+  MongoDependencyRepo,
+  MongoFindingRepo,
+  MongoSuppressionRepo,
+  type SuppressionDoc,
+} from './findings';
 
 type UserDoc = Omit<User, 'id'> & { _id: string; usernameLower: string; emailLower: string | null };
 type TeamDoc = Omit<Team, 'id'> & { _id: string; nameLower: string };
@@ -39,7 +50,7 @@ type SettingDoc = { _id: string; value: unknown; updatedAt: Date; updatedBy: str
 type MetaDoc = { _id: string; version: number; updatedAt: Date };
 
 /** Bump when index/bootstrap definitions below change. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 async function mapDuplicate<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -308,6 +319,7 @@ async function bootstrap(db: Db): Promise<void> {
     { key: { targetType: 1, targetId: 1 }, name: 'target' },
   ]);
   await bootstrapScanningIndexes(db);
+  await bootstrapFindingIndexes(db);
   await meta.updateOne({ _id: 'schema' }, { $set: { version: SCHEMA_VERSION, updatedAt: new Date() } }, { upsert: true });
 }
 
@@ -326,11 +338,15 @@ export async function createMongoStore(url: string, dbName?: string): Promise<Da
     sessions: new MongoSessionRepo(db.collection<SessionDoc>('sessions')),
     audit: new MongoAuditRepo(db.collection<AuditDoc>('audit_logs')),
     settings: new MongoSettingsRepo(db.collection<SettingDoc>('settings')),
-    sources: new MongoSourceRepo(db.collection<SourceDoc>('sources'), repositories, scanRuns),
+    sources: new MongoSourceRepo(db.collection<SourceDoc>('sources'), repositories, scanRuns, db),
     repositories: new MongoRepositoryRepo(repositories),
     scanRuns: new MongoScanRunRepo(scanRuns),
     jobs: new MongoJobRepo(db.collection<JobDoc>('jobs')),
     locks: new MongoLockRepo(db.collection<LockDoc>('locks')),
+    findings: new MongoFindingRepo(db.collection<FindingDoc>('findings')),
+    dependencies: new MongoDependencyRepo(db.collection<DependencyDoc>('dependencies')),
+    suppressions: new MongoSuppressionRepo(db.collection<SuppressionDoc>('suppressions')),
+    cache: new MongoCacheRepo(db.collection<CacheDoc>('intel_cache')),
     migrate: () => bootstrap(db),
     async ping() {
       try {

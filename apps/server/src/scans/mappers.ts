@@ -24,6 +24,7 @@ export function toRepositoryDto(r: Repository, provider: Provider): RepositoryDt
     scanOnPush: r.scanOnPush,
     jiraProjectKey: r.jiraProjectKey,
     notifyEmails: r.notifyEmails,
+    disabledScanners: r.disabledScanners,
     nextScanAt: r.nextScanAt?.toISOString() ?? null,
     lastScanAt: r.lastScanAt?.toISOString() ?? null,
     lastScanStatus: r.lastScanStatus,

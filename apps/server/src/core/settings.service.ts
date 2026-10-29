@@ -1,9 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { type DataStore } from '@argus/data';
-import { DEFAULT_SECURITY_SETTINGS, type SecuritySettings, securitySettingsSchema } from '@argus/shared';
+import {
+  DEFAULT_SCANNING_SETTINGS,
+  DEFAULT_SECURITY_SETTINGS,
+  type ScanningSettings,
+  scanningSettingsSchema,
+  type SecuritySettings,
+  securitySettingsSchema,
+} from '@argus/shared';
 import { DATA_STORE } from './tokens';
 
 const SECURITY_KEY = 'security';
+const SCANNING_KEY = 'scanning';
 const CACHE_MS = 15_000;
 
 @Injectable()
@@ -26,6 +34,22 @@ export class SettingsService {
     await this.store.settings.set(SECURITY_KEY, value, actorId);
     this.securityCache = null;
     return this.getSecurity();
+  }
+
+  async getScanning(): Promise<ScanningSettings> {
+    const stored = await this.store.settings.get<Partial<ScanningSettings>>(SCANNING_KEY);
+    const v = stored?.value ?? {};
+    const merged = scanningSettingsSchema.safeParse({
+      ...DEFAULT_SCANNING_SETTINGS,
+      ...v,
+      riskWeights: { ...DEFAULT_SCANNING_SETTINGS.riskWeights, ...(v.riskWeights ?? {}) },
+    });
+    return merged.success ? merged.data : DEFAULT_SCANNING_SETTINGS;
+  }
+
+  async updateScanning(value: ScanningSettings, actorId: string): Promise<ScanningSettings> {
+    await this.store.settings.set(SCANNING_KEY, value, actorId);
+    return this.getScanning();
   }
 
   async getSystemValue<T>(key: string): Promise<T | null> {

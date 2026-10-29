@@ -9,12 +9,16 @@ import { CenteredSpinner, EmptyState } from './components/ui';
 import { ApiError } from './lib/api';
 import { AuthProvider, useAuth } from './lib/auth';
 import { AuditPage } from './pages/admin/AuditPage';
+import { ScanningSettingsPage } from './pages/admin/ScanningSettingsPage';
 import { SecuritySettingsPage } from './pages/admin/SecuritySettingsPage';
 import { SourcesPage } from './pages/admin/SourcesPage';
 import { TeamsPage } from './pages/admin/TeamsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { FindingsPage } from './pages/FindingsPage';
+import { PackagesPage } from './pages/PackagesPage';
+import { SuppressionsPage } from './pages/SuppressionsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RepositoriesPage } from './pages/RepositoriesPage';
@@ -61,6 +65,10 @@ function App() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="repositories" element={<Allow permission="repos:read"><RepositoriesPage /></Allow>} />
               <Route path="repositories/:id" element={<Allow permission="repos:read"><RepositoryDetailPage /></Allow>} />
+              <Route path="findings" element={<Allow permission="findings:read"><FindingsPage /></Allow>} />
+              <Route path="packages" element={<Allow permission="repos:read"><PackagesPage /></Allow>} />
+              <Route path="suppressions" element={<Allow permission="findings:read"><SuppressionsPage /></Allow>} />
+              <Route path="admin/scanning" element={<Allow permission="settings:read"><ScanningSettingsPage /></Allow>} />
               <Route path="tickets" element={<ComingSoonPage title="Tickets" description="Security findings tracked to resolution." phase="Tickets & integrations" />} />
               <Route path="intel" element={<ComingSoonPage title="Threat intel" description="Vulnerability advisories and security news." phase="Threat intelligence" />} />
               <Route path="notifications" element={<ComingSoonPage title="Notifications" description="Email, Teams, Slack and webhook alerts." phase="Tickets & integrations" />} />

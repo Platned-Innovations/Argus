@@ -116,6 +116,7 @@ export interface RepositoriesTable {
   scanOnPush: boolean;
   jiraProjectKey: string | null;
   notifyEmails: Json<string[]>;
+  disabledScanners: Json<string[]>;
   nextScanAt: Date | null;
   lastScanAt: Date | null;
   lastScanStatus: string | null;
@@ -170,6 +171,75 @@ export interface LocksTable {
   expiresAt: Date;
 }
 
+export interface FindingsTable {
+  id: string;
+  repoId: string;
+  sourceId: string;
+  teamId: string | null;
+  scanner: string;
+  ruleId: string;
+  fingerprint: string;
+  title: string;
+  description: string | null;
+  severity: string;
+  riskScore: number;
+  riskFactors: Json<unknown[]>;
+  status: string;
+  path: string | null;
+  line: number | null;
+  packageEcosystem: string | null;
+  packageName: string | null;
+  package: Json<Record<string, unknown> | null> | null;
+  advisory: Json<Record<string, unknown> | null> | null;
+  secret: Json<Record<string, unknown> | null> | null;
+  details: Json<Record<string, unknown> | null> | null;
+  remediation: string | null;
+  suppressionId: string | null;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  firstRunId: string;
+  lastRunId: string;
+  fixedAt: Date | null;
+}
+
+export interface DependenciesTable {
+  id: string;
+  repoId: string;
+  teamId: string | null;
+  ecosystem: string;
+  name: string;
+  nameLower: string;
+  version: string;
+  direct: boolean;
+  dev: boolean;
+  license: string | null;
+  manifestPath: string;
+  latestVersion: string | null;
+  deprecated: string | null;
+  vulnerabilities: number;
+}
+
+export interface SuppressionsTable {
+  id: string;
+  repoId: string | null;
+  scanner: string | null;
+  ruleId: string | null;
+  pathPattern: string | null;
+  packageName: string | null;
+  reason: string;
+  expiresAt: Date | null;
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: Date;
+}
+
+export interface IntelCacheTable {
+  key: string;
+  value: Json<unknown>;
+  fetchedAt: Date;
+  expiresAt: Date;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -182,4 +252,8 @@ export interface Database {
   scanRuns: ScanRunsTable;
   jobs: JobsTable;
   locks: LocksTable;
+  findings: FindingsTable;
+  dependencies: DependenciesTable;
+  suppressions: SuppressionsTable;
+  intelCache: IntelCacheTable;
 }
