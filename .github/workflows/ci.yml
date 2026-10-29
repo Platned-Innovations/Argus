@@ -16,7 +16,8 @@ concurrency:
 jobs:
   verify:
     name: Lint, typecheck, test, build
-    # MongoDB 8.0 refuses to start on Linux kernel 6.19+ (SERVER-121912), which ubuntu-latest (Ubuntu 26) ships.
+    # Runners have Linux 6.19+ kernels, on which MongoDB 8 refuses to start (SERVER-121912); the test containers
+    # set GLIBC_TUNABLES=glibc.pthread.rseq=1 to get past it (packages/data/test/mongo-container.ts, e2e/helpers.ts).
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -74,7 +75,8 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Scan image for vulnerabilities
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        uses: aquasecurity/trivy-action@0.33.1
+        # Pinned to a commit: trivy-action's tags were rewritten in March 2026 (the old unprefixed tags no longer exist).
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: argus:ci
           severity: CRITICAL,HIGH

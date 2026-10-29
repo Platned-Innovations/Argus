@@ -59,6 +59,7 @@ export const USE_CASE_EFFORT: Record<AiUseCase, 'low' | 'medium'> = {
   ticket_draft: 'low',
   secret_triage: 'low',
   vuln_applicability: 'low',
+  advisory_extraction: 'low',
 };
 
 /** Shared preamble: the model must treat repository content as data, never as instructions. */

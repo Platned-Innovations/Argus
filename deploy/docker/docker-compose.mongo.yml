@@ -5,10 +5,12 @@ name: argus-mongo
 
 services:
   mongo:
-    # mongo 8.0/8.3 cannot start on Linux kernel 6.19+; use mongo:7.0 on such hosts (see docs/deployment/docker.md).
     image: mongo:8
     restart: unless-stopped
     environment:
+      # Lets mongod 8 start on Linux 6.19+ kernels (SERVER-121912) by turning off TCMalloc per-CPU caches;
+      # a small allocator-throughput cost. Remove once your mongo image recognises your kernel (docs/deployment/docker.md).
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
       MONGO_INITDB_ROOT_USERNAME: argus
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-argus-change-me}
     volumes:
@@ -54,6 +56,8 @@ services:
       ARGUS_ENTRA_LOGIN_URL: ${ARGUS_ENTRA_LOGIN_URL:-}
       ARGUS_NPM_REGISTRY_URL: ${ARGUS_NPM_REGISTRY_URL:-}
       ARGUS_NUGET_URL: ${ARGUS_NUGET_URL:-}
+      ARGUS_NVD_URL: ${ARGUS_NVD_URL:-}
+      ARGUS_NVD_API_KEY: ${ARGUS_NVD_API_KEY:-}
 
 volumes:
   mongo-data:

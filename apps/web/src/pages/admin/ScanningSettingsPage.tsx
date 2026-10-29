@@ -26,7 +26,7 @@ const list = (s: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-function IntelStatusCard() {
+export function IntelStatusCard() {
   const query = useQuery({ queryKey: ['intel', 'status'], queryFn: () => api<IntelStatusDto>('/intel/status') });
   return (
     <Card>

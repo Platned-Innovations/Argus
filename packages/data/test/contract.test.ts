@@ -5,6 +5,7 @@ import { createDataStore, type DataStore, DuplicateKeyError, type NewUser } from
 import { findingsContract } from './findings.contract';
 import { ticketsContract } from './tickets.contract';
 import { aiContract } from './ai.contract';
+import { intelContract } from './intel.contract';
 import { startMongo } from './mongo-container';
 import { scanningContract } from './scanning.contract';
 
@@ -204,6 +205,7 @@ describe.each(harnesses)('DataStore contract: $name', (h) => {
   findingsContract(() => store);
   ticketsContract(() => store);
   aiContract(() => store);
+  intelContract(() => store);
 
   describe('settings', () => {
     it('round-trips JSON values and upserts', async () => {

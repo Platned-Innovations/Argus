@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { type DataStore } from '@argus/data';
+import { type Advisory, type DataStore } from '@argus/data';
 import { type Ecosystem } from '@argus/shared';
 import { AppConfig } from '../config/app-config';
 import { DATA_STORE } from '../core/tokens';
@@ -11,6 +11,13 @@ const TIMEOUT_MS = 30_000;
 const OSV_BATCH = 500;
 const EPSS_BATCH = 100;
 const CONCURRENCY = 8;
+/** NVD allows 5 requests per 30 s without an API key and 50 with one. */
+const NVD_INTERVAL_MS = { anonymous: 6_500, withKey: 700 };
+
+export interface CvssScore {
+  score: number;
+  vector: string;
+}
 
 export class IntelError extends Error {
   override name = 'IntelError';
@@ -145,11 +152,14 @@ export class IntelService {
     return new Map([...entries.values()].map((e) => [e.key.slice(5), e.value]));
   }
 
-  /** OSV.dev batch query. Returns vulnerability ids per package version (OSV evaluates the version ranges). */
-  async queryVulnerabilities(packages: PackageRef[]): Promise<Map<string, string[]>> {
+  /**
+   * OSV.dev batch query. Returns vulnerability ids per package version (OSV evaluates the version ranges).
+   * `fresh` skips the 12-hour cache, for continuous re-matching.
+   */
+  async queryVulnerabilities(packages: PackageRef[], opts: { fresh?: boolean } = {}): Promise<Map<string, string[]>> {
     const out = new Map<string, string[]>();
     const unique = [...new Map(packages.map((p) => [packageKey(p), p])).values()];
-    const cached = await this.store.cache.getMany<string[]>(unique.map((p) => `osvq:${packageKey(p)}`));
+    const cached = opts.fresh ? new Map() : await this.store.cache.getMany<string[]>(unique.map((p) => `osvq:${packageKey(p)}`));
     const todo: PackageRef[] = [];
     for (const p of unique) {
       const hit = cached.get(`osvq:${packageKey(p)}`);
@@ -191,6 +201,55 @@ export class IntelService {
       return [id, v] as const;
     });
     return new Map(results);
+  }
+
+  private nvdNextAt = 0;
+
+  /**
+   * CVSS v3/v4 base scores from the NVD CVE API, for CVEs whose OSV record has none. Cached for a week;
+   * requests are paced to NVD's public rate limit, and at most `max` uncached CVEs are looked up per call
+   * (the rest are filled in by later scans).
+   */
+  async nvdCvss(cves: string[], max = 10): Promise<Map<string, CvssScore>> {
+    const unique = [...new Set(cves)];
+    const out = new Map<string, CvssScore>();
+    const cached = await this.store.cache.getMany<CvssScore | null>(unique.map((c) => `nvd:${c}`));
+    const todo: string[] = [];
+    for (const c of unique) {
+      const hit = cached.get(`nvd:${c}`);
+      if (hit && hit.expiresAt.getTime() > Date.now()) {
+        if (hit.value) out.set(c, hit.value);
+      } else todo.push(c);
+    }
+    if (this.config.offline || todo.length === 0) return out;
+    const interval = this.config.intel.nvdApiKey ? NVD_INTERVAL_MS.withKey : NVD_INTERVAL_MS.anonymous;
+    try {
+      for (const cve of todo.slice(0, max)) {
+        const wait = this.nvdNextAt - Date.now();
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+        this.nvdNextAt = Date.now() + interval;
+        type Metric = { cvssData: { baseScore: number; vectorString: string } };
+        const res = await this.fetchJson<{ vulnerabilities?: { cve: { metrics?: Record<string, Metric[] | undefined> } }[] }>(`${this.config.intel.nvd}?cveId=${encodeURIComponent(cve)}`, {
+          headers: this.config.intel.nvdApiKey ? { apiKey: this.config.intel.nvdApiKey } : {},
+        });
+        const metrics = res.vulnerabilities?.[0]?.cve.metrics ?? {};
+        const m = (metrics.cvssMetricV31 ?? metrics.cvssMetricV30 ?? metrics.cvssMetricV40)?.[0]?.cvssData;
+        const value = m ? { score: m.baseScore, vector: m.vectorString } : null;
+        // Unscored CVEs are re-checked daily: NVD often scores them a few days after publication.
+        await this.store.cache.set(`nvd:${cve}`, value, value ? 7 * DAY : DAY);
+        if (value) out.set(cve, value);
+      }
+      await this.recordFeed('nvd', { fetchedAt: new Date().toISOString(), entries: null, error: null });
+    } catch (err) {
+      await this.recordFeed('nvd', { fetchedAt: new Date().toISOString(), entries: null, error: (err as Error).message });
+      this.logger.warn(`NVD lookup failed: ${(err as Error).message}`);
+    }
+    return out;
+  }
+
+  /** Argus's own advisories (approved from news or entered by hand) for these packages. */
+  argusAdvisories(packages: PackageRef[]): Promise<Advisory[]> {
+    return this.store.advisories.listActiveForPackages(packages.map((p) => ({ ecosystem: p.ecosystem, name: p.name })));
   }
 
   /** CVE ids in CISA's Known Exploited Vulnerabilities catalog. */

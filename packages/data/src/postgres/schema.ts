@@ -346,6 +346,61 @@ export interface AiInsightsTable {
   createdAt: Date;
 }
 
+export interface IntelSourcesTable {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  intervalMinutes: number;
+  lastFetchedAt: Date | null;
+  lastError: string | null;
+  lastNewItems: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IntelItemsTable {
+  id: string;
+  sourceId: string;
+  guid: string;
+  title: string;
+  link: string | null;
+  publishedAt: Date | null;
+  summary: string;
+  status: string;
+  candidates: Json<unknown[]>;
+  extraction: ColumnType<Record<string, unknown> | null, string | null, string | null>;
+  error: string | null;
+  advisoryIds: Json<string[]>;
+  reviewedBy: string | null;
+  reviewedAt: Date | null;
+  fetchedAt: Date;
+}
+
+export interface AdvisoriesTable {
+  id: string;
+  key: string;
+  ecosystem: string;
+  packageName: string;
+  /** Lower-cased for NuGet, as-is for npm. */
+  packageKey: string;
+  affectedRange: string;
+  fixedVersion: string | null;
+  severity: string;
+  cvssScore: number | null;
+  cveIds: Json<string[]>;
+  title: string;
+  summary: string;
+  refs: Json<string[]>;
+  source: string;
+  sourceItemId: string | null;
+  withdrawn: boolean;
+  autoApproved: boolean;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -369,4 +424,7 @@ export interface Database {
   notificationRules: NotificationRulesTable;
   aiUsage: AiUsageTable;
   aiInsights: AiInsightsTable;
+  intelSources: IntelSourcesTable;
+  intelItems: IntelItemsTable;
+  advisories: AdvisoriesTable;
 }

@@ -145,7 +145,7 @@ A rule says **when** to notify, **what** qualifies and **where** to send it:
 
 | Events | Filters | Channels |
 |---|---|---|
-| New ticket, ticket reopened, SLA breached, scan failed, weekly digest (Mondays 07:00 UTC) | Minimum severity (for ticket events), teams | Any email channel (to the listed recipients and, optionally, the repository's notification recipients), Microsoft Teams, Slack, signed webhook |
+| New ticket, ticket reopened, SLA breached, scan failed, weekly digest (Mondays 07:00 UTC), emerging threat (a new advisory matched repositories between scans — see [Threat intelligence](threat-intelligence.md#continuous-re-matching)) | Minimum severity (for ticket events), teams | Any email channel (to the listed recipients and, optionally, the repository's notification recipients), Microsoft Teams, Slack, signed webhook |
 
 Notifications are queued and delivered in the background with retries, so a slow or failing channel never delays scans. Each channel shows when it was last used and its last error.
 

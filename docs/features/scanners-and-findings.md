@@ -135,6 +135,8 @@ Suppressions from `.argus.yml` are labelled as such on the finding. Administrato
 | OSV.dev (`api.osv.dev`) | Vulnerabilities in npm and NuGet packages | Package names and versions |
 | CISA KEV (`www.cisa.gov`) | Known-exploited CVEs | Nothing (the whole catalogue is downloaded) |
 | FIRST EPSS (`api.first.org`) | Exploit probability | CVE ids |
+| NVD (`services.nvd.nist.gov`) | CVSS for CVEs whose OSV record has no score | CVE ids |
+| Argus advisories (your database) | Advisories approved from security news or entered by hand — see [Threat intelligence](threat-intelligence.md) | Nothing |
 | endoflife.date | Release cycles and end-of-life dates | Product names (e.g. `dotnet`) |
 | npm registry / NuGet API | Latest version, deprecation | Package names and versions (direct dependencies only) |
 
@@ -144,4 +146,6 @@ Suppressions from `.argus.yml` are labelled as such on the finding. Administrato
 - Every source URL is configurable (`ARGUS_OSV_URL`, `ARGUS_NPM_REGISTRY_URL`, …), so internal mirrors can be used.
 - `ARGUS_OFFLINE=true` turns off all outbound intel lookups. The secrets and certificates scanners still work fully. Dependency, framework and license results are then partial, and they never mark existing findings as fixed.
 
-**Administration → Scanning settings** shows when each source was last used successfully and whether Gitleaks is installed.
+**Administration → Scanning settings** (and the Threat intel overview) shows when each source was last used successfully and whether Gitleaks is installed.
+
+Between scans, [continuous re-matching](threat-intelligence.md#continuous-re-matching) re-checks every repository's stored inventory for newly published advisories.

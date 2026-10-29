@@ -14,6 +14,7 @@ import { FrameworksScanner, mapTargetFramework, matchCycle } from '../../src/sca
 import { maskSecret, SecretsScanner, shannonEntropy } from '../../src/scanning/scanners/secrets';
 import { type RepoFile, type ScanInput, type SharedScanState } from '../../src/scanning/types';
 import { walkFiles } from '../../src/scans/inventory';
+import { type Advisory } from '@argus/data';
 
 describe('npm parsers', () => {
   const pkg = { dependencies: { lodash: '^4.17.20' }, devDependencies: { jest: '^29.0.0' } };
@@ -111,6 +112,9 @@ describe('NuGet parsers', () => {
     ]);
     expect(projectTargetFrameworks(csproj)).toEqual(['net6.0', 'net48']);
     expect(projectTargetFrameworks('<Project><PropertyGroup><TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion></PropertyGroup></Project>')).toEqual(['net472']);
+    // Entities declared in a repository's DOCTYPE are never expanded.
+    const withDtd = '<?xml version="1.0"?><!DOCTYPE Project [<!ENTITY v "9.9.9-from-entity">]><Project><ItemGroup><PackageReference Include="Evil" Version="&v;" /></ItemGroup></Project>';
+    expect(JSON.stringify(parseProjectFile(withDtd, 'x.csproj', new Map()))).not.toContain('from-entity');
 
     expect(parsePackagesConfig('<packages><package id="jQuery" version="1.8.0" /><package id="NUnit" version="3.0.0" developmentDependency="true" /></packages>', 'packages.config').map((d) => [d.name, d.dev])).toEqual([
       ['jQuery', false],
@@ -194,6 +198,8 @@ const fakeIntel = (over: Partial<Record<keyof IntelService, unknown>> = {}) =>
           },
         ],
       ]),
+    argusAdvisories: async () => [],
+    nvdCvss: async () => new Map(),
     kev: async () => new Set(['CVE-2021-23337']),
     epss: async () => new Map([['CVE-2021-23337', 0.5]]),
     packageMeta: async (p: { name: string }) => ({ latest: '9.9.9', deprecated: p.name === 'request' ? 'request has been deprecated' : null }),
@@ -272,6 +278,54 @@ describe('scanners', () => {
     expect(vuln.risk).toMatchObject({ base: 72, kev: true, epss: 0.5 });
     expect(out.findings.find((f) => f.ruleId === 'deprecated-package')?.package?.name).toBe('request');
     expect(shared.inventory!.find((d) => d.name === 'lodash')).toMatchObject({ vulnerabilities: 1, latestVersion: '9.9.9' });
+  });
+
+  it('dependencies: matches Argus advisories by range, skips ones OSV already covers, and fills CVSS from NVD', async () => {
+    const shared: SharedScanState = { inventory: null };
+    const argus = (over: Partial<Advisory>): Advisory => ({
+      id: 'a1',
+      key: 'ARGUS-2026-0001',
+      ecosystem: 'nuget',
+      packageName: 'newtonsoft.json',
+      affectedRange: '<13.0.1',
+      fixedVersion: '13.0.1',
+      severity: 'high',
+      cvssScore: null,
+      cveIds: [],
+      title: 'Stack overflow in Newtonsoft.Json',
+      summary: 'Deeply nested JSON',
+      references: ['https://example.com/advisory'],
+      source: 'news',
+      sourceItemId: null,
+      withdrawn: false,
+      autoApproved: false,
+      createdBy: null,
+      createdAt: new Date('2026-10-01'),
+      updatedAt: new Date('2026-10-01'),
+      ...over,
+    });
+    const intel = fakeIntel({
+      argusAdvisories: async () => [
+        argus({}),
+        // Not affected: the installed version is outside the range.
+        argus({ id: 'a2', key: 'ARGUS-2026-0002', affectedRange: '>=14.0.0 <14.1.0' }),
+        // Duplicates the OSV advisory for lodash (same CVE): OSV wins.
+        argus({ id: 'a3', key: 'ARGUS-2026-0003', ecosystem: 'npm', packageName: 'lodash', affectedRange: '<4.17.21', cveIds: ['CVE-2021-23337'] }),
+      ],
+      vulnerabilities: async () =>
+        new Map<string, OsvVuln>([['GHSA-lodash', { id: 'GHSA-lodash', summary: 'Command injection in lodash', aliases: ['CVE-2021-23337'], modified: '2026-01-01', database_specific: { severity: 'HIGH' } }]]),
+      nvdCvss: async (cves: string[]) => new Map(cves.map((c) => [c, { score: 8.8, vector: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H' }])),
+    });
+    const out = await new DependenciesScanner(intel).run(input(), shared);
+    const keys = out.findings.filter((f) => f.advisory).map((f) => f.ruleId).sort();
+    expect(keys).toEqual(['ARGUS-2026-0001', 'GHSA-lodash']);
+    const json = out.findings.find((f) => f.ruleId === 'ARGUS-2026-0001')!;
+    expect(json).toMatchObject({ path: 'src/App.csproj', package: { name: 'Newtonsoft.Json', fixedVersion: '13.0.1' }, advisory: { id: 'ARGUS-2026-0001', url: 'https://example.com/advisory' }, risk: { base: 75 } });
+    // Same identity as an OSV finding for the package, so scans and re-matching agree.
+    expect(json.identity).toEqual(['src/App.csproj', 'nuget', 'newtonsoft.json']);
+    const lodash = out.findings.find((f) => f.ruleId === 'GHSA-lodash')!;
+    expect(lodash.advisory).toMatchObject({ cvssScore: 8.8 });
+    expect(lodash.risk).toMatchObject({ base: 88, baseLabel: 'CVSS 8.8 (NVD)' });
   });
 
   it('dependencies: an unreachable vulnerability feed gives a partial result', async () => {

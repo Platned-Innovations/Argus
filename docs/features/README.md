@@ -70,12 +70,15 @@ See [AI assistance](ai-assistance.md).
 
 ## Threat intelligence
 
+See [Threat intelligence](threat-intelligence.md).
+
 | Feature | Status |
 |---|---|
 | Advisory sources: OSV.dev (including the GitHub Advisory Database), CISA KEV, FIRST EPSS, endoflife.date, with database caching, stale fallback, configurable mirrors and offline mode | ✅ |
-| NVD as an additional CVSS source (today CVSS comes from the GitHub/OSV advisory data) | 🔜 Phase 5 |
-| Security news and advisory sites (RSS/HTML), with AI extraction into an admin review queue | 🔜 Phase 5 |
-| Continuous re-matching of new advisories against every repository's stored dependency inventory, without re-scanning | 🔜 Phase 5 |
+| NVD as an additional CVSS source, for CVEs whose OSV record has no score | ✅ |
+| Security news feeds (RSS/Atom), with AI extraction of npm/NuGet advisories into a review queue (optional auto-approval) | ✅ |
+| Argus advisories: approved from news or entered by hand, matched by every scan | ✅ |
+| Continuous re-matching of new advisories against every repository's stored dependency inventory, without re-scanning; emerging-threat notifications | ✅ |
 
 ## Reporting
 
@@ -94,5 +97,5 @@ See [AI assistance](ai-assistance.md).
 | 2. Scanners & risk | Advisory sources, all scanners, findings, risk scoring, SBOM, package search, suppressions | ✅ |
 | 3. Tickets & integrations | Ticket lifecycle, SLAs, email providers, Jira, notification rules, digests | ✅ |
 | 4. AI | Providers, triage, remediation, drafting, guardrails | ✅ |
-| 5. Threat intel | News crawler, AI extraction, review queue, continuous re-matching | 🔜 |
+| 5. Threat intel | News crawler, AI extraction, review queue, Argus advisories, continuous re-matching, NVD | ✅ |
 | 6. Enterprise polish | Dashboards, reports, credential inventory, API tokens, Azure Bicep | 🔜 |

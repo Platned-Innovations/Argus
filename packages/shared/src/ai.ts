@@ -46,7 +46,7 @@ export const AI_MODEL_PRICES: Record<string, { input: number; output: number }> 
   'gemini-3.1-flash-lite': { input: 0.25, output: 1.5 },
 };
 
-export const AI_USE_CASES = ['remediation', 'ticket_draft', 'secret_triage', 'vuln_applicability'] as const;
+export const AI_USE_CASES = ['remediation', 'ticket_draft', 'secret_triage', 'vuln_applicability', 'advisory_extraction'] as const;
 export type AiUseCase = (typeof AI_USE_CASES)[number];
 
 export const AI_USE_CASE_LABELS: Record<AiUseCase, { label: string; description: string }> = {
@@ -54,6 +54,7 @@ export const AI_USE_CASE_LABELS: Record<AiUseCase, { label: string; description:
   ticket_draft: { label: 'Jira and email drafting', description: 'Drafts a Jira description or an email message from a ticket, for you to edit before sending.' },
   secret_triage: { label: 'Secret triage', description: 'During scans, flags detected secrets that look like test fixtures or placeholders. Hints only — never suppresses.' },
   vuln_applicability: { label: 'Vulnerability applicability', description: 'During scans, judges from how a vulnerable package is used whether the repository is likely affected. Hints only.' },
+  advisory_extraction: { label: 'Advisory extraction', description: 'Reads new items from security news feeds and proposes npm/NuGet advisories for review.' },
 };
 
 /** Use cases that run during scans (on new findings) rather than on request. */
@@ -91,7 +92,10 @@ export const aiSettingsSchema = z.object({
   enabled: z.boolean(),
   defaultProvider: z.enum(AI_PROVIDERS),
   providers: z.object({ anthropic: providerInput, openai: providerInput, gemini: providerInput }),
-  useCases: z.object({ remediation: useCaseSettings, ticket_draft: useCaseSettings, secret_triage: useCaseSettings, vuln_applicability: useCaseSettings }),
+  useCases: z.object({ remediation: useCaseSettings, ticket_draft: useCaseSettings, secret_triage: useCaseSettings, vuln_applicability: useCaseSettings,
+    // Added in Phase 5; optional so earlier clients keep working.
+    advisory_extraction: useCaseSettings.default({ enabled: false, provider: null }),
+  }),
   /** Requests stop once the estimated spend this calendar month (UTC) reaches the budget. null = no cap. */
   monthlyBudgetUsd: z.number().min(0).max(1_000_000).nullable(),
   /** Upper bound on the characters of repository content (code snippets, finding details) in one prompt. */
@@ -123,6 +127,7 @@ export const DEFAULT_AI_SETTINGS: Omit<AiSettingsInput, 'providers'> & { provide
     ticket_draft: { enabled: true, provider: null },
     secret_triage: { enabled: false, provider: null },
     vuln_applicability: { enabled: false, provider: null },
+    advisory_extraction: { enabled: false, provider: null },
   },
   monthlyBudgetUsd: 50,
   maxContextChars: 12_000,

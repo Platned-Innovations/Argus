@@ -10,6 +10,7 @@ const FEEDS: [string, string][] = [
   ['kev', 'CISA Known Exploited Vulnerabilities'],
   ['epss', 'FIRST EPSS exploit prediction'],
   ['eol', 'endoflife.date release cycles'],
+  ['nvd', 'NVD CVE API (CVSS when OSV has none)'],
 ];
 
 @Controller('intel')

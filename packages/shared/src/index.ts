@@ -7,3 +7,4 @@ export * from './sources';
 export * from './findings';
 export * from './tickets';
 export * from './ai';
+export * from './intel';

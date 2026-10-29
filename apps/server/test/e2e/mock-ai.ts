@@ -16,11 +16,12 @@ export interface MockAiOptions {
   status?: number;
 }
 
-type Kind = 'remediation' | 'draft' | 'secret_triage' | 'applicability' | 'ping';
+type Kind = 'remediation' | 'draft' | 'secret_triage' | 'applicability' | 'advisory_extraction' | 'ping';
 
 function kindOf(schema: { properties?: Record<string, { enum?: string[] }> } | undefined): Kind {
   const p = schema?.properties ?? {};
   if (p.steps) return 'remediation';
+  if (p.advisories) return 'advisory_extraction';
   if (p.subject) return 'draft';
   if (p.verdict?.enum?.includes('likely_real')) return 'secret_triage';
   if (p.verdict) return 'applicability';
@@ -39,6 +40,7 @@ const DEFAULT_ANSWERS: Record<Kind, unknown> = {
   draft: { subject: 'Upgrade lodash (command injection)', body: 'lodash 4.17.20 is vulnerable.\n\nPlease upgrade to 4.17.21.' },
   secret_triage: { verdict: 'likely_false_positive', rationale: 'The value sits in a test fixture and is named as an example.', confidence: 0.8 },
   applicability: { verdict: 'likely_affected', rationale: 'The code calls _.template with user input.', confidence: 0.7 },
+  advisory_extraction: { relevant: false, advisories: [], rationale: 'General news; no npm or NuGet package is named.', confidence: 0.9 },
   ping: { ok: true },
 };
 

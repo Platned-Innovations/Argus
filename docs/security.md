@@ -73,6 +73,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | CSV export is protected against spreadsheet formula injection (cells beginning with `=`, `+`, `-` or `@` are neutralised). | ✅ |
 | Source changes are audited: creation, edits (including token rotation), deletion, webhook-secret rotation, sync requests and sync results. So are repository setting changes, bulk changes, and manual scan requests. | ✅ |
 | Suppression creation and removal, SBOM exports and scanning-settings changes are audited, with before and after values for settings. | ✅ |
+| Threat-intelligence actions are audited: news source changes, review decisions (including automatic approvals), Argus advisory creation, withdrawal and restoration, and intel settings changes. | ✅ |
 | Ticket actions (status changes with justification, assignment, labels, emails sent, Jira issues created, exports) are recorded both in the ticket's activity and in the audit log. So are changes to channels, notification rules, Jira and SLA settings. | ✅ |
 | AI actions are audited: every provider request (`ai.request`: use case, provider, model, repository, token counts, estimated cost, number of redactions, outcome), AI settings changes (including which keys changed, never the keys) and connection tests. Prompt and answer contents are never audited or logged. | ✅ |
 
@@ -89,8 +90,11 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Source servers must use **HTTPS**. Plain HTTP is accepted only for loopback addresses (local development). | ✅ |
 | Only findings and the dependency inventory (package names, versions and licenses, for SBOMs and package search) are persisted. File contents are not stored; a finding records only its path and line. | ✅ |
 | **Untrusted repository content is parsed defensively.**<br>• XML (`.csproj`, `packages.config`) is parsed without DTDs or external entities.<br>• YAML (`pnpm-lock.yaml`, `yarn.lock`, `.argus.yml`) is parsed with alias-expansion limits.<br>• Files are read with size caps, and binary files are skipped.<br>• Symbolic links are never followed.<br>• Nothing from a repository is ever executed. | ✅ |
-| **Threat-intelligence lookups never send code or secrets.** OSV and the npm/NuGet registries receive package names and versions, EPSS receives CVE ids, and endoflife.date receives product names. The full list is in [Data sources](features/scanners-and-findings.md#data-sources-caching-and-offline-mode). `ARGUS_OFFLINE=true` turns all of these lookups off, and each URL can point at an internal mirror. | ✅ |
-| The bundled **Gitleaks binary is pinned to a version and verified against its published SHA-256 checksum** when the image is built. | ✅ |
+| **Threat-intelligence lookups never send code or secrets.** OSV and the npm/NuGet registries receive package names and versions, EPSS and NVD receive CVE ids, and endoflife.date receives product names. The full list is in [Data sources](features/scanners-and-findings.md#data-sources-caching-and-offline-mode). `ARGUS_OFFLINE=true` turns all of these lookups off, and each URL can point at an internal mirror. | ✅ |
+| **Security news is fetched defensively.** Feeds must be HTTPS, redirects to plain HTTP are refused, responses are capped at 5 MB and 200 entries, XML is parsed without DTDs or external entities, and HTML (including scripts) is reduced to plain text before it is stored, shown or sent to AI. Links are kept only if they are http(s). | ✅ |
+| **Continuous re-matching never clones.** It reads the stored dependency inventory (package names and versions) and asks OSV and NVD about package versions and CVE ids only. | ✅ |
+| The bundled **Gitleaks is built from pinned source** when the image is built: the release's exact commit (verified), a current Go toolchain pinned by image digest, and patched Go modules pinned by version and verified against the Go checksum database. Upstream release binaries are not used because they carry CVEs from their older toolchain. | ✅ |
+| **Lean runtime image.** npm, npx, corepack and Yarn, which ship with the Node base image but are never used at runtime, are removed. CI fails the build on any fixable high or critical vulnerability found by Trivy. | ✅ |
 | **Read-only tokens are enough.** The [sources guide](features/sources-and-repositories.md#access-tokens) lists the minimum permissions for each provider. | ✅ |
 
 ## 7. AI guardrails
@@ -108,7 +112,7 @@ AI features are optional and switched off until an administrator configures a pr
 | **Prompt-injection mitigation.** Repository and advisory content is wrapped in tags, and the model is told to treat it as untrusted data and not follow instructions in it. Since this cannot be guaranteed, AI output is advisory only (see *Humans decide*). | ✅ |
 | **Hardened provider calls.** Custom endpoints must be HTTPS (plain HTTP only on loopback), redirects are refused for OpenAI and Gemini, and requests time out after 2 minutes. `ARGUS_OFFLINE=true` blocks the providers' public APIs; only a configured private endpoint stays usable. Generating suggestions and drafts is rate-limited (10/min per client). | ✅ |
 | Every AI request is audited (see [Audit trail](#5-audit-trail)); prompt and answer contents are not logged. | ✅ |
-| AI extraction of advisories from security news (with an admin review queue). | 🔜 Phase 5 |
+| **AI extraction of advisories from security news** sees only the news item (title, link, text), never repository content. Proposals land in a review queue; auto-approval is off by default and, when enabled, only applies above a confidence threshold and is audited. Proposals with unparseable version ranges or malformed CVE ids are dropped before review. | ✅ |
 
 ## 8. Platform hardening
 

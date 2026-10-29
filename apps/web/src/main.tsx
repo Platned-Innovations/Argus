@@ -16,9 +16,9 @@ import { SecuritySettingsPage } from './pages/admin/SecuritySettingsPage';
 import { SourcesPage } from './pages/admin/SourcesPage';
 import { TeamsPage } from './pages/admin/TeamsPage';
 import { UsersPage } from './pages/admin/UsersPage';
-import { ComingSoonPage } from './pages/ComingSoonPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FindingsPage } from './pages/FindingsPage';
+import { ThreatIntelPage } from './pages/ThreatIntelPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
 import { TicketsPage } from './pages/TicketsPage';
 import { PackagesPage } from './pages/PackagesPage';
@@ -75,7 +75,7 @@ function App() {
               <Route path="admin/scanning" element={<Allow permission="settings:read"><ScanningSettingsPage /></Allow>} />
               <Route path="tickets" element={<Allow permission="tickets:read"><TicketsPage /></Allow>} />
               <Route path="tickets/:id" element={<Allow permission="tickets:read"><TicketDetailPage /></Allow>} />
-              <Route path="intel" element={<ComingSoonPage title="Threat intel" description="Vulnerability advisories and security news." phase="Threat intelligence" />} />
+              <Route path="intel" element={<Allow permission="findings:read"><ThreatIntelPage /></Allow>} />
               <Route path="admin/ai" element={<Allow permission="settings:manage"><AiSettingsPage /></Allow>} />
               <Route path="admin/integrations" element={<Allow permission="settings:manage"><IntegrationsPage /></Allow>} />
               <Route path="admin/sources" element={<Allow permission="sources:manage"><SourcesPage /></Allow>} />
