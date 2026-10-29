@@ -71,6 +71,7 @@ import {
   type NewIntelItem,
   type NewIntelSource,
 } from './intel-models';
+import { type ApiToken, type NewApiToken } from './platform-models';
 import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
 import { type AiSubjectType, type AiUseCase, type Ecosystem, type IntelItemStatus } from '@argus/shared';
 
@@ -310,6 +311,21 @@ export interface AdvisoryRepo {
   countActive(): Promise<number>;
 }
 
+export interface ApiTokenRepo {
+  create(input: NewApiToken): Promise<ApiToken>;
+  findById(id: string): Promise<ApiToken | null>;
+  findByHash(tokenHash: string): Promise<ApiToken | null>;
+  /** Newest first. */
+  listForUser(userId: string): Promise<ApiToken[]>;
+  /** Newest first. */
+  listAll(): Promise<ApiToken[]>;
+  /** Records use (callers throttle how often). */
+  touch(id: string, at: Date, ip: string | null): Promise<void>;
+  /** Returns true when this call revoked it. */
+  revoke(id: string): Promise<boolean>;
+  revokeAllForUser(userId: string): Promise<number>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -337,6 +353,7 @@ export interface DataStore {
   readonly intelSources: IntelSourceRepo;
   readonly intelItems: IntelItemRepo;
   readonly advisories: AdvisoryRepo;
+  readonly apiTokens: ApiTokenRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

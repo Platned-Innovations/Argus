@@ -53,6 +53,7 @@ import {
   type TicketDoc,
   type TicketEventDoc,
 } from './tickets';
+import { type ApiTokenDoc, bootstrapPlatformIndexes, MongoApiTokenRepo } from './platform';
 import { type AdvisoryDoc, bootstrapIntelIndexes, type IntelItemDoc, type IntelSourceDoc, MongoAdvisoryRepo, MongoIntelItemRepo, MongoIntelSourceRepo } from './intel';
 import { type AiInsightDoc, type AiUsageDoc, bootstrapAiIndexes, MongoAiInsightRepo, MongoAiUsageRepo } from './ai';
 
@@ -64,7 +65,7 @@ type SettingDoc = { _id: string; value: unknown; updatedAt: Date; updatedBy: str
 type MetaDoc = { _id: string; version: number; updatedAt: Date };
 
 /** Bump when index/bootstrap definitions below change. */
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 async function mapDuplicate<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -337,6 +338,7 @@ async function bootstrap(db: Db): Promise<void> {
   await bootstrapTicketIndexes(db);
   await bootstrapAiIndexes(db);
   await bootstrapIntelIndexes(db);
+  await bootstrapPlatformIndexes(db);
   await meta.updateOne({ _id: 'schema' }, { $set: { version: SCHEMA_VERSION, updatedAt: new Date() } }, { upsert: true });
 }
 
@@ -372,6 +374,7 @@ export async function createMongoStore(url: string, dbName?: string): Promise<Da
     aiInsights: new MongoAiInsightRepo(db.collection<AiInsightDoc>('ai_insights')),
     intelSources: new MongoIntelSourceRepo(db.collection<IntelSourceDoc>('intel_sources'), db.collection<IntelItemDoc>('intel_items')),
     intelItems: new MongoIntelItemRepo(db.collection<IntelItemDoc>('intel_items')),
+    apiTokens: new MongoApiTokenRepo(db.collection<ApiTokenDoc>('api_tokens')),
     advisories: new MongoAdvisoryRepo(db.collection<AdvisoryDoc>('advisories'), db.collection<{ _id: string; value: number }>('counters')),
     migrate: () => bootstrap(db),
     async ping() {

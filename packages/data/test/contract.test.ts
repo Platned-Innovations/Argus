@@ -6,6 +6,7 @@ import { findingsContract } from './findings.contract';
 import { ticketsContract } from './tickets.contract';
 import { aiContract } from './ai.contract';
 import { intelContract } from './intel.contract';
+import { platformContract } from './platform.contract';
 import { startMongo } from './mongo-container';
 import { scanningContract } from './scanning.contract';
 
@@ -206,6 +207,7 @@ describe.each(harnesses)('DataStore contract: $name', (h) => {
   ticketsContract(() => store);
   aiContract(() => store);
   intelContract(() => store);
+  platformContract(() => store);
 
   describe('settings', () => {
     it('round-trips JSON values and upserts', async () => {

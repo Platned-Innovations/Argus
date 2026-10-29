@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { ShieldCheck } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { toast } from 'sonner';
+import { ApiTokensCard } from '../components/ApiTokens';
 import { ChangePasswordForm } from '../components/ChangePasswordForm';
 import { MfaSetup } from '../components/MfaSetup';
 import { Badge, Button, Card, CardHeader, ErrorAlert, Field, Input, PageHeader } from '../components/ui';
@@ -71,6 +72,8 @@ export function ProfilePage() {
           <CardHeader title="Multi-factor authentication" description="Require a one-time code from your phone in addition to your password." />
           <div className="p-5">{me.mfaEnabled ? <DisableMfa /> : <MfaSetup />}</div>
         </Card>
+
+        <ApiTokensCard />
 
         <Card className="lg:col-span-2">
           <CardHeader title="Change password" description="Changing your password signs out all of your other sessions." />

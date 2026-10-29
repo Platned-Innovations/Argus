@@ -500,6 +500,27 @@ migrations['0006_intel'] = {
   },
 };
 
+migrations['0007_api_tokens'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('api_tokens')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('user_id', 'uuid', (c) => c.notNull().references('users.id').onDelete('cascade'))
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('token_hash', 'text', (c) => c.notNull().unique())
+      .addColumn('prefix', 'text', (c) => c.notNull())
+      .addColumn('scopes', 'jsonb', (c) => c.notNull())
+      .addColumn('expires_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('last_used_at', 'timestamptz')
+      .addColumn('last_used_ip', 'text')
+      .addColumn('revoked_at', 'timestamptz')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+    await db.schema.createIndex('api_tokens_user_idx').on('api_tokens').column('user_id').execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;
