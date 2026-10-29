@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { type DataStore } from '../src';
 
+const randomTag = () => Math.random().toString(36).slice(2);
+
 export function platformContract(getStore: () => DataStore): void {
   describe('retention', () => {
     it('removes only old records: audit entries, AI usage, settled news items', async () => {
@@ -157,6 +159,37 @@ export function platformContract(getStore: () => DataStore): void {
       expect(await store.savedViews.delete(team.id)).toBe(true);
       expect(await store.savedViews.delete(team.id)).toBe(false);
       expect(await store.savedViews.findById(team.id)).toBeNull();
+    });
+  });
+
+  describe('invites', () => {
+    it('finds invites by hash, consumes uses atomically until used up, expired or revoked', async () => {
+      const store = getStore();
+      const now = new Date();
+      const tag = randomTag();
+      const inv = await store.invites.create({ tokenHash: `inv-a-${tag}`, role: 'developer', teamIds: ['00000000-0000-4000-8000-000000000001'], email: null, maxUses: 2, expiresAt: new Date(now.getTime() + 86_400_000), note: 'contractors', createdBy: null });
+      expect(inv).toMatchObject({ role: 'developer', teamIds: ['00000000-0000-4000-8000-000000000001'], uses: 0, maxUses: 2, note: 'contractors', revokedAt: null, lastUsedAt: null });
+      expect((await store.invites.findByHash(`inv-a-${tag}`))?.id).toBe(inv.id);
+      expect(await store.invites.findByHash('nope')).toBeNull();
+      await expect(store.invites.create({ tokenHash: `inv-a-${tag}`, role: 'viewer', teamIds: [], email: null, maxUses: 1, expiresAt: now, note: '', createdBy: null })).rejects.toThrow();
+
+      const results = await Promise.all([1, 2, 3].map(() => store.invites.consume(inv.id, now)));
+      expect(results.filter(Boolean)).toHaveLength(2);
+      expect(await store.invites.findById(inv.id)).toMatchObject({ uses: 2 });
+      expect((await store.invites.findById(inv.id))!.lastUsedAt!.getTime()).toBe(now.getTime());
+      await store.invites.release(inv.id);
+      expect(await store.invites.consume(inv.id, now)).toBe(true);
+
+      const expired = await store.invites.create({ tokenHash: `inv-b-${tag}`, role: 'viewer', teamIds: [], email: 'a@example.com', maxUses: 1, expiresAt: new Date(now.getTime() - 1000), note: '', createdBy: null });
+      expect(await store.invites.consume(expired.id, now)).toBe(false);
+
+      const revoked = await store.invites.create({ tokenHash: `inv-c-${tag}`, role: 'viewer', teamIds: [], email: null, maxUses: 1, expiresAt: new Date(now.getTime() + 60_000), note: '', createdBy: null });
+      expect(await store.invites.revoke(revoked.id)).toBe(true);
+      expect(await store.invites.revoke(revoked.id)).toBe(false);
+      expect(await store.invites.consume(revoked.id, now)).toBe(false);
+
+      const listed = (await store.invites.list()).filter((i) => [inv.id, expired.id, revoked.id].includes(i.id));
+      expect(listed.map((i) => i.id)).toEqual([revoked.id, expired.id, inv.id]);
     });
   });
 }

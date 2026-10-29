@@ -1,4 +1,4 @@
-import { type CredentialKind, type CredentialSource, type FindingStatus, type Permission, type SavedViewPage, type ScannerName, type Severity, type TicketStatus } from '@argus/shared';
+import { type CredentialKind, type CredentialSource, type FindingStatus, type Permission, type Role, type SavedViewPage, type ScannerName, type Severity, type TicketStatus } from '@argus/shared';
 
 /** Scope of dashboard statistics. */
 export interface StatsFilter {
@@ -98,3 +98,23 @@ export interface SavedView {
 }
 
 export type NewSavedView = Omit<SavedView, 'id' | 'createdAt'>;
+
+/** A link that lets someone create their own account with a preset role and teams. Only a keyed hash of its token is stored. */
+export interface Invite {
+  id: string;
+  tokenHash: string;
+  role: Role;
+  teamIds: string[];
+  /** When set, only this address can accept it. */
+  email: string | null;
+  maxUses: number;
+  uses: number;
+  expiresAt: Date;
+  note: string;
+  createdBy: string | null;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+  revokedAt: Date | null;
+}
+
+export type NewInvite = Pick<Invite, 'tokenHash' | 'role' | 'teamIds' | 'email' | 'maxUses' | 'expiresAt' | 'note' | 'createdBy'>;

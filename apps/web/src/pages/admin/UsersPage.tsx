@@ -1,14 +1,14 @@
-import { type CreatedUserResponse, type Paged, type Role, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type TeamDto, type UserDto, type UserStatus } from '@argus/shared';
+import { type CreatedUserResponse, type InviteCreatedDto, type InviteDto, type InviteStatus, MAX_INVITE_DAYS, MAX_INVITE_USES, type Paged, type Role, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type TeamDto, type UserDto, type UserStatus } from '@argus/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Lock, Plus, Search, ShieldCheck, Users } from 'lucide-react';
+import { Link2, Lock, Plus, Search, ShieldCheck, Users } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { SecretReveal } from '../../components/SecretReveal';
-import { Badge, Button, Card, CenteredSpinner, Checkbox, EmptyState, ErrorAlert, Field, Input, Modal, PageHeader, Pagination, Select, Table } from '../../components/ui';
+import { Badge, Button, Card, CardHeader, CenteredSpinner, Checkbox, EmptyState, ErrorAlert, Field, Input, Modal, PageHeader, Pagination, Select, Table } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { formatRelative } from '../../lib/utils';
+import { formatDateTime, formatRelative } from '../../lib/utils';
 
 const PAGE_SIZE = 25;
 
@@ -111,6 +111,146 @@ function CreateUserModal({ open, onClose, onCreated }: { open: boolean; onClose(
         )}
       </form>
     </Modal>
+  );
+}
+
+const DAY = 86_400_000;
+const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const inviteLink = (res: InviteCreatedDto) => res.url ?? `${window.location.origin}/invite#${res.token}`;
+
+function InviteModal({ open, onClose, onCreated }: { open: boolean; onClose(): void; onCreated(res: InviteCreatedDto): void }) {
+  const qc = useQueryClient();
+  const blank = () => ({ role: 'developer' as Role, teamIds: [] as string[], email: '', maxUses: 1, expires: isoDate(new Date(Date.now() + 7 * DAY)), note: '' });
+  const [form, setForm] = useState(blank);
+  const mutation = useMutation({
+    mutationFn: () =>
+      api<InviteCreatedDto>('/invites', {
+        method: 'POST',
+        body: {
+          role: form.role,
+          teamIds: form.teamIds,
+          email: form.email || null,
+          maxUses: form.email ? 1 : form.maxUses,
+          // Valid until the end of the chosen day, in the administrator's time zone.
+          expiresAt: new Date(`${form.expires}T23:59:59`).toISOString(),
+          note: form.note,
+        },
+      }),
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+      setForm(blank());
+      onCreated(res);
+    },
+  });
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    mutation.mutate();
+  };
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Invite users"
+      description="Create a link people use to set up their own account, with the role and teams you choose."
+      wide
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="create-invite" loading={mutation.isPending}>
+            Create invite link
+          </Button>
+        </>
+      }
+    >
+      <form id="create-invite" onSubmit={submit} className="space-y-4">
+        <ErrorAlert error={mutation.error} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RoleSelect value={form.role} onChange={(role) => setForm({ ...form, role })} />
+          <Field label="Link expires" hint="At the end of this day.">
+            {(id) => (
+              <Input id={id} type="date" required value={form.expires} min={isoDate(new Date(Date.now() + DAY))} max={isoDate(new Date(Date.now() + MAX_INVITE_DAYS * DAY))} onChange={(e) => setForm({ ...form, expires: e.target.value })} />
+            )}
+          </Field>
+          <Field label="For one email address (optional)" hint="Only this address can use the link, once.">
+            {(id) => <Input id={id} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />}
+          </Field>
+          <Field label="Number of accounts" hint={form.email ? 'One, for the address above.' : 'How many people can sign up with this link.'}>
+            {(id) => (
+              <Input id={id} type="number" min={1} max={MAX_INVITE_USES} required disabled={!!form.email} value={form.email ? 1 : form.maxUses} onChange={(e) => setForm({ ...form, maxUses: Number(e.target.value) })} />
+            )}
+          </Field>
+        </div>
+        <Field label="Teams">{() => <TeamPicker value={form.teamIds} onChange={(teamIds) => setForm({ ...form, teamIds })} />}</Field>
+        <Field label="Note (optional)" hint="Only administrators see it, e.g. who the link was sent to.">
+          {(id) => <Input id={id} maxLength={200} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />}
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+const INVITE_TONE: Record<InviteStatus, 'green' | 'slate' | 'amber' | 'red'> = { active: 'green', used: 'slate', expired: 'amber', revoked: 'red' };
+const INVITE_LABEL: Record<InviteStatus, string> = { active: 'Active', used: 'Used', expired: 'Expired', revoked: 'Revoked' };
+
+function InvitesCard({ teamNames }: { teamNames: Map<string, string> }) {
+  const qc = useQueryClient();
+  const [showAll, setShowAll] = useState(false);
+  const query = useQuery({ queryKey: ['invites'], queryFn: () => api<InviteDto[]>('/invites') });
+  const revoke = useMutation({
+    mutationFn: (id: string) => api(`/invites/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+      toast.success('Invite revoked. The link no longer works.');
+    },
+  });
+  const all = query.data ?? [];
+  const shown = showAll ? all : all.filter((i) => i.status === 'active');
+  return (
+    <Card className="mt-6">
+      <CardHeader
+        title="Invite links"
+        description="Links people use to create their own account. Each link is shown once, when it is created."
+        actions={all.length > 0 && <Checkbox label="Show used, expired and revoked" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />}
+      />
+      <ErrorAlert error={query.error ?? revoke.error} />
+      {query.isLoading ? (
+        <CenteredSpinner />
+      ) : !shown.length ? (
+        <EmptyState icon={<Link2 className="size-5" />} title={all.length ? 'No active invite links' : 'No invite links yet'} description="Use Invite users to create one." />
+      ) : (
+        <Table head={['Invite', 'Teams', 'Accounts', 'Expires', 'Status', '']}>
+          {shown.map((i) => (
+            <tr key={i.id}>
+              <td className="px-4 py-3">
+                <Badge tone={i.role === 'admin' ? 'indigo' : i.role === 'security_manager' ? 'blue' : 'slate'}>{ROLE_LABELS[i.role]}</Badge>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {[i.email, i.note, i.createdByName && `by ${i.createdByName}`].filter(Boolean).join(' · ')}
+                </div>
+              </td>
+              <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{i.teamIds.map((id) => teamNames.get(id)).filter(Boolean).join(', ') || '—'}</td>
+              <td className="px-4 py-3 whitespace-nowrap">
+                {i.uses} of {i.maxUses}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-slate-500 dark:text-slate-400" title={formatRelative(i.expiresAt)}>
+                {formatDateTime(i.expiresAt)}
+              </td>
+              <td className="px-4 py-3">
+                <Badge tone={INVITE_TONE[i.status]}>{INVITE_LABEL[i.status]}</Badge>
+              </td>
+              <td className="px-4 py-3 text-right">
+                {i.status === 'active' && (
+                  <Button variant="secondary" size="sm" loading={revoke.isPending && revoke.variables === i.id} onClick={() => revoke.mutate(i.id)}>
+                    Revoke
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </Table>
+      )}
+    </Card>
   );
 }
 
@@ -224,6 +364,8 @@ export function UsersPage() {
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedUserResponse | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [invited, setInvited] = useState<InviteCreatedDto | null>(null);
   const [editing, setEditing] = useState<UserDto | null>(null);
   const [params, setParams] = useSearchParams();
   const teamId = params.get('team') ?? '';
@@ -243,9 +385,14 @@ export function UsersPage() {
         description="People who can sign in to Argus, their roles and team memberships."
         actions={
           can('users:manage') && (
-            <Button icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
-              New user
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" icon={<Link2 className="size-4" />} onClick={() => setInviting(true)}>
+                Invite users
+              </Button>
+              <Button icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
+                New user
+              </Button>
+            </div>
           )
         }
       />
@@ -340,7 +487,33 @@ export function UsersPage() {
           </>
         )}
       </Card>
+      {can('users:manage') && <InvitesCard teamNames={teamNames} />}
 
+      <InviteModal
+        open={inviting}
+        onClose={() => setInviting(false)}
+        onCreated={(res) => {
+          setInviting(false);
+          setInvited(res);
+        }}
+      />
+      <Modal
+        open={!!invited}
+        onClose={() => setInvited(null)}
+        title="Invite link created"
+        description="Send this link to the people you are inviting. It will not be shown again."
+        footer={<Button onClick={() => setInvited(null)}>Done</Button>}
+      >
+        {invited && (
+          <>
+            <SecretReveal value={inviteLink(invited)} />
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {ROLE_LABELS[invited.invite.role]}
+              {invited.invite.email ? ` · only ${invited.invite.email}` : ` · up to ${invited.invite.maxUses} account${invited.invite.maxUses === 1 ? '' : 's'}`} · expires {formatDateTime(invited.invite.expiresAt)}
+            </p>
+          </>
+        )}
+      </Modal>
       <CreateUserModal
         open={creating}
         onClose={() => setCreating(false)}

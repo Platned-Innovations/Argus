@@ -26,6 +26,7 @@ import { TicketDetailPage } from './pages/TicketDetailPage';
 import { TicketsPage } from './pages/TicketsPage';
 import { PackagesPage } from './pages/PackagesPage';
 import { SuppressionsPage } from './pages/SuppressionsPage';
+import { InvitePage } from './pages/InvitePage';
 import { LoginPage } from './pages/LoginPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RepositoriesPage } from './pages/RepositoriesPage';
@@ -63,6 +64,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/invite" element={<InvitePage />} />
       <Route
         path="/*"
         element={

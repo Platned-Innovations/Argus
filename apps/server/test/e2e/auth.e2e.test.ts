@@ -186,6 +186,43 @@ describe.each(harnesses)('auth & administration e2e: $name', (h) => {
     await admin.call('post', `/api/v1/users/${devId}/unlock`);
   });
 
+  it('creates accounts from invite links with a preset role and teams, until used up, expired or revoked', async () => {
+    const team = (await admin.call('post', '/api/v1/teams', { name: 'Invited' })).body;
+    const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
+    expect((await admin.call('post', '/api/v1/invites', { role: 'developer', expiresAt: inDays(-1) })).status).toBe(400);
+    expect((await admin.call('post', '/api/v1/invites', { role: 'developer', expiresAt: inDays(400) })).status).toBe(400);
+    expect((await admin.call('post', '/api/v1/invites', { role: 'developer', email: 'x@example.com', maxUses: 2, expiresAt: inDays(7) })).status).toBe(400);
+
+    const created = await admin.call('post', '/api/v1/invites', { role: 'developer', teamIds: [team.id], expiresAt: inDays(7), note: 'New starter' });
+    expect(created.status).toBe(201);
+    const { token, invite } = created.body;
+    expect(invite).toMatchObject({ role: 'developer', teamIds: [team.id], uses: 0, maxUses: 1, status: 'active', note: 'New starter' });
+    expect(JSON.stringify((await admin.call('get', '/api/v1/invites')).body)).not.toContain(token);
+
+    const guest = new Client(app);
+    expect((await guest.call('post', '/api/v1/invites/lookup', { token: 'not-a-real-invite-token' })).status).toBe(404);
+    expect((await guest.call('post', '/api/v1/invites/lookup', { token })).body).toMatchObject({ role: 'developer', teams: ['Invited'], email: null });
+    const signUp = { token, username: 'invited.dev', displayName: 'Invited Dev', email: 'invited@example.com', password: 'Invited-Dev-Pass-2026' };
+    expect((await guest.call('post', '/api/v1/invites/accept', { ...signUp, password: 'short' })).status).toBe(400);
+    expect((await guest.call('post', '/api/v1/invites/accept', { ...signUp, username: 'admin' })).status).toBe(409);
+    expect((await guest.call('post', '/api/v1/invites/accept', signUp)).body).toEqual({ username: 'invited.dev' });
+    expect((await guest.call('post', '/api/v1/invites/accept', { ...signUp, username: 'invited.two', email: null })).status).toBe(404);
+
+    expect((await guest.login('invited.dev', signUp.password)).status).toBe(200);
+    const me = (await guest.call('get', '/api/v1/auth/me')).body;
+    expect(me).toMatchObject({ role: 'developer', teamIds: [team.id], email: 'invited@example.com', restrictions: { passwordChangeRequired: false } });
+    expect((await guest.call('post', '/api/v1/invites', { role: 'admin', expiresAt: inDays(1) })).status).toBe(403);
+    expect((await admin.call('get', '/api/v1/invites')).body.find((i: { id: string }) => i.id === invite.id)).toMatchObject({ status: 'used', uses: 1 });
+
+    const second = (await admin.call('post', '/api/v1/invites', { role: 'viewer', email: 'only@example.com', expiresAt: inDays(1) })).body;
+    expect((await guest.call('post', '/api/v1/invites/lookup', { token: second.token })).body).toMatchObject({ role: 'viewer', email: 'only@example.com' });
+    expect((await admin.call('delete', `/api/v1/invites/${second.invite.id}`)).status).toBe(200);
+    expect((await guest.call('post', '/api/v1/invites/lookup', { token: second.token })).status).toBe(404);
+
+    const actions = new Set(((await admin.call('get', '/api/v1/audit?pageSize=100')).body.items as { action: string }[]).map((e) => e.action));
+    for (const a of ['invite.created', 'invite.revoked']) expect(actions).toContain(a);
+  });
+
   it('applies MFA-required policy to users without MFA', async () => {
     const current = (await admin.call('get', '/api/v1/settings/security')).body;
     expect((await admin.call('put', '/api/v1/settings/security', { ...current, mfaRequired: true })).status).toBe(200);

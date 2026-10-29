@@ -25,7 +25,7 @@ import { AllowRestricted, CurrentUser, Public, SessionOnly, SkipCsrf } from './d
 export const AUTH_RATE_LIMIT_SETTING = 'argus.authRateLimit';
 
 /** Credential-guessing endpoints get a much tighter per-IP rate limit than the API default (ARGUS_AUTH_RATE_LIMIT). */
-const STRICT_LIMIT = {
+export const STRICT_LIMIT = {
   default: {
     limit: (ctx: ExecutionContext) => (ctx.switchToHttp().getRequest<Request>().app.get(AUTH_RATE_LIMIT_SETTING) as number | undefined) ?? 10,
     ttl: 60_000,

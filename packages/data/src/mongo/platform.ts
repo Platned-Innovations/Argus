@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { type Collection, type Db, type Filter } from 'mongodb';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type NewApiToken, type NewCredential, type NewSavedView, type SavedView } from '../platform-models';
-import { type ApiTokenRepo, type CredentialRepo, type SavedViewRepo } from '../store';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type Invite, type NewApiToken, type NewCredential, type NewInvite, type NewSavedView, type SavedView } from '../platform-models';
+import { type ApiTokenRepo, type CredentialRepo, type InviteRepo, type SavedViewRepo } from '../store';
 
 export type ApiTokenDoc = Omit<ApiToken, 'id'> & { _id: string };
 export type CredentialDoc = Omit<Credential, 'id'> & { _id: string };
 export type SavedViewDoc = Omit<SavedView, 'id'> & { _id: string; nameLower: string };
+export type InviteDoc = Omit<Invite, 'id'> & { _id: string };
 
 function strip<T extends { _id: string }>(d: T): Omit<T, '_id'> & { id: string } {
   const { _id, ...rest } = d;
@@ -142,8 +143,46 @@ export async function bootstrapPlatformIndexes(db: Db): Promise<void> {
     { key: { source: 1, externalId: 1 }, unique: true, name: 'source_external_unique', partialFilterExpression: { externalId: { $type: 'string' } } },
     { key: { archived: 1, expiresAt: 1 }, name: 'archived_expiry' },
   ]);
+  await db.collection('invites').createIndexes([{ key: { tokenHash: 1 }, unique: true, name: 'token_hash_unique' }]);
   await db.collection('api_tokens').createIndexes([
     { key: { tokenHash: 1 }, unique: true, name: 'token_hash_unique' },
     { key: { userId: 1 }, name: 'user' },
   ]);
+}
+
+export class MongoInviteRepo implements InviteRepo {
+  constructor(private readonly col: Collection<InviteDoc>) {}
+
+  async create(input: NewInvite): Promise<Invite> {
+    const doc: InviteDoc = { ...input, _id: randomUUID(), uses: 0, createdAt: new Date(), lastUsedAt: null, revokedAt: null };
+    await this.col.insertOne(doc);
+    return strip(doc);
+  }
+
+  async findById(id: string): Promise<Invite | null> {
+    const d = await this.col.findOne({ _id: id });
+    return d ? strip(d) : null;
+  }
+
+  async findByHash(tokenHash: string): Promise<Invite | null> {
+    const d = await this.col.findOne({ tokenHash });
+    return d ? strip(d) : null;
+  }
+
+  async list(): Promise<Invite[]> {
+    return (await this.col.find().sort({ createdAt: -1, _id: 1 }).toArray()).map(strip);
+  }
+
+  async consume(id: string, now: Date): Promise<boolean> {
+    const res = await this.col.updateOne({ _id: id, revokedAt: null, expiresAt: { $gt: now }, $expr: { $lt: ['$uses', '$maxUses'] } }, { $inc: { uses: 1 }, $set: { lastUsedAt: now } });
+    return res.modifiedCount > 0;
+  }
+
+  async release(id: string): Promise<void> {
+    await this.col.updateOne({ _id: id, uses: { $gt: 0 } }, { $inc: { uses: -1 } });
+  }
+
+  async revoke(id: string): Promise<boolean> {
+    return (await this.col.updateOne({ _id: id, revokedAt: null }, { $set: { revokedAt: new Date() } })).modifiedCount > 0;
+  }
 }

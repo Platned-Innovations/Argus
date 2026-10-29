@@ -8,6 +8,7 @@ Status legend: ✅ available · 🔜 planned (phase shown)
 |---|---|---|
 | Local user accounts, default system administrator on a new database | ✅ | [User management](user-management.md) |
 | Roles (Administrator, Security Manager, Developer, Viewer) and teams | ✅ | [User management](user-management.md) |
+| Invite links with a preset role and teams, an expiry date, an optional email restriction and a use limit | ✅ | [User management](user-management.md#invite-links) |
 | TOTP multi-factor authentication, recovery codes, org-wide enforcement | ✅ | [User management](user-management.md#multi-factor-authentication) |
 | Password policy, account lockout, session management | ✅ | [Configuration](../configuration.md#in-app-security-settings) |
 | Audit log with filtering and CSV export | ✅ | [User management](user-management.md#audit-log) |
