@@ -188,7 +188,7 @@ export function findingsContract(getStore: () => DataStore): void {
       const store = getStore();
       const repo = await makeRepo(store);
       const other = await makeRepo(store);
-      const base = { scanner: null, ruleId: null, pathPattern: null, packageName: null, createdBy: null, createdByName: 'admin' };
+      const base = { scanner: null, ruleId: null, pathPattern: null, packageName: null, groupKey: null, ticketId: null, createdBy: null, createdByName: 'admin' };
       const global = await store.suppressions.create({ ...base, repoId: null, ruleId: 'GHSA-global', reason: 'Not applicable to us', expiresAt: null });
       const mine = await store.suppressions.create({ ...base, repoId: repo.id, pathPattern: 'test/**', reason: 'Test fixtures', expiresAt: new Date(Date.now() + 86_400_000) });
       await store.suppressions.create({ ...base, repoId: repo.id, packageName: 'old', reason: 'Expired one', expiresAt: new Date(Date.now() - 1000) });
@@ -209,7 +209,8 @@ export function findingsContract(getStore: () => DataStore): void {
       const repo = await makeRepo(store);
       await store.findings.reconcile({ repoId: repo.id, sourceId: repo.sourceId, teamId: null, runId: crypto.randomUUID(), scanners: ['dependencies'], now: new Date() }, [observed('del')]);
       await store.dependencies.replaceForRepo(repo.id, [dep(repo.id, 'gone')]);
-      const s = await store.suppressions.create({ repoId: repo.id, scanner: 'secrets', ruleId: null, pathPattern: null, packageName: null, reason: 'cascade test', expiresAt: null, createdBy: null, createdByName: null });
+      const s = await store.suppressions.create({ repoId: repo.id, scanner: 'secrets', ruleId: null, pathPattern: null, packageName: null, reason: 'cascade test', expiresAt: null, createdBy: null, createdByName: null, groupKey: 'secret|abc', ticketId: crypto.randomUUID() });
+      expect(await store.suppressions.findById(s.id)).toMatchObject({ groupKey: 'secret|abc' });
       await store.sources.delete(repo.sourceId);
       expect((await store.findings.list({ repoId: repo.id, offset: 0, limit: 10 })).total).toBe(0);
       expect((await store.dependencies.listForRepo(repo.id, { offset: 0, limit: 10 })).total).toBe(0);

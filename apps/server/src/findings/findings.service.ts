@@ -12,6 +12,7 @@ import {
 } from '@argus/shared';
 import { type RequestContext } from '../common/request';
 import { AuditService } from '../core/audit.service';
+import { DomainEvents } from '../core/domain-events';
 import { DATA_STORE } from '../core/tokens';
 import { canSeeRepo, visibleTeams } from '../scans/scans.service';
 import { matchSuppression, type SuppressionRule } from '../scanning/suppression-matcher';
@@ -42,6 +43,7 @@ export function toFindingDto(f: Finding, repoFullName: string | null): FindingDt
     details: f.details,
     remediation: f.remediation,
     suppressionId: f.suppressionId,
+    ticketId: f.ticketId,
     firstSeenAt: f.firstSeenAt.toISOString(),
     lastSeenAt: f.lastSeenAt.toISOString(),
     fixedAt: f.fixedAt?.toISOString() ?? null,
@@ -63,6 +65,7 @@ export class FindingsService {
   constructor(
     @Inject(DATA_STORE) private readonly store: DataStore,
     private readonly audit: AuditService,
+    private readonly events: DomainEvents,
   ) {}
 
   private async repoNames(ids: string[]): Promise<Map<string, string>> {
@@ -129,6 +132,7 @@ export class FindingsService {
       createdBy: s.createdBy,
       createdByName: s.createdByName,
       createdAt: s.createdAt.toISOString(),
+      ticketId: s.ticketId,
     };
   }
 
@@ -168,7 +172,11 @@ export class FindingsService {
     return Promise.all(all.filter((s) => !s.repoId || visible.has(s.repoId)).map((s) => this.toSuppressionDto(s, visible)));
   }
 
-  async createSuppression(input: SuppressionInput, actor: User, ctx: RequestContext): Promise<SuppressionDto> {
+  /**
+   * `link` is set when a ticket is risk-accepted or marked a false positive: the suppression then covers
+   * exactly that ticket's issue (its group key).
+   */
+  async createSuppression(input: SuppressionInput, actor: User, ctx: RequestContext, link?: { groupKey: string; ticketId: string }): Promise<SuppressionDto> {
     if (input.repoId) {
       const repo = await this.store.repositories.findById(input.repoId);
       if (!repo || !canSeeRepo(actor, repo)) throw new NotFoundException('Repository not found.');
@@ -180,21 +188,25 @@ export class FindingsService {
       ruleId: input.ruleId ?? null,
       pathPattern: input.pathPattern ?? null,
       packageName: input.packageName ?? null,
+      groupKey: link?.groupKey ?? null,
+      ticketId: link?.ticketId ?? null,
       reason: input.reason,
       expiresAt: input.expiresAt ?? null,
       createdBy: actor.id,
       createdByName: actor.displayName,
     });
     // Apply right away rather than waiting for the next scan.
-    const rule: SuppressionRule = { id: s.id, source: 'argus', scanner: s.scanner, ruleId: s.ruleId, pathPattern: s.pathPattern, packageName: s.packageName, reason: s.reason };
-    const matched = await this.updateMatching({ repoId: s.repoId ?? undefined, status: 'open' }, (f) => !!matchSuppression([rule], f.scanner, asDraft(f)), { status: 'suppressed', suppressionId: s.id });
+    const rule: SuppressionRule = { id: s.id, source: 'argus', scanner: s.scanner, ruleId: s.ruleId, pathPattern: s.pathPattern, packageName: s.packageName, groupKey: s.groupKey, reason: s.reason };
+    const touched = new Set<string>();
+    const matched = await this.updateMatching({ repoId: s.repoId ?? undefined, status: 'open' }, (f) => !!matchSuppression([rule], f.scanner, asDraft(f)) && !!touched.add(f.repoId), { status: 'suppressed', suppressionId: s.id });
     await this.audit.record({
       action: 'suppression.created',
       actor,
       target: { type: 'suppression', id: s.id },
-      details: { repoId: s.repoId, scanner: s.scanner, ruleId: s.ruleId, pathPattern: s.pathPattern, packageName: s.packageName, reason: s.reason, expiresAt: s.expiresAt, matched },
+      details: { repoId: s.repoId, scanner: s.scanner, ruleId: s.ruleId, pathPattern: s.pathPattern, packageName: s.packageName, ticketId: s.ticketId, reason: s.reason, expiresAt: s.expiresAt, matched },
       ip: ctx.ip,
     });
+    if (touched.size) await this.events.emit('findings.changed', { repoIds: [...touched] });
     return { ...(await this.toSuppressionDto(s)), matchedFindings: matched };
   }
 
@@ -206,8 +218,10 @@ export class FindingsService {
       if (repo && !canSeeRepo(actor, repo)) throw new NotFoundException('Suppression not found.');
     }
     await this.store.suppressions.delete(id);
-    const reopened = await this.updateMatching({ repoId: s.repoId ?? undefined, status: 'suppressed' }, (f) => f.suppressionId === id, { status: 'open', suppressionId: null });
+    const touched = new Set<string>();
+    const reopened = await this.updateMatching({ repoId: s.repoId ?? undefined, status: 'suppressed' }, (f) => f.suppressionId === id && !!touched.add(f.repoId), { status: 'open', suppressionId: null });
     await this.audit.record({ action: 'suppression.deleted', actor, target: { type: 'suppression', id }, details: { repoId: s.repoId, reason: s.reason, reopened }, ip: ctx.ip });
+    if (touched.size) await this.events.emit('findings.changed', { repoIds: [...touched] });
     return { reopened };
   }
 }

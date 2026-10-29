@@ -21,7 +21,7 @@ Runtime policies (password rules, MFA, sessions) are set in the UI under **Admin
 | `ARGUS_DB_NAME` | from the URL, else `argus` | MongoDB database name. |
 | `ARGUS_ROLE` | `all` | `all` runs API, UI and worker. `api` runs HTTP only. `worker` runs background processing only. See [architecture](architecture.md#runtime-roles). |
 | `ARGUS_ADMIN_PASSWORD` | generated | Initial password for the default `admin` account. Used **only** when the database has no users. It must be changed at first sign-in. |
-| `ARGUS_PUBLIC_URL` | — | External URL, for example `https://argus.example.com`. Used for links in emails, and to enable `Secure` cookies and HSTS when it starts with `https://`. |
+| `ARGUS_PUBLIC_URL` | — | External URL, for example `https://argus.example.com`. Used for links in emails, notifications and Jira issues, and to enable `Secure` cookies and HSTS when it starts with `https://`. |
 | `ARGUS_COOKIE_SECURE` | `auto` | `auto` is secure when the public URL is HTTPS (or, without a public URL, when `NODE_ENV=production`). Can also be `true` or `false`. |
 | `ARGUS_TRUST_PROXY` | `1` | Express `trust proxy` setting, so client IPs are correct behind a load balancer or App Service front end. Accepts a hop count, `true`, `false`, or a subnet list. |
 | `ARGUS_AUTH_RATE_LIMIT` | `10` | Requests per minute per client IP for each credential endpoint (login, MFA verification, password change). Raise it if many users share one egress IP (corporate NAT). |
@@ -37,6 +37,8 @@ Runtime policies (password rules, MFA, sessions) are set in the UI under **Admin
 | `ARGUS_EOL_URL` | `https://endoflife.date` | endoflife.date base URL. |
 | `ARGUS_NPM_REGISTRY_URL` | `https://registry.npmjs.org` | npm registry, or an internal proxy such as Artifactory or Azure Artifacts. |
 | `ARGUS_NUGET_URL` | `https://api.nuget.org/v3-flatcontainer` | NuGet flat-container endpoint. |
+| `ARGUS_GRAPH_URL` | `https://graph.microsoft.com` | Microsoft Graph endpoint. Change it for sovereign clouds, e.g. `https://graph.microsoft.us` (GCC High). |
+| `ARGUS_ENTRA_LOGIN_URL` | `https://login.microsoftonline.com` | Entra ID token endpoint, e.g. `https://login.microsoftonline.us`. |
 | `HTTPS_PROXY` / `NO_PROXY` | — | Outbound proxy. Git uses it directly; also set `NODE_USE_ENV_PROXY=1` so API calls use it. |
 | `NODE_EXTRA_CA_CERTS` / `GIT_SSL_CAINFO` | — | CA bundle for code hosts that use a private certificate authority (API calls and git respectively). |
 | `ARGUS_WEB_DIR` | bundled | Directory containing the built web UI. |

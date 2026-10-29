@@ -41,6 +41,18 @@ import {
   MongoSuppressionRepo,
   type SuppressionDoc,
 } from './findings';
+import {
+  bootstrapTicketIndexes,
+  type ChannelDoc,
+  type CounterDoc,
+  MongoChannelRepo,
+  MongoCounterRepo,
+  MongoNotificationRuleRepo,
+  MongoTicketRepo,
+  type RuleDoc,
+  type TicketDoc,
+  type TicketEventDoc,
+} from './tickets';
 
 type UserDoc = Omit<User, 'id'> & { _id: string; usernameLower: string; emailLower: string | null };
 type TeamDoc = Omit<Team, 'id'> & { _id: string; nameLower: string };
@@ -50,7 +62,7 @@ type SettingDoc = { _id: string; value: unknown; updatedAt: Date; updatedBy: str
 type MetaDoc = { _id: string; version: number; updatedAt: Date };
 
 /** Bump when index/bootstrap definitions below change. */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 async function mapDuplicate<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -320,6 +332,7 @@ async function bootstrap(db: Db): Promise<void> {
   ]);
   await bootstrapScanningIndexes(db);
   await bootstrapFindingIndexes(db);
+  await bootstrapTicketIndexes(db);
   await meta.updateOne({ _id: 'schema' }, { $set: { version: SCHEMA_VERSION, updatedAt: new Date() } }, { upsert: true });
 }
 
@@ -347,6 +360,10 @@ export async function createMongoStore(url: string, dbName?: string): Promise<Da
     dependencies: new MongoDependencyRepo(db.collection<DependencyDoc>('dependencies')),
     suppressions: new MongoSuppressionRepo(db.collection<SuppressionDoc>('suppressions')),
     cache: new MongoCacheRepo(db.collection<CacheDoc>('intel_cache')),
+    tickets: new MongoTicketRepo(db.collection<TicketDoc>('tickets'), db.collection<TicketEventDoc>('ticket_events')),
+    counters: new MongoCounterRepo(db.collection<CounterDoc>('counters')),
+    channels: new MongoChannelRepo(db.collection<ChannelDoc>('notification_channels')),
+    notificationRules: new MongoNotificationRuleRepo(db.collection<RuleDoc>('notification_rules')),
     migrate: () => bootstrap(db),
     async ping() {
       try {

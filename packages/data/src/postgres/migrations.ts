@@ -300,6 +300,100 @@ migrations['0003_findings'] = {
   },
 };
 
+migrations['0004_tickets'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('tickets')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('key', 'text', (c) => c.notNull().unique())
+      .addColumn('repo_id', 'uuid', (c) => c.notNull().references('repositories.id').onDelete('cascade'))
+      .addColumn('source_id', 'uuid', (c) => c.notNull())
+      .addColumn('team_id', 'uuid')
+      .addColumn('scanner', 'text', (c) => c.notNull())
+      .addColumn('group_key', 'text', (c) => c.notNull())
+      .addColumn('title', 'text', (c) => c.notNull())
+      .addColumn('description', 'text')
+      .addColumn('severity', 'text', (c) => c.notNull())
+      .addColumn('risk_score', 'integer', (c) => c.notNull())
+      .addColumn('status', 'text', (c) => c.notNull())
+      .addColumn('assignee_id', 'uuid', (c) => c.references('users.id').onDelete('set null'))
+      .addColumn('watcher_ids', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .addColumn('labels', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .addColumn('finding_ids', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .addColumn('open_findings', 'integer', (c) => c.notNull().defaultTo(0))
+      .addColumn('remediation', 'text')
+      .addColumn('due_at', 'timestamptz')
+      .addColumn('sla_breached_at', 'timestamptz')
+      .addColumn('suppression_id', 'uuid')
+      .addColumn('jira', 'jsonb')
+      .addColumn('resolved_at', 'timestamptz')
+      .addColumn('closed_at', 'timestamptz')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('last_activity_at', 'timestamptz', (c) => c.notNull())
+      .addUniqueConstraint('tickets_repo_group_unique', ['repo_id', 'group_key'])
+      .execute();
+    await db.schema.createIndex('tickets_status_score_idx').on('tickets').columns(['status', 'risk_score desc']).execute();
+    await db.schema.createIndex('tickets_team_idx').on('tickets').columns(['team_id', 'status']).execute();
+    await db.schema.createIndex('tickets_assignee_idx').on('tickets').columns(['assignee_id', 'status']).execute();
+    await db.schema.createIndex('tickets_due_idx').on('tickets').columns(['status', 'due_at']).execute();
+
+    await db.schema
+      .createTable('ticket_events')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('ticket_id', 'uuid', (c) => c.notNull().references('tickets.id').onDelete('cascade'))
+      .addColumn('type', 'text', (c) => c.notNull())
+      .addColumn('actor_id', 'uuid')
+      .addColumn('actor_name', 'text')
+      .addColumn('body', 'text')
+      .addColumn('data', 'jsonb')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+    await db.schema.createIndex('ticket_events_ticket_idx').on('ticket_events').columns(['ticket_id', 'created_at']).execute();
+
+    await db.schema
+      .createTable('counters')
+      .addColumn('name', 'text', (c) => c.primaryKey())
+      .addColumn('value', 'bigint', (c) => c.notNull())
+      .execute();
+
+    await db.schema
+      .createTable('notification_channels')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('type', 'text', (c) => c.notNull())
+      .addColumn('enabled', 'boolean', (c) => c.notNull())
+      .addColumn('config', 'jsonb', (c) => c.notNull())
+      .addColumn('secret_enc', 'text')
+      .addColumn('secret_hint', 'text')
+      .addColumn('last_used_at', 'timestamptz')
+      .addColumn('last_error', 'text')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+
+    await db.schema
+      .createTable('notification_rules')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('enabled', 'boolean', (c) => c.notNull())
+      .addColumn('events', 'jsonb', (c) => c.notNull())
+      .addColumn('min_severity', 'text', (c) => c.notNull())
+      .addColumn('team_ids', 'jsonb', (c) => c.notNull())
+      .addColumn('channel_ids', 'jsonb', (c) => c.notNull())
+      .addColumn('recipients', 'jsonb', (c) => c.notNull())
+      .addColumn('include_repo_recipients', 'boolean', (c) => c.notNull())
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+
+    await db.schema.alterTable('findings').addColumn('ticket_id', 'uuid').execute();
+    await db.schema.alterTable('suppressions').addColumn('group_key', 'text').addColumn('ticket_id', 'uuid').execute();
+    await db.schema.createIndex('findings_ticket_idx').on('findings').column('ticket_id').execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

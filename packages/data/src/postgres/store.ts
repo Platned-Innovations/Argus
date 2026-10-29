@@ -22,6 +22,7 @@ import {
 import { type AuditRepo, type DataStore, type SessionRepo, type SettingsRepo, type TeamRepo, type UserRepo } from '../store';
 import { migrationProvider } from './migrations';
 import { PgCacheRepo, PgDependencyRepo, PgFindingRepo, PgSuppressionRepo } from './findings';
+import { PgChannelRepo, PgCounterRepo, PgNotificationRuleRepo, PgTicketRepo } from './tickets';
 import { PgJobRepo, PgLockRepo, PgRepositoryRepo, PgScanRunRepo, PgSourceRepo } from './scanning';
 import { type Database, type UsersTable } from './schema';
 
@@ -382,6 +383,10 @@ export function createPostgresStore(url: string): DataStore {
     dependencies: new PgDependencyRepo(db),
     suppressions: new PgSuppressionRepo(db),
     cache: new PgCacheRepo(db),
+    tickets: new PgTicketRepo(db),
+    counters: new PgCounterRepo(db),
+    channels: new PgChannelRepo(db),
+    notificationRules: new PgNotificationRuleRepo(db),
     async migrate() {
       const { error, results } = await new Migrator({ db, provider: migrationProvider }).migrateToLatest();
       const failed = results?.find((r) => r.status === 'Error');

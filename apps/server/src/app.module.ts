@@ -16,6 +16,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { ScansModule } from './scans/scans.module';
 import { SettingsController } from './settings/settings.controller';
 import { SourcesModule } from './sources/sources.module';
+import { TicketsModule } from './tickets/tickets.module';
 import { TeamsController } from './teams/teams.controller';
 import { UsersModule } from './users/users.module';
 import { WorkerModule } from './worker/worker.module';
@@ -52,6 +53,7 @@ export class AppModule {
         SourcesModule,
         ScansModule,
         FindingsModule,
+        TicketsModule,
         ...(config.webDir
           ? [
               ServeStaticModule.forRoot({
@@ -84,6 +86,6 @@ export class AppModule {
 @Module({})
 export class WorkerAppModule {
   static register(config: AppConfig): DynamicModule {
-    return { module: WorkerAppModule, imports: [CoreModule.forRoot(config), loggerModule(config), JobsModule, SourcesModule, ScansModule, WorkerModule] };
+    return { module: WorkerAppModule, imports: [CoreModule.forRoot(config), loggerModule(config), JobsModule, SourcesModule, ScansModule, TicketsModule, WorkerModule] };
   }
 }

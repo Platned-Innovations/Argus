@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { type Suppression } from '@argus/data';
 import { type ScannerName } from '@argus/shared';
 import { globToRegExp } from './glob';
+import { groupKeyFor } from './group-key';
 import { type RepoScanConfig } from './repo-config';
 import { type DraftFinding } from './types';
 
@@ -12,6 +13,8 @@ export interface SuppressionRule {
   ruleId: string | null;
   pathPattern: string | null;
   packageName: string | null;
+  /** Set for suppressions created from a ticket: only that ticket's issue matches. */
+  groupKey: string | null;
   reason: string;
 }
 
@@ -22,7 +25,16 @@ function fileRuleId(repoId: string, index: number, entry: unknown): string {
 }
 
 export function buildSuppressionRules(repoId: string, stored: Suppression[], file: RepoScanConfig, now: Date): SuppressionRule[] {
-  const fromDb: SuppressionRule[] = stored.map((s) => ({ id: s.id, source: 'argus', scanner: s.scanner, ruleId: s.ruleId, pathPattern: s.pathPattern, packageName: s.packageName, reason: s.reason }));
+  const fromDb: SuppressionRule[] = stored.map((s) => ({
+    id: s.id,
+    source: 'argus',
+    scanner: s.scanner,
+    ruleId: s.ruleId,
+    pathPattern: s.pathPattern,
+    packageName: s.packageName,
+    groupKey: s.groupKey,
+    reason: s.reason,
+  }));
   const fromFile: SuppressionRule[] = file.suppress
     .map((s, i) => ({ s, i }))
     .filter(({ s }) => !s.expires || s.expires > now)
@@ -33,6 +45,7 @@ export function buildSuppressionRules(repoId: string, stored: Suppression[], fil
       ruleId: s.rule ?? null,
       pathPattern: s.path ?? null,
       packageName: s.package ?? null,
+      groupKey: null,
       reason: s.reason,
     }));
   return [...fromDb, ...fromFile];
@@ -48,6 +61,7 @@ export function matchSuppression(rules: SuppressionRule[], scanner: ScannerName,
     }
     if (r.pathPattern && !(d.path && globToRegExp(r.pathPattern).test(d.path))) continue;
     if (r.packageName && d.package?.name.toLowerCase() !== r.packageName.toLowerCase()) continue;
+    if (r.groupKey && groupKeyFor({ ...d, scanner }) !== r.groupKey) continue;
     return r;
   }
   return null;

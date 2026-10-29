@@ -46,12 +46,15 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 |---|---|
 | Findings with open, suppressed and fixed states, automatic fix detection and re-opening, and suppressions with justification and expiry — see [Scanners and findings](scanners-and-findings.md) | ✅ |
 | 0–100 explainable risk score combining CVSS, EPSS, CISA KEV, dependency type, test paths, exposure and repository criticality; configurable weights | ✅ |
-| Built-in tickets with statuses Open, Triaged, In progress, Resolved, Closed, Risk accepted, False positive and Reopened | 🔜 Phase 3 |
-| Automatic resolution when a later scan no longer finds the issue, and automatic re-opening if it returns | 🔜 Phase 3 |
-| SLA due dates by severity, assignment, comments, bulk actions, suppression rules | 🔜 Phase 3 |
-| Email from a ticket via Microsoft Graph, Microsoft 365 SMTP or Google SMTP | 🔜 Phase 3 |
-| Create a Jira issue from a ticket (in the Jira project linked to the repository), with status sync | 🔜 Phase 3 |
-| Notification rules: email, Microsoft Teams, Slack, signed webhooks; weekly digests | 🔜 Phase 3 |
+See [Tickets, email, Jira and notifications](tickets-and-notifications.md).
+
+| Built-in tickets (one per issue) with statuses Open, Triaged, In progress, Resolved, Closed, Risk accepted, False positive and Reopened | ✅ |
+| Automatic resolution when a later scan no longer finds the issue, and automatic re-opening if it returns | ✅ |
+| SLA due dates by severity, overdue flagging, assignment, watchers, labels, comments, activity timeline, bulk actions, CSV export | ✅ |
+| Risk acceptance and false positives backed by ticket-scoped, optionally expiring suppressions | ✅ |
+| Email from a ticket via Microsoft Graph, Microsoft 365 SMTP (OAuth2 or password) or Google SMTP | ✅ |
+| Create a Jira issue from a ticket (Jira Cloud or Data Center, in the project linked to the repository), with status sync | ✅ |
+| Notification rules: email, Microsoft Teams (Adaptive Cards), Slack, signed webhooks; weekly digests | ✅ |
 
 ## AI
 
@@ -86,7 +89,7 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 | 0. Foundation | Monorepo, PostgreSQL and MongoDB data layer, authentication with MFA, roles and teams, audit log, web UI shell, Docker, CI, documentation | ✅ |
 | 1. Sources & scheduling | GitHub and Bitbucket connectors, repository activation, job queue, scheduler, scan runs, push webhooks | ✅ |
 | 2. Scanners & risk | Advisory sources, all scanners, findings, risk scoring, SBOM, package search, suppressions | ✅ |
-| 3. Tickets & integrations | Ticket lifecycle, email providers, Jira, notification rules | 🔜 |
+| 3. Tickets & integrations | Ticket lifecycle, SLAs, email providers, Jira, notification rules, digests | ✅ |
 | 4. AI | Providers, triage, remediation, guardrails | 🔜 |
 | 5. Threat intel | News crawler, AI extraction, review queue, continuous re-matching | 🔜 |
 | 6. Enterprise polish | Dashboards, reports, credential inventory, API tokens, Azure Bicep | 🔜 |

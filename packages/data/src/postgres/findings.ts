@@ -106,6 +106,7 @@ export class PgFindingRepo implements FindingRepo {
             firstRunId: ctx.runId,
             lastRunId: ctx.runId,
             fixedAt: null,
+            ticketId: null,
           } as never);
         }
       }
@@ -182,6 +183,20 @@ export class PgFindingRepo implements FindingRepo {
       else out.fixedSince += r.recentlyFixed;
     }
     return out;
+  }
+
+  async setTicket(ids: string[], ticketId: string): Promise<void> {
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      await this.db
+        .updateTable('findings')
+        .set({ ticketId })
+        .where('id', 'in', ids.slice(i, i + CHUNK))
+        .execute();
+    }
+  }
+
+  async listAllForRepo(repoId: string): Promise<Finding[]> {
+    return (await this.db.selectFrom('findings').selectAll().where('repoId', '=', repoId).execute()).map(toFinding);
   }
 
   async setTeamForRepo(repoId: string, teamId: string | null): Promise<void> {

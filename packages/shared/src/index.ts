@@ -5,3 +5,4 @@ export * from './schemas';
 export * from './dto';
 export * from './sources';
 export * from './findings';
+export * from './tickets';

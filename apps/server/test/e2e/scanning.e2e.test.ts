@@ -9,62 +9,10 @@ import { createApiApp } from '../../src/app.factory';
 import { AppConfig } from '../../src/config/app-config';
 import { BASE_TEST_ENV, Client, dbHarnesses, waitFor } from './helpers';
 import { createGitRepo, type FixtureRepo, type MockGitHub, startMockGitHub } from './mock-github';
+import { intelEnv, intelRoutes, lockfile, LODASH_GHSA } from './mock-intel';
 
 const TOKEN = 'ghp_e2eScanningToken0123456789';
 const AWS_KEY = 'AKIAIOSFODNN7EXAMPLE';
-const LODASH_GHSA = 'GHSA-35jh-r3h4-6jhm';
-
-function lockfile(lodash: string) {
-  return JSON.stringify({
-    lockfileVersion: 3,
-    packages: {
-      '': { name: 'shop', dependencies: { lodash: `^${lodash}`, 'gpl-lib': '1.0.0' } },
-      'node_modules/lodash': { version: lodash, license: 'MIT' },
-      'node_modules/gpl-lib': { version: '1.0.0', license: 'GPL-3.0-only' },
-    },
-  });
-}
-
-/** Intel endpoints served by the mock: OSV, CISA KEV, EPSS, endoflife.date, npm and NuGet registries. */
-function intelRoutes(calls: Map<string, number>) {
-  const count = (k: string) => calls.set(k, (calls.get(k) ?? 0) + 1);
-  return (_req: unknown, url: URL, body: string, res: import('node:http').ServerResponse) => {
-    const json = (data: unknown, status = 200) => (res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(data)), true);
-    const p = url.pathname;
-    if (p === '/intel/osv/v1/querybatch') {
-      count('osv-query');
-      const { queries } = JSON.parse(body) as { queries: { package: { name: string }; version: string }[] };
-      return json({ results: queries.map((q) => (q.package.name === 'lodash' && q.version === '4.17.20' ? { vulns: [{ id: LODASH_GHSA, modified: '2026-01-01T00:00:00Z' }] } : {})) });
-    }
-    if (p === `/intel/osv/v1/vulns/${LODASH_GHSA}`) {
-      count('osv-vuln');
-      return json({
-        id: LODASH_GHSA,
-        summary: 'Command Injection in lodash',
-        details: 'lodash versions prior to 4.17.21 are vulnerable to Command Injection via the template function.',
-        aliases: ['CVE-2021-23337'],
-        modified: '2026-01-01T00:00:00Z',
-        published: '2021-02-15T00:00:00Z',
-        severity: [{ type: 'CVSS_V3', score: 'CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H' }],
-        affected: [{ package: { ecosystem: 'npm', name: 'lodash' }, ranges: [{ type: 'SEMVER', events: [{ introduced: '0' }, { fixed: '4.17.21' }] }] }],
-        references: [{ type: 'ADVISORY', url: 'https://nvd.nist.gov/vuln/detail/CVE-2021-23337' }],
-      });
-    }
-    if (p === '/intel/kev.json') return json({ vulnerabilities: [{ cveID: 'CVE-2021-23337' }, { cveID: 'CVE-2020-0001' }] });
-    if (p === '/intel/epss') return json({ data: (url.searchParams.get('cve') ?? '').split(',').filter((c) => c === 'CVE-2021-23337').map((cve) => ({ cve, epss: '0.40000' })) });
-    if (p === '/intel/eol/api/dotnet.json')
-      return json([
-        { cycle: '8', eol: '2026-11-10', lts: true },
-        { cycle: '6', eol: '2024-11-12', lts: true },
-      ]);
-    if (p.startsWith('/intel/eol/')) return json({ error: 'unknown product' }, 404);
-    if (p === '/intel/npm/lodash/latest') return json({ version: '4.17.21' });
-    if (p.startsWith('/intel/npm/')) return json({});
-    if (p === '/intel/nuget/newtonsoft.json/index.json') return json({ versions: ['12.0.3', '13.0.1', '13.0.4-beta1'] });
-    if (p.startsWith('/intel/')) return json({}, 404);
-    return false;
-  };
-}
 
 const harnesses = dbHarnesses();
 
@@ -100,7 +48,6 @@ describe.each(harnesses)('scanners, findings & SBOM e2e: $name', (h) => {
       '.argus.yml': 'suppress:\n  - scanner: secrets\n    path: "test/**"\n    reason: Throwaway keys used only by unit tests\n',
     });
     mock = await startMockGitHub({ bare: fixture.bare, token: TOKEN, repos: [{ id: 501, name: 'shop' }], extra: intelRoutes(intelCalls) });
-    const intel = `${mock.baseUrl}/intel`;
     const env = await h.env();
     app = await createApiApp(
       AppConfig.fromEnv({
@@ -111,12 +58,7 @@ describe.each(harnesses)('scanners, findings & SBOM e2e: $name', (h) => {
         ARGUS_SCAN_WORKDIR: join(tmp, 'scans'),
         ARGUS_SCHEDULER_INTERVAL_SECONDS: '1',
         ARGUS_GITLEAKS_PATH: 'argus-test-no-gitleaks',
-        ARGUS_OSV_URL: `${intel}/osv`,
-        ARGUS_KEV_URL: `${intel}/kev.json`,
-        ARGUS_EPSS_URL: `${intel}/epss`,
-        ARGUS_EOL_URL: `${intel}/eol`,
-        ARGUS_NPM_REGISTRY_URL: `${intel}/npm`,
-        ARGUS_NUGET_URL: `${intel}/nuget`,
+        ...intelEnv(mock.baseUrl),
       }),
     );
     await app.init();

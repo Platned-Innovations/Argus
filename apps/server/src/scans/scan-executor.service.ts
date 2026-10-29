@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { type DataStore, type Job, type Repository, type ScanRun, type ScanStatsRecord } from '@argus/data';
 import { Redactor } from '../common/redact';
 import { AppConfig } from '../config/app-config';
+import { DomainEvents } from '../core/domain-events';
 import { DATA_STORE } from '../core/tokens';
 import { type JobContext, JobRunner, PermanentJobError } from '../jobs/job-runner.service';
 import { assertCloneUrlAllowed, ProviderError } from '../sources/providers';
@@ -29,6 +30,7 @@ export class ScanExecutor implements OnModuleInit {
     private readonly runner: JobRunner,
     private readonly config: AppConfig,
     private readonly pipeline: ScanPipeline,
+    private readonly events: DomainEvents,
   ) {}
 
   onModuleInit(): void {
@@ -91,6 +93,7 @@ export class ScanExecutor implements OnModuleInit {
       log(`Error: ${message}`);
       if (permanent || jobCtx.finalAttempt) {
         await this.finish(run, repo, 'failed', lines, started, { error: message, stats });
+        await this.events.emit('scan.failed', { repo, run, error: message });
         throw new PermanentJobError(message);
       }
       log('Will retry later');

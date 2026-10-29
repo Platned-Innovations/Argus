@@ -29,6 +29,8 @@ const envSchema = z.object({
   ARGUS_EOL_URL: z.url().default('https://endoflife.date'),
   ARGUS_NPM_REGISTRY_URL: z.url().default('https://registry.npmjs.org'),
   ARGUS_NUGET_URL: z.url().default('https://api.nuget.org/v3-flatcontainer'),
+  ARGUS_GRAPH_URL: z.url().default('https://graph.microsoft.com'),
+  ARGUS_ENTRA_LOGIN_URL: z.url().default('https://login.microsoftonline.com'),
   WEBSITES_PORT: z.coerce.number().int().positive().optional(),
   PORT: z.coerce.number().int().positive().default(8080),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -63,6 +65,8 @@ export class AppConfig {
   readonly gitleaksPath!: string;
   /** Base URLs of public data sources; point them at internal mirrors if required. */
   readonly intel!: { osv: string; kev: string; epss: string; eol: string; npmRegistry: string; nuget: string };
+  /** Microsoft cloud endpoints (override for sovereign clouds such as GCC High). */
+  readonly microsoft!: { graph: string; login: string };
   readonly port!: number;
   readonly logLevel!: string;
   readonly isProduction!: boolean;
@@ -110,6 +114,7 @@ export class AppConfig {
         npmRegistry: trimSlash(e.ARGUS_NPM_REGISTRY_URL),
         nuget: trimSlash(e.ARGUS_NUGET_URL),
       },
+      microsoft: { graph: trimSlash(e.ARGUS_GRAPH_URL), login: trimSlash(e.ARGUS_ENTRA_LOGIN_URL) },
       // Azure App Service passes the container port in WEBSITES_PORT.
       port: e.WEBSITES_PORT ?? e.PORT,
       logLevel: e.LOG_LEVEL,

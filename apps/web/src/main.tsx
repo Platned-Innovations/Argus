@@ -9,6 +9,7 @@ import { CenteredSpinner, EmptyState } from './components/ui';
 import { ApiError } from './lib/api';
 import { AuthProvider, useAuth } from './lib/auth';
 import { AuditPage } from './pages/admin/AuditPage';
+import { IntegrationsPage } from './pages/admin/IntegrationsPage';
 import { ScanningSettingsPage } from './pages/admin/ScanningSettingsPage';
 import { SecuritySettingsPage } from './pages/admin/SecuritySettingsPage';
 import { SourcesPage } from './pages/admin/SourcesPage';
@@ -17,6 +18,8 @@ import { UsersPage } from './pages/admin/UsersPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FindingsPage } from './pages/FindingsPage';
+import { TicketDetailPage } from './pages/TicketDetailPage';
+import { TicketsPage } from './pages/TicketsPage';
 import { PackagesPage } from './pages/PackagesPage';
 import { SuppressionsPage } from './pages/SuppressionsPage';
 import { LoginPage } from './pages/LoginPage';
@@ -69,9 +72,10 @@ function App() {
               <Route path="packages" element={<Allow permission="repos:read"><PackagesPage /></Allow>} />
               <Route path="suppressions" element={<Allow permission="findings:read"><SuppressionsPage /></Allow>} />
               <Route path="admin/scanning" element={<Allow permission="settings:read"><ScanningSettingsPage /></Allow>} />
-              <Route path="tickets" element={<ComingSoonPage title="Tickets" description="Security findings tracked to resolution." phase="Tickets & integrations" />} />
+              <Route path="tickets" element={<Allow permission="tickets:read"><TicketsPage /></Allow>} />
+              <Route path="tickets/:id" element={<Allow permission="tickets:read"><TicketDetailPage /></Allow>} />
               <Route path="intel" element={<ComingSoonPage title="Threat intel" description="Vulnerability advisories and security news." phase="Threat intelligence" />} />
-              <Route path="notifications" element={<ComingSoonPage title="Notifications" description="Email, Teams, Slack and webhook alerts." phase="Tickets & integrations" />} />
+              <Route path="admin/integrations" element={<Allow permission="settings:manage"><IntegrationsPage /></Allow>} />
               <Route path="admin/sources" element={<Allow permission="sources:manage"><SourcesPage /></Allow>} />
               <Route path="admin/users" element={<Allow permission="users:read"><UsersPage /></Allow>} />
               <Route path="admin/teams" element={<Allow permission="teams:read"><TeamsPage /></Allow>} />
