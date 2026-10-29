@@ -53,7 +53,7 @@ See [Tickets, email, Jira and notifications](tickets-and-notifications.md).
 
 | Built-in tickets (one per issue) with statuses Open, Triaged, In progress, Resolved, Closed, Risk accepted, False positive and Reopened | ✅ |
 | Automatic resolution when a later scan no longer finds the issue, and automatic re-opening if it returns | ✅ |
-| SLA due dates by severity, overdue flagging, assignment, watchers, labels, comments, activity timeline, bulk actions, CSV export | ✅ |
+| SLA due dates by severity, overdue flagging, assignment, watchers, labels, comments, activity timeline, bulk actions, CSV export, saved (and shared) views | ✅ |
 | Risk acceptance and false positives backed by ticket-scoped, optionally expiring suppressions | ✅ |
 | Email from a ticket via Microsoft Graph, Microsoft 365 SMTP (OAuth2 or password) or Google SMTP | ✅ |
 | Create a Jira issue from a ticket (Jira Cloud or Data Center, in the project linked to the repository), with status sync | ✅ |

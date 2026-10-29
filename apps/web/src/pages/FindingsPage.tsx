@@ -6,7 +6,7 @@ export function FindingsPage() {
     <>
       <PageHeader title="Findings" description="Security issues found by the scanners across the repositories you can see, highest risk first." />
       <Card>
-        <FindingsTable />
+        <FindingsTable savedViews />
       </Card>
     </>
   );

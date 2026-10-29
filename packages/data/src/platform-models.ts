@@ -1,4 +1,4 @@
-import { type CredentialKind, type CredentialSource, type FindingStatus, type Permission, type ScannerName, type Severity, type TicketStatus } from '@argus/shared';
+import { type CredentialKind, type CredentialSource, type FindingStatus, type Permission, type SavedViewPage, type ScannerName, type Severity, type TicketStatus } from '@argus/shared';
 
 /** Scope of dashboard statistics. */
 export interface StatsFilter {
@@ -85,3 +85,16 @@ export interface CredentialListFilter {
   offset: number;
   limit: number;
 }
+
+/** A named set of list filters (a URL query string), private to its owner unless shared. */
+export interface SavedView {
+  id: string;
+  userId: string;
+  page: SavedViewPage;
+  name: string;
+  query: string;
+  shared: boolean;
+  createdAt: Date;
+}
+
+export type NewSavedView = Omit<SavedView, 'id' | 'createdAt'>;

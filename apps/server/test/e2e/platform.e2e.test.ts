@@ -270,4 +270,33 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       expect(Object.keys(doc.paths).length).toBeGreaterThan(60);
     });
   });
+
+  describe('saved views', () => {
+    it('keeps private views private, lets triagers share, and is not reachable with API tokens', async () => {
+      const mine = await dev.call('post', '/api/v1/saved-views', { page: 'tickets', name: 'My overdue', query: 'sla=breached&assignee=me' });
+      expect(mine.status).toBe(201);
+      expect(mine.body).toMatchObject({ name: 'My overdue', shared: false, mine: true, ownerName: 'Dev Tok' });
+      // Developers cannot share; administrators can.
+      expect((await dev.call('post', '/api/v1/saved-views', { page: 'tickets', name: 'Team', query: '', shared: true })).status).toBe(403);
+      const shared = await admin.call('post', '/api/v1/saved-views', { page: 'tickets', name: 'Critical open', query: 'severity=critical', shared: true });
+      expect(shared.status).toBe(201);
+      await admin.call('post', '/api/v1/saved-views', { page: 'tickets', name: 'Admin only', query: 'status=all' });
+      expect((await admin.call('post', '/api/v1/saved-views', { page: 'tickets', name: 'Bad', query: '?x=1' })).status).toBe(400);
+
+      const devList = (await dev.call('get', '/api/v1/saved-views?page=tickets')).body as { name: string; mine: boolean }[];
+      expect(devList.map((v) => [v.name, v.mine])).toEqual([
+        ['Critical open', false],
+        ['My overdue', true],
+      ]);
+      expect((await dev.call('get', '/api/v1/saved-views?page=findings')).body).toEqual([]);
+
+      // Someone else's private view looks missing; a shared one needs triage rights to delete.
+      expect((await admin.call('delete', `/api/v1/saved-views/${mine.body.id}`)).status).toBe(404);
+      expect((await dev.call('delete', `/api/v1/saved-views/${shared.body.id}`)).status).toBe(403);
+      expect((await dev.call('delete', `/api/v1/saved-views/${mine.body.id}`)).status).toBe(204);
+
+      const token = (await dev.call('post', '/api/v1/me/tokens', { name: 'views', scopes: ['tickets:read'], expiresInDays: 7 })).body.token as string;
+      expect((await anon('get', '/api/v1/saved-views?page=tickets', token)).status).toBe(403);
+    });
+  });
 });

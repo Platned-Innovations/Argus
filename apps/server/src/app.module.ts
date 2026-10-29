@@ -19,6 +19,7 @@ import { OpenApiController, OpenApiService } from './health/openapi';
 import { IntelModule } from './intel/intel.module';
 import { ReportsModule } from './reports/reports.module';
 import { CredentialsModule } from './credentials/credentials.module';
+import { SavedViewsModule } from './saved-views/saved-views.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ScansModule } from './scans/scans.module';
 import { SettingsController } from './settings/settings.controller';
@@ -66,6 +67,7 @@ export class AppModule {
         IntelModule,
         ReportsModule,
         CredentialsModule,
+        SavedViewsModule,
         ...(config.webDir
           ? [
               ServeStaticModule.forRoot({

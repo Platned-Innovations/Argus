@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { type Kysely, type Selectable, sql } from 'kysely';
-import { type CredentialKind, type CredentialSource, type Permission } from '@argus/shared';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type NewApiToken, type NewCredential } from '../platform-models';
-import { type ApiTokenRepo, type CredentialRepo } from '../store';
-import { type ApiTokensTable, type CredentialsTable, type Database } from './schema';
+import { type CredentialKind, type CredentialSource, type Permission, type SavedViewPage } from '@argus/shared';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type NewApiToken, type NewCredential, type NewSavedView, type SavedView } from '../platform-models';
+import { type ApiTokenRepo, type CredentialRepo, type SavedViewRepo } from '../store';
+import { type ApiTokensTable, type CredentialsTable, type Database, type SavedViewsTable } from './schema';
 
 type Db = Kysely<Database>;
 
@@ -113,5 +113,48 @@ export class PgCredentialRepo implements CredentialRepo {
 
   async listBySource(source: Credential['source']): Promise<Credential[]> {
     return (await this.db.selectFrom('credentials').selectAll().where('source', '=', source).execute()).map(toCredential);
+  }
+}
+
+function toView(r: Selectable<SavedViewsTable>): SavedView {
+  return { ...r, page: r.page as SavedViewPage };
+}
+
+export class PgSavedViewRepo implements SavedViewRepo {
+  constructor(private readonly db: Db) {}
+
+  async create(input: NewSavedView): Promise<SavedView> {
+    const id = randomUUID();
+    await this.db
+      .insertInto('savedViews')
+      .values({ ...input, id, createdAt: new Date() })
+      .execute();
+    return (await this.findById(id))!;
+  }
+
+  async findById(id: string): Promise<SavedView | null> {
+    const r = await this.db.selectFrom('savedViews').selectAll().where('id', '=', id).executeTakeFirst();
+    return r ? toView(r) : null;
+  }
+
+  async listVisible(userId: string, page: SavedView['page']): Promise<SavedView[]> {
+    const rows = await this.db
+      .selectFrom('savedViews')
+      .selectAll()
+      .where('page', '=', page)
+      .where((eb) => eb.or([eb('userId', '=', userId), eb('shared', '=', true)]))
+      .orderBy(sql`lower(name)`)
+      .orderBy('id')
+      .execute();
+    return rows.map(toView);
+  }
+
+  async countForUser(userId: string, page: SavedView['page']): Promise<number> {
+    const r = await this.db.selectFrom('savedViews').select(sql<number>`count(*)::int`.as('n')).where('userId', '=', userId).where('page', '=', page).executeTakeFirst();
+    return r?.n ?? 0;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return Number((await this.db.deleteFrom('savedViews').where('id', '=', id).executeTakeFirst()).numDeletedRows) > 0;
   }
 }
