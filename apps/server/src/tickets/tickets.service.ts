@@ -391,9 +391,9 @@ export class TicketsService implements OnModuleInit {
     return this.toDto(updated, n.repos.get(updated.repoId) ?? null, updated.assigneeId ? (n.users.get(updated.assigneeId) ?? null) : null);
   }
 
-  async comment(id: string, body: string, actor: User): Promise<TicketEventDto> {
+  async comment(id: string, body: string, actor: User, data: Record<string, unknown> | null = null): Promise<TicketEventDto> {
     const t = await this.require(id, actor);
-    const e = await this.event(id, 'comment', { actorId: actor.id, actorName: actor.displayName }, body, null);
+    const e = await this.event(id, 'comment', { actorId: actor.id, actorName: actor.displayName }, body, data);
     await this.store.tickets.update(id, t.watcherIds.includes(actor.id) ? {} : { watcherIds: [...t.watcherIds, actor.id] });
     return toEventDto(e);
   }
