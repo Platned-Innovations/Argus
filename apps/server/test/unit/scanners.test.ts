@@ -11,9 +11,10 @@ import { parsePackageJsonDependencies, parsePackageLock, parsePnpmLock, parseYar
 import { CertificatesScanner } from '../../src/scanning/scanners/certificates';
 import { collectDependencies, DependenciesScanner } from '../../src/scanning/scanners/dependencies';
 import { FrameworksScanner, mapTargetFramework, matchCycle } from '../../src/scanning/scanners/frameworks';
-import { maskSecret, SecretsScanner, shannonEntropy } from '../../src/scanning/scanners/secrets';
+import { addedLines, maskSecret, SecretsScanner, shannonEntropy } from '../../src/scanning/scanners/secrets';
 import { type RepoFile, type ScanInput, type SharedScanState } from '../../src/scanning/types';
-import { walkFiles } from '../../src/scans/inventory';
+import { runGit } from '../../src/scans/git';
+import { isVendoredPath, walkFiles } from '../../src/scans/inventory';
 import { type Advisory } from '@argus/data';
 
 describe('npm parsers', () => {
@@ -175,6 +176,8 @@ function input(over: Partial<ScanInput> = {}): ScanInput {
     log: () => undefined,
     hashSecret: (v) => `h(${v.length})`,
     readText: async (f) => (await import('node:fs/promises')).readFile(f.abs, 'utf8'),
+    excluded: () => false,
+    git: (args) => runGit(args, { cwd: root, home: tmpdir(), timeoutMs: 30_000 }),
     ...over,
   };
 }
@@ -361,5 +364,75 @@ describe('scanners', () => {
     expect(cert.details).toMatchObject({ subject: 'CN=argus.test', selfSigned: true });
     expect((cert.details as { daysLeft: number }).daysLeft).toBeLessThanOrEqual(5);
     expect(JSON.stringify(out.findings.find((f) => f.ruleId === 'token-expiring'))).not.toMatch(/eyJhbGciOiJIUzI1NiJ9\.ey/);
+  });
+});
+
+describe('secrets in git history', () => {
+  const token = ['ghp_', 'Hist'.repeat(9)].join('');
+  const npmToken = ['npm_', 'Kept'.repeat(9)].join('');
+  let repoDir: string;
+
+  beforeAll(async () => {
+    repoDir = mkdtempSync(join(tmpdir(), 'argus-history-'));
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd: repoDir, stdio: 'ignore' });
+    git('init', '-q', '-b', 'main');
+    writeFileSync(join(repoDir, 'README.md'), 'hello\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'initial');
+    mkdirSync(join(repoDir, 'src'));
+    mkdirSync(join(repoDir, 'node_modules', 'x'), { recursive: true });
+    writeFileSync(join(repoDir, 'src', 'app.js'), `const a = 1;\nconst t = "${token}";\n`);
+    writeFileSync(join(repoDir, 'src', 'keep.js'), `const k = "${npmToken}";\n`);
+    writeFileSync(join(repoDir, 'node_modules', 'x', 'leak.js'), `"${['ghp_', 'Vend'.repeat(9)].join('')}"`);
+    git('add', '-f', '.');
+    git('commit', '-q', '-m', 'add config');
+    writeFileSync(join(repoDir, 'src', 'app.js'), 'const a = 1;\nconst t = process.env.TOKEN;\n');
+    git('commit', '-q', '-am', 'remove token');
+  });
+  afterAll(() => rmSync(repoDir, { recursive: true, force: true }));
+
+  const historyInput = async (commits: number): Promise<ScanInput> => ({
+    workdir: repoDir,
+    files: (await walkFiles(repoDir)).filter((f) => !f.path.startsWith('.git/')),
+    repo,
+    settings: { ...DEFAULT_SCANNING_SETTINGS, secretHistoryCommits: commits },
+    log: () => undefined,
+    hashSecret: (v) => `h(${v})`,
+    readText: async (f) => (await import('node:fs/promises')).readFile(f.abs, 'utf8'),
+    excluded: isVendoredPath,
+    git: (args) => runGit(args, { cwd: repoDir, home: tmpdir(), timeoutMs: 30_000 }),
+  });
+
+  it('parses added lines of a unified diff', () => {
+    const patch = ['diff --git a/x.js b/x.js', '--- a/x.js', '+++ b/x.js', '@@ -1,0 +5,2 @@', '+one', '+two', '+++ /dev/null', '@@ -1 +0,0 @@', '+ignored'].join('\n');
+    expect([...addedLines(patch)]).toEqual([
+      { path: 'x.js', line: 5, text: 'one' },
+      { path: 'x.js', line: 6, text: 'two' },
+    ]);
+  });
+
+  it('is off by default', async () => {
+    const out = await new SecretsScanner('argus-no-such-gitleaks-binary', 10_000).run(await historyInput(0));
+    expect(out.findings.map((f) => f.ruleId)).toEqual(['npm-access-token']);
+  });
+
+  it('reports removed secrets once, with their commit, and skips vendored folders and secrets still in the code', async () => {
+    const out = await new SecretsScanner('argus-no-such-gitleaks-binary', 10_000).run(await historyInput(10));
+    expect(out.status).toBe('ok');
+    const history = out.findings.filter((f) => f.details?.history);
+    expect(history).toHaveLength(1);
+    const [h] = history;
+    expect(h).toMatchObject({ ruleId: 'github-pat', path: 'src/app.js', line: null, title: 'GitHub personal access token in src/app.js (git history)' });
+    expect(h.details).toMatchObject({ history: { line: 2, commit: expect.stringMatching(/^[0-9a-f]{40}$/) } });
+    expect(h.description).toMatch(/still in the git history/);
+    // The same identity as in the current code, so removing it from the code does not close the finding.
+    expect(h.identity).toEqual(['src/app.js', `h(${token})`]);
+    expect(out.findings.filter((f) => f.ruleId === 'npm-access-token')).toHaveLength(1);
+  });
+
+  it('becomes partial when the history cannot be read', async () => {
+    const out = await new SecretsScanner('argus-no-such-gitleaks-binary', 10_000).run({ ...(await historyInput(5)), git: async () => Promise.reject(new Error('boom')) });
+    expect(out.status).toBe('partial');
+    expect(out.message).toMatch(/git history could not be scanned: boom/);
   });
 });

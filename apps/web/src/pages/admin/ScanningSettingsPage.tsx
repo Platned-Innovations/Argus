@@ -140,10 +140,15 @@ export function ScanningSettingsPage() {
             <div className="border-t border-slate-100 p-5 dark:border-slate-800">
               <Checkbox
                 label="Verify detected secrets with their issuer"
-                description="For GitHub, GitLab, Slack and npm tokens, makes one read-only request to the issuer's own API to tell whether the secret still works; the risk score rises if it does and drops if it was revoked. Off by default: the detected secret is sent to its issuer (and nowhere else)."
+                description="For GitHub, GitLab, Slack and npm tokens, AWS access keys and Azure Storage account keys, makes one read-only request to the issuer's own API to tell whether the secret still works; the risk score rises if it does and drops if it was revoked. Off by default: the detected secret is sent to its issuer (and nowhere else)."
                 checked={form.verifySecrets}
                 onChange={(e) => setForm({ ...form, verifySecrets: e.target.checked })}
               />
+            </div>
+            <div className="grid gap-4 border-t border-slate-100 p-5 sm:grid-cols-2 dark:border-slate-800">
+              <Field label="Commits of history to scan for secrets" hint="0 scans only the current code. Finds secrets that were committed and later deleted; clones fetch this many commits.">
+                {(id) => <Input id={id} type="number" min={0} max={1000} value={form.secretHistoryCommits} onChange={(e) => setForm({ ...form, secretHistoryCommits: Number(e.target.value) })} required />}
+              </Field>
             </div>
           </Card>
         </fieldset>

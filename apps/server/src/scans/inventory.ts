@@ -23,6 +23,11 @@ const MANIFESTS: [RegExp, string][] = [
 /** Directories that are vendored or generated; never descended into. */
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'bower_components', '.yarn', 'bin', 'obj', 'dist', '.next', 'vendor']);
 const MAX_FILES = 500_000;
+
+/** Whether a repository-relative path is inside a vendored or generated folder. */
+export function isVendoredPath(path: string): boolean {
+  return path.split('/').slice(0, -1).some((d) => SKIP_DIRS.has(d));
+}
 const MAX_MANIFESTS = 1_000;
 
 /**

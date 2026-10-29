@@ -32,7 +32,8 @@ See [Sources, repositories and scans](sources-and-repositories.md).
 | Per-repository choice of scanners | ✅ |
 | `.argus.yml` repo-level configuration (ignore paths, scanner switches, suppressions) — see [Scanners and findings](scanners-and-findings.md#argusyml) | ✅ |
 | **Secret detection** (Gitleaks, with built-in rules as a fallback) | ✅ |
-| Live verification of detected GitHub, GitLab, Slack and npm tokens with their issuer (opt-in) | ✅ |
+| Live verification of detected GitHub, GitLab, Slack and npm tokens, AWS access keys and Azure Storage keys with their issuer (opt-in) | ✅ |
+| Secrets in recent git history (configurable number of commits, opt-in) | ✅ |
 | **npm vulnerabilities, deprecations and latest versions** (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`) | ✅ |
 | **NuGet vulnerabilities and latest versions** (`PackageReference`, central package management, `packages.lock.json`, `packages.config`) | ✅ |
 | **Framework / runtime end-of-life** (.NET, .NET Framework, Node.js, Angular, React, Vue, Next.js, NestJS) | ✅ |
