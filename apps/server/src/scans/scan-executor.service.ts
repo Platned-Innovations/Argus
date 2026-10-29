@@ -36,6 +36,11 @@ export class ScanExecutor implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    // Without a handler the runner never claims scan jobs, so they stay queued for another worker.
+    if (!this.config.scanEnabled) {
+      if (this.config.role !== 'api') this.logger.warn('Scanning is turned off (SCAN=false): this instance does not run repository scans');
+      return;
+    }
     this.runner.register(SCAN_JOB, (job, ctx) => this.execute(job, ctx));
   }
 
