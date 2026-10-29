@@ -1,5 +1,5 @@
 import { type Permission, ROLE_LABELS } from '@argus/shared';
-import { BellRing, Bot, Bug, FileBarChart, KeyRound, FolderGit2, PackageSearch, Plug, ShieldOff, SlidersHorizontal, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Server, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
+import { BellRing, BookOpen, Bot, Bug, FileBarChart, KeyRound, FolderGit2, PackageSearch, Plug, ShieldOff, SlidersHorizontal, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Server, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
 import { type ComponentType, type ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth';
@@ -44,6 +44,7 @@ const sections: { title?: string; items: NavItem[] }[] = [
       { to: '/admin/system', label: 'System', icon: Server, permission: 'settings:manage' },
     ],
   },
+  { title: 'Help', items: [{ to: '/docs', label: 'Documentation', icon: BookOpen }] },
 ];
 
 function Logo() {

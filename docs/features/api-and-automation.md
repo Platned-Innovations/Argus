@@ -25,7 +25,7 @@ Token requests carry no cookies, so CSRF protection does not apply to them.
 
 ## OpenAPI
 
-`GET /api/v1/openapi.json` returns an OpenAPI 3.1 description of the REST API, generated from the running code. For every endpoint it gives:
+`GET /api/v1/openapi.json` returns an OpenAPI 3.1 description of the REST API, generated from the running code. To read it in Argus, open **Documentation → API reference**. It lists every endpoint by area, with its method, path, required permissions, parameters and JSON body, and you can filter it. For every endpoint it gives:
 - the path and method
 - the request body and query parameters, from the same validation schemas the server enforces
 - the permissions it requires (`x-argus-permissions`)

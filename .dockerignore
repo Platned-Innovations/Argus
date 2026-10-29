@@ -6,6 +6,7 @@
 .github
 .env
 .env.*
-docs
 *.md
 !apps/web/**/*.md
+# The user guide is bundled into the web app (in-app documentation).
+!docs/**/*.md
