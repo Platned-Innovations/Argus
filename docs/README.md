@@ -16,4 +16,5 @@
 - **Deployment**
   - [Docker and docker compose](deployment/docker.md)
   - [Azure Web App for Containers](deployment/azure.md)
+  - [Windows without Docker](deployment/windows.md)
 - **[Development](development.md):** working on Argus itself.
