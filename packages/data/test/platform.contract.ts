@@ -2,6 +2,39 @@ import { describe, expect, it } from 'vitest';
 import { type DataStore } from '../src';
 
 export function platformContract(getStore: () => DataStore): void {
+  describe('credential inventory', () => {
+    it('stores credentials, lists by expiry with filters, tracks imports and clears a deleted team', async () => {
+      const store = getStore();
+      const team = await store.teams.create({ name: `Cred ${Date.now()}`, description: null });
+      const tag = Math.random().toString(36).slice(2, 8);
+      const base = { kind: 'api_key' as const, system: 'Stripe', owner: 'payments@acme.com', teamId: team.id, notes: '', notifyEmails: ['ops@acme.com'], source: 'manual' as const, externalId: null, archived: false, createdBy: null };
+      const later = await store.credentials.create({ ...base, name: `Payments key (prod) ${tag}`, expiresAt: new Date(Date.now() + 60 * 86_400_000) });
+      const soon = await store.credentials.create({ ...base, name: `Webhook secret ${tag}`, system: 'GitHub', expiresAt: new Date(Date.now() + 5 * 86_400_000) });
+      const imported = await store.credentials.create({ ...base, name: `App secret ${tag}`, kind: 'client_secret', teamId: null, source: 'entra', externalId: `app-${tag}:key-1`, expiresAt: new Date(Date.now() + 10 * 86_400_000) });
+      expect(later).toMatchObject({ notifyEmails: ['ops@acme.com'], lastNoticeDays: null, archived: false });
+      await expect(store.credentials.create({ ...base, name: 'dup', source: 'entra', externalId: `app-${tag}:key-1`, expiresAt: new Date() })).rejects.toThrow();
+
+      const mine = await store.credentials.list({ search: tag, offset: 0, limit: 10 });
+      expect(mine.items.map((c) => c.id)).toEqual([soon.id, imported.id, later.id]);
+      expect((await store.credentials.list({ search: tag, expiresBefore: new Date(Date.now() + 30 * 86_400_000), offset: 0, limit: 10 })).total).toBe(2);
+      // Organisation-wide (no team) credentials are not in a team-restricted view.
+      expect((await store.credentials.list({ search: tag, visibleTeamIds: [team.id], offset: 0, limit: 10 })).total).toBe(2);
+      expect((await store.credentials.list({ search: 'GITHUB', offset: 0, limit: 100 })).items.some((c) => c.id === soon.id)).toBe(true);
+      // Regex and LIKE metacharacters are matched literally.
+      expect((await store.credentials.list({ search: '(prod) ' + tag, offset: 0, limit: 10 })).items.map((c) => c.id)).toEqual([later.id]);
+      expect((await store.credentials.list({ search: '%', offset: 0, limit: 10 })).total).toBe(0);
+
+      expect(await store.credentials.update(soon.id, { lastNoticeDays: 7, notifyEmails: [], archived: true })).toMatchObject({ lastNoticeDays: 7, notifyEmails: [], archived: true });
+      expect((await store.credentials.list({ search: tag, archived: false, offset: 0, limit: 10 })).total).toBe(2);
+      expect((await store.credentials.listBySource('entra')).some((c) => c.externalId === `app-${tag}:key-1`)).toBe(true);
+
+      await store.teams.delete(team.id);
+      expect((await store.credentials.findById(later.id))?.teamId).toBeNull();
+      expect(await store.credentials.delete(later.id)).toBe(true);
+      expect(await store.credentials.findById(later.id)).toBeNull();
+    });
+  });
+
   describe('dashboard statistics', () => {
     it('returns active rows plus recently changed ones, scoped by repository and team', async () => {
       const store = getStore();

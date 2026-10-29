@@ -36,6 +36,8 @@ interface NotifyPayload {
   runId?: string;
   error?: string;
   threat?: EmergingThreat;
+  credentialId?: string;
+  daysLeft?: number;
 }
 
 /** ISO week id such as "2026-W44", used so each weekly digest is sent once. */
@@ -83,6 +85,12 @@ export class NotificationsService implements OnModuleInit {
     });
     this.events.on('scheduler.tick', ({ now }) => this.maybeSendDigests(now));
     this.events.on('scheduler.tick', ({ now }) => this.maybeSendMonthlyReports(now));
+    this.events.on('credential.expiring', async ({ credential, daysLeft }) => {
+      const severity: Severity = daysLeft < 0 ? 'critical' : daysLeft <= 7 ? 'high' : 'medium';
+      for (const rule of await this.matchingRules('credential_expiring', credential.teamId, severity)) {
+        await this.enqueue({ ruleId: rule.id, event: 'credential_expiring', credentialId: credential.id, daysLeft });
+      }
+    });
     this.events.on('intel.emerging_threats', async ({ threats }) => {
       for (const threat of threats) {
         const rules = (await this.matchingRules('emerging_threat', null, threat.severity)).filter((r) => !r.teamIds.length || threat.teamIds.some((t) => t !== null && r.teamIds.includes(t)));
@@ -178,6 +186,26 @@ export class NotificationsService implements OnModuleInit {
     let extraRecipients: string[] = [];
     if (p.event === 'weekly_digest') message = await this.digestMessage(rule);
     else if (p.event === 'monthly_report') message = await this.monthlyReportMessage(rule);
+    else if (p.event === 'credential_expiring' && p.credentialId) {
+      const c = await this.store.credentials.findById(p.credentialId);
+      if (!c || c.archived) return;
+      const left = p.daysLeft ?? 0;
+      if (rule.includeRepoRecipients) extraRecipients = c.notifyEmails;
+      message = {
+        event: p.event,
+        title: left < 0 ? `Credential expired: ${c.name}` : `Credential expires in ${left} day(s): ${c.name}`,
+        summary: `${c.name}${c.system ? ` (${c.system})` : ''} ${left < 0 ? 'has expired' : `expires on ${c.expiresAt.toISOString().slice(0, 10)}`}. Rotate it and record the new expiry date in Argus.`,
+        severity: left < 0 ? 'critical' : left <= 7 ? 'high' : 'medium',
+        url: this.link('/credentials'),
+        facts: [
+          { name: 'Kind', value: c.kind.replace('_', ' ') },
+          ...(c.system ? [{ name: 'System', value: c.system }] : []),
+          ...(c.owner ? [{ name: 'Owner', value: c.owner }] : []),
+          { name: 'Expires', value: c.expiresAt.toISOString().slice(0, 10) },
+          ...(c.source === 'entra' ? [{ name: 'Source', value: 'Microsoft Entra ID' }] : []),
+        ],
+      };
+    }
     else if (p.event === 'emerging_threat' && p.threat) {
       const t = p.threat;
       // A team-scoped rule only names that team's repositories.

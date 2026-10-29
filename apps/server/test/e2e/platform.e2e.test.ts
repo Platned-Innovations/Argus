@@ -1,10 +1,14 @@
 import 'reflect-metadata';
+import { createServer, type Server } from 'node:http';
+import { type AddressInfo } from 'node:net';
 import { type INestApplication } from '@nestjs/common';
+import { type DataStore } from '@argus/data';
 import { type ApiTokenCreatedDto, type ApiTokenDto } from '@argus/shared';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
 import { AppConfig } from '../../src/config/app-config';
+import { DATA_STORE } from '../../src/core/tokens';
 import { BASE_TEST_ENV, Client, dbHarnesses } from './helpers';
 
 const harnesses = dbHarnesses();
@@ -22,9 +26,34 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
     return body ? r.send(body) : r;
   };
 
+  /** Mock Microsoft Entra token endpoint and Graph applications API (two pages). */
+  let graph: Server;
+  const graphState = { apps: [] as unknown[], webhooks: [] as { title: string; event: string }[] };
+  const graphUrl = () => `http://127.0.0.1:${(graph.address() as AddressInfo).port}`;
+
   beforeAll(async () => {
+    graph = createServer((req, res) => {
+      let body = '';
+      req.on('data', (c: Buffer) => (body += c.toString()));
+      req.on('end', () => {
+        const json = (data: unknown, status = 200) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(data));
+        const url = new URL(req.url ?? '/', graphUrl());
+        if (url.pathname === '/login/contoso/oauth2/v2.0/token') return new URLSearchParams(body).get('client_secret') === 'entra-secret-0001' ? json({ access_token: 'graph-token' }) : json({ error: 'invalid_client' }, 401);
+        if (url.pathname === '/hook') {
+          graphState.webhooks.push(JSON.parse(body));
+          return json({ ok: true });
+        }
+        if (req.headers.authorization !== 'Bearer graph-token') return json({ error: 'unauthorized' }, 401);
+        if (url.pathname === '/graph/v1.0/applications' && !url.searchParams.get('page')) return json({ value: graphState.apps.slice(0, 1), '@odata.nextLink': `${graphUrl()}/graph/v1.0/applications?page=2` });
+        if (url.pathname === '/graph/v1.0/applications') return json({ value: graphState.apps.slice(1) });
+        return json({}, 404);
+      });
+    });
+    await new Promise<void>((r) => graph.listen(0, '127.0.0.1', r));
     const env = await h.env();
-    app = await createApiApp(AppConfig.fromEnv({ ...env, ...BASE_TEST_ENV, ARGUS_ADMIN_PASSWORD: 'Initial-Admin-Pass-1', ARGUS_ROLE: 'api', ARGUS_METRICS_TOKEN: METRICS_TOKEN }));
+    app = await createApiApp(
+      AppConfig.fromEnv({ ...env, ...BASE_TEST_ENV, ARGUS_ADMIN_PASSWORD: 'Initial-Admin-Pass-1', ARGUS_ROLE: 'api', ARGUS_METRICS_TOKEN: METRICS_TOKEN, ARGUS_GRAPH_URL: `${graphUrl()}/graph`, ARGUS_ENTRA_LOGIN_URL: `${graphUrl()}/login` }),
+    );
     await app.init();
     admin = new Client(app);
     await admin.login('admin', 'Initial-Admin-Pass-1');
@@ -37,7 +66,82 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
 
   afterAll(async () => {
     await app?.close();
+    graph?.close();
     await h.stop();
+  });
+
+  describe('credential inventory', () => {
+    it('tracks credentials (never their values), scoped to teams, with audited changes', async () => {
+      const team = (await admin.call('post', '/api/v1/teams', { name: 'Payments' })).body.id;
+      const res = await admin.call('post', '/api/v1/credentials', { name: 'Stripe live key', kind: 'api_key', system: 'Stripe', owner: 'payments@acme.com', teamId: team, expiresAt: new Date(Date.now() + 10 * 86_400_000).toISOString(), notifyEmails: ['payments@acme.com'] });
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ source: 'manual', teamName: 'Payments', daysLeft: 9 });
+      expect(Object.keys(res.body)).not.toContain('value');
+      // Developers can see credentials of their teams only and cannot manage them.
+      expect(((await dev.call('get', '/api/v1/credentials')).body as { total: number }).total).toBe(0);
+      expect((await dev.call('post', '/api/v1/credentials', { name: 'x', kind: 'other', expiresAt: new Date().toISOString() })).status).toBe(403);
+      const list = (await admin.call('get', '/api/v1/credentials?expiringWithinDays=30')).body as { items: { id: string; name: string }[] };
+      expect(list.items.map((c) => c.name)).toContain('Stripe live key');
+      const renewed = await admin.call('patch', `/api/v1/credentials/${res.body.id}`, { expiresAt: new Date(Date.now() + 365 * 86_400_000).toISOString() });
+      expect(renewed.body.daysLeft).toBeGreaterThan(360);
+      expect((await admin.call('get', '/api/v1/audit?action=credential.updated')).body.items[0].details).toMatchObject({ renewed: true });
+      // Tracked credentials appear on the dashboard's expiry timeline.
+      await admin.call('patch', `/api/v1/credentials/${res.body.id}`, { expiresAt: new Date(Date.now() + 20 * 86_400_000).toISOString() });
+      const d = (await admin.call('get', '/api/v1/dashboard?days=30')).body as { expiring: { kind: string; title: string }[] };
+      expect(d.expiring).toEqual([expect.objectContaining({ kind: 'credential', title: 'Stripe live key' })]);
+      expect((await admin.call('delete', `/api/v1/credentials/${res.body.id}`)).status).toBe(200);
+    });
+
+    it('imports Entra ID application secrets and certificates, archiving ones removed in Entra', async () => {
+      const end = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
+      graphState.apps = [
+        { appId: 'app-1', displayName: 'Payroll API', passwordCredentials: [{ keyId: 'k1', displayName: 'prod', endDateTime: end(12) }], keyCredentials: [{ keyId: 'c1', displayName: 'CN=payroll', endDateTime: end(200) }] },
+        { appId: 'app-2', displayName: 'Intranet', passwordCredentials: [{ keyId: 'k2', displayName: null, endDateTime: end(400) }], keyCredentials: [] },
+      ];
+      expect((await admin.call('put', '/api/v1/credentials/entra', { enabled: true, tenantId: 'contoso', clientId: 'app-id' })).status).toBe(400);
+      const saved = await admin.call('put', '/api/v1/credentials/entra', { enabled: true, tenantId: 'contoso', clientId: 'app-id', clientSecret: 'entra-secret-0001' });
+      expect(saved.body).toMatchObject({ secretConfigured: true, secretHint: '••••0001' });
+      expect(JSON.stringify(saved.body)).not.toContain('entra-secret-0001');
+      expect((await dev.call('get', '/api/v1/credentials/entra')).status).toBe(403);
+
+      const sync = await admin.call('post', '/api/v1/credentials/entra/sync');
+      expect(sync.body).toMatchObject({ lastSyncError: null, lastSyncCount: 3 });
+      let list = (await admin.call('get', '/api/v1/credentials?search=Payroll')).body as { items: { name: string; kind: string; source: string; id: string }[] };
+      expect(list.items.map((c) => [c.name, c.kind, c.source])).toEqual([
+        ['Payroll API — prod', 'client_secret', 'entra'],
+        ['Payroll API — CN=payroll', 'certificate', 'entra'],
+      ]);
+      expect((await admin.call('delete', `/api/v1/credentials/${list.items[0].id}`)).status).toBe(400);
+
+      // The certificate is removed in Entra: the next sync archives it.
+      (graphState.apps[0] as { keyCredentials: unknown[] }).keyCredentials = [];
+      expect((await admin.call('post', '/api/v1/credentials/entra/sync')).body.lastSyncCount).toBe(2);
+      list = (await admin.call('get', '/api/v1/credentials?search=Payroll')).body;
+      expect(list.items.map((c) => c.name)).toEqual(['Payroll API — prod']);
+      expect(((await admin.call('get', '/api/v1/credentials?search=Payroll&archived=true')).body as { total: number }).total).toBe(1);
+
+      // A wrong secret is reported, not thrown.
+      await admin.call('put', '/api/v1/credentials/entra', { enabled: true, tenantId: 'contoso', clientId: 'app-id', clientSecret: 'wrong-secret' });
+      const failed = (await admin.call('post', '/api/v1/credentials/entra/sync')).body;
+      expect(failed.lastSyncError).toMatch(/Microsoft Entra ID returned HTTP 401/);
+      expect(failed.lastSyncError).not.toContain('wrong-secret');
+    });
+
+    it('sends expiry notices through notification rules, once per threshold', async () => {
+      const channel = (await admin.call('post', '/api/v1/integrations/channels', { type: 'webhook', name: 'Ops hook', enabled: true, config: { url: `${graphUrl()}/hook` }, secret: 'whsec_0123456789abcdef' })).body.id;
+      await admin.call('post', '/api/v1/integrations/rules', { name: 'Expiring credentials', events: ['credential_expiring'], minSeverity: 'medium', channelIds: [channel] });
+      await admin.call('post', '/api/v1/credentials', { name: 'Expired DB password', kind: 'password', system: 'Azure SQL', expiresAt: new Date(Date.now() - 86_400_000).toISOString() });
+      const { CredentialsService } = await import('../../src/credentials/credentials.service');
+      const svc = app.get(CredentialsService);
+      // The expired password, and the imported Entra secret that expires in 12 days (its 14-day notice).
+      expect(await svc.sendNotices(new Date())).toBe(2);
+      // Already notified at these thresholds: nothing new.
+      expect(await svc.sendNotices(new Date())).toBe(0);
+      // In the api role nothing delivers jobs, so the queued notification is still there to inspect.
+      const store = app.get<DataStore>(DATA_STORE);
+      const jobs = (await store.jobs.countByStatus()).filter((j) => j.type === 'notification.deliver' && j.status === 'queued');
+      expect(jobs.reduce((n, j) => n + j.count, 0)).toBe(2);
+    });
   });
 
   describe('API tokens', () => {

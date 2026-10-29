@@ -18,6 +18,7 @@ import { MetricsController } from './health/metrics.controller';
 import { OpenApiController, OpenApiService } from './health/openapi';
 import { IntelModule } from './intel/intel.module';
 import { ReportsModule } from './reports/reports.module';
+import { CredentialsModule } from './credentials/credentials.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ScansModule } from './scans/scans.module';
 import { SettingsController } from './settings/settings.controller';
@@ -64,6 +65,7 @@ export class AppModule {
         AiModule,
         IntelModule,
         ReportsModule,
+        CredentialsModule,
         ...(config.webDir
           ? [
               ServeStaticModule.forRoot({
@@ -98,6 +100,6 @@ export class AppModule {
 @Module({})
 export class WorkerAppModule {
   static register(config: AppConfig): DynamicModule {
-    return { module: WorkerAppModule, imports: [CoreModule.forRoot(config), loggerModule(config), JobsModule, SourcesModule, ScansModule, TicketsModule, IntelModule, WorkerModule] };
+    return { module: WorkerAppModule, imports: [CoreModule.forRoot(config), loggerModule(config), JobsModule, SourcesModule, ScansModule, TicketsModule, IntelModule, CredentialsModule, WorkerModule] };
   }
 }

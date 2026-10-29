@@ -72,7 +72,7 @@ import {
   type NewIntelItem,
   type NewIntelSource,
 } from './intel-models';
-import { type ApiToken, type FindingStatRow, type NewApiToken, type StatsFilter, type TicketStatRow } from './platform-models';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type FindingStatRow, type NewApiToken, type NewCredential, type StatsFilter, type TicketStatRow } from './platform-models';
 import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
 import { type AiSubjectType, type AiUseCase, type Ecosystem, type IntelItemStatus } from '@argus/shared';
 
@@ -334,6 +334,17 @@ export interface ApiTokenRepo {
   revokeAllForUser(userId: string): Promise<number>;
 }
 
+export interface CredentialRepo {
+  create(input: NewCredential): Promise<Credential>;
+  findById(id: string): Promise<Credential | null>;
+  /** Soonest expiry first. */
+  list(filter: CredentialListFilter): Promise<{ items: Credential[]; total: number }>;
+  update(id: string, patch: CredentialPatch): Promise<Credential | null>;
+  delete(id: string): Promise<boolean>;
+  /** Every credential imported from a source (archived included), for synchronisation. */
+  listBySource(source: Credential['source']): Promise<Credential[]>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -362,6 +373,7 @@ export interface DataStore {
   readonly intelItems: IntelItemRepo;
   readonly advisories: AdvisoryRepo;
   readonly apiTokens: ApiTokenRepo;
+  readonly credentials: CredentialRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

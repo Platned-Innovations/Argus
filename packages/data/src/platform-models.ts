@@ -1,4 +1,4 @@
-import { type FindingStatus, type Permission, type ScannerName, type Severity, type TicketStatus } from '@argus/shared';
+import { type CredentialKind, type CredentialSource, type FindingStatus, type Permission, type ScannerName, type Severity, type TicketStatus } from '@argus/shared';
 
 /** Scope of dashboard statistics. */
 export interface StatsFilter {
@@ -48,3 +48,40 @@ export interface ApiToken {
 }
 
 export type NewApiToken = Pick<ApiToken, 'userId' | 'name' | 'tokenHash' | 'prefix' | 'scopes' | 'expiresAt'>;
+
+/** A tracked credential (never the secret itself): what it is, who owns it and when it expires. */
+export interface Credential {
+  id: string;
+  name: string;
+  kind: CredentialKind;
+  system: string;
+  owner: string;
+  teamId: string | null;
+  expiresAt: Date;
+  notes: string;
+  notifyEmails: string[];
+  source: CredentialSource;
+  /** Identity in the source it was imported from (e.g. Entra application id and key id). */
+  externalId: string | null;
+  archived: boolean;
+  /** The smallest notice threshold (days before expiry) already sent, so each notice goes out once. */
+  lastNoticeDays: number | null;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type NewCredential = Omit<Credential, 'id' | 'createdAt' | 'updatedAt' | 'lastNoticeDays'>;
+export type CredentialPatch = Partial<Omit<Credential, 'id' | 'createdAt' | 'updatedAt' | 'source' | 'externalId'>>;
+
+export interface CredentialListFilter {
+  /** null-team (organisation-wide) credentials are only visible without this restriction. */
+  visibleTeamIds?: string[];
+  teamId?: string;
+  /** Matches name, system or owner. */
+  search?: string;
+  expiresBefore?: Date;
+  archived?: boolean;
+  offset: number;
+  limit: number;
+}

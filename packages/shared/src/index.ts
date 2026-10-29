@@ -10,3 +10,4 @@ export * from './ai';
 export * from './intel';
 export * from './api-tokens';
 export * from './dashboard';
+export * from './credentials';

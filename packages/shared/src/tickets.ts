@@ -259,7 +259,7 @@ export const channelTestSchema = z.object({ to: z.email().optional() });
 
 // ---------------------------------------------------------------- notification rules
 
-export const NOTIFICATION_EVENTS = ['ticket_created', 'ticket_reopened', 'sla_breached', 'scan_failed', 'weekly_digest', 'emerging_threat', 'monthly_report'] as const;
+export const NOTIFICATION_EVENTS = ['ticket_created', 'ticket_reopened', 'sla_breached', 'scan_failed', 'weekly_digest', 'emerging_threat', 'monthly_report', 'credential_expiring'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
@@ -270,6 +270,7 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   weekly_digest: 'Weekly digest (Mondays 07:00 UTC)',
   emerging_threat: 'Emerging threat (a new advisory affects repositories between scans)',
   monthly_report: 'Monthly security report (1st of the month, 07:00 UTC)',
+  credential_expiring: 'Tracked credential expiring (30, 14, 7 and 1 days before, and at expiry)',
 };
 
 export const notificationRuleSchema = z.object({

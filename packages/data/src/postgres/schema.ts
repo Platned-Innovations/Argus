@@ -415,6 +415,25 @@ export interface ApiTokensTable {
   createdAt: Date;
 }
 
+export interface CredentialsTable {
+  id: string;
+  name: string;
+  kind: string;
+  system: string;
+  owner: string;
+  teamId: string | null;
+  expiresAt: Date;
+  notes: string;
+  notifyEmails: Json<string[]>;
+  source: string;
+  externalId: string | null;
+  archived: boolean;
+  lastNoticeDays: number | null;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -442,4 +461,5 @@ export interface Database {
   intelItems: IntelItemsTable;
   advisories: AdvisoriesTable;
   apiTokens: ApiTokensTable;
+  credentials: CredentialsTable;
 }

@@ -1,5 +1,5 @@
 import { type Permission, ROLE_LABELS } from '@argus/shared';
-import { BellRing, Bot, Bug, FileBarChart, FolderGit2, PackageSearch, Plug, ShieldOff, SlidersHorizontal, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
+import { BellRing, Bot, Bug, FileBarChart, KeyRound, FolderGit2, PackageSearch, Plug, ShieldOff, SlidersHorizontal, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
 import { type ComponentType, type ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth';
@@ -24,6 +24,7 @@ const sections: { title?: string; items: NavItem[] }[] = [
       { to: '/suppressions', label: 'Suppressions', icon: ShieldOff, permission: 'findings:read' },
       { to: '/tickets', label: 'Tickets', icon: ShieldAlert, permission: 'tickets:read' },
       { to: '/reports', label: 'Reports', icon: FileBarChart, permission: 'reports:read' },
+      { to: '/credentials', label: 'Credentials', icon: KeyRound, permission: 'findings:read' },
       { to: '/intel', label: 'Threat intel', icon: Radar, permission: 'findings:read' },
     ],
   },
