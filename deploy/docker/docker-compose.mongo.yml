@@ -5,6 +5,7 @@ name: argus-mongo
 
 services:
   mongo:
+    # mongo 8.0/8.3 cannot start on Linux kernel 6.19+; use mongo:7.0 on such hosts (see docs/deployment/docker.md).
     image: mongo:8
     restart: unless-stopped
     environment:
