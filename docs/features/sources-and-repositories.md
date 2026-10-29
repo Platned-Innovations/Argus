@@ -126,6 +126,17 @@ Argus needs outbound HTTPS to:
 - `api.github.com` and `github.com`, or your GitHub Enterprise Server
 - `api.bitbucket.org` and `bitbucket.org`, or your Bitbucket Data Center server
 
+For vulnerability and lifecycle data it also needs:
+
+- `api.osv.dev`
+- `www.cisa.gov`
+- `api.first.org`
+- `endoflife.date`
+- `registry.npmjs.org`
+- `api.nuget.org`
+
+You can point these at mirrors, or turn them off with `ARGUS_OFFLINE=true`. See [data sources](scanners-and-findings.md#data-sources-caching-and-offline-mode).
+
 **Behind an HTTP proxy:** set `HTTPS_PROXY` (and `NO_PROXY` as needed). Git honours these directly; for API calls, also set `NODE_USE_ENV_PROXY=1`.
 
 **Private certificate authority:** if your server's certificate comes from a private CA, mount the CA bundle and set both of these to it:

@@ -2,6 +2,7 @@ import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDataStore, type DataStore, DuplicateKeyError, type NewUser } from '../src';
+import { findingsContract } from './findings.contract';
 import { scanningContract } from './scanning.contract';
 
 /**
@@ -196,6 +197,7 @@ describe.each(harnesses)('DataStore contract: $name', (h) => {
   });
 
   scanningContract(() => store);
+  findingsContract(() => store);
 
   describe('settings', () => {
     it('round-trips JSON values and upserts', async () => {

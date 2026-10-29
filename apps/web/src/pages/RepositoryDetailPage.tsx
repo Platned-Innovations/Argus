@@ -1,6 +1,10 @@
 import {
   type Criticality,
   CRITICALITIES,
+  type FindingSummary,
+  SCANNER_LABELS,
+  SCANNERS,
+  type ScannerName,
   type Paged,
   PROVIDER_LABELS,
   type RepositoryDto,
@@ -16,6 +20,9 @@ import { ArrowLeft, ExternalLink, History, Play } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { toast } from 'sonner';
+import { DependenciesTable } from '../components/DependenciesTable';
+import { SeverityBadge } from '../components/findings';
+import { FindingsTable } from '../components/FindingsTable';
 import { formatDuration, isActiveScan, ScanRunModal, ScanStatusBadge, TRIGGER_LABELS } from '../components/scans';
 import { Badge, Button, Card, CardHeader, CenteredSpinner, Checkbox, EmptyState, ErrorAlert, Field, Input, Pagination, Select, Table } from '../components/ui';
 import { api } from '../lib/api';
@@ -34,6 +41,7 @@ interface FormState {
   scanOnPush: boolean;
   jiraProjectKey: string;
   notifyEmails: string;
+  disabledScanners: ScannerName[];
 }
 
 function toForm(r: RepositoryDto): FormState {
@@ -47,6 +55,7 @@ function toForm(r: RepositoryDto): FormState {
     scanOnPush: r.scanOnPush,
     jiraProjectKey: r.jiraProjectKey ?? '',
     notifyEmails: r.notifyEmails.join(', '),
+    disabledScanners: r.disabledScanners,
   };
 }
 
@@ -72,6 +81,7 @@ function SettingsCard({ repo }: { repo: RepositoryDto }) {
           .split(/[,;\s]+/)
           .map((e) => e.trim())
           .filter(Boolean),
+        disabledScanners: form.disabledScanners,
       };
       return api<RepositoryDto>(`/repos/${repo.id}`, { method: 'PATCH', body });
     },
@@ -156,6 +166,19 @@ function SettingsCard({ repo }: { repo: RepositoryDto }) {
             </Field>
           </div>
           <Checkbox label="Scan on push" description="Requires the source's push webhook to be configured." checked={form.scanOnPush} onChange={(e) => setForm({ ...form, scanOnPush: e.target.checked })} />
+          <div>
+            <div className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Scanners</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {SCANNERS.map((s) => (
+                <Checkbox
+                  key={s}
+                  label={SCANNER_LABELS[s]}
+                  checked={!form.disabledScanners.includes(s)}
+                  onChange={(e) => setForm({ ...form, disabledScanners: e.target.checked ? form.disabledScanners.filter((x) => x !== s) : [...form.disabledScanners, s] })}
+                />
+              ))}
+            </div>
+          </div>
         </fieldset>
         {manage && (
           <Button type="submit" loading={save.isPending}>
@@ -173,6 +196,8 @@ export function RepositoryDetailPage() {
   const qc = useQueryClient();
   const [runsPage, setRunsPage] = useState(1);
   const [openRun, setOpenRun] = useState<string | null>(null);
+  const [tab, setTab] = useState<'findings' | 'dependencies' | 'history'>('findings');
+  const summary = useQuery({ queryKey: ['findings', 'summary', id], queryFn: () => api<FindingSummary>('/findings/summary', { query: { repoId: id } }) });
 
   const repo = useQuery({
     queryKey: ['repo', id],
@@ -218,6 +243,18 @@ export function RepositoryDetailPage() {
             )}
           </div>
           {r.description && <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{r.description}</p>}
+          {summary.data && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-slate-500">Open findings:</span>
+              {summary.data.openTotal === 0 ? (
+                <span className="text-green-700 dark:text-green-400">none</span>
+              ) : (
+                (['critical', 'high', 'medium', 'low', 'info'] as const)
+                  .filter((s) => summary.data.open[s] > 0)
+                  .map((s) => <SeverityBadge key={s} severity={s} score={summary.data.open[s]} />)
+              )}
+            </div>
+          )}
         </div>
         {can('scans:run') && (
           <Button icon={<Play className="size-4" />} loading={scan.isPending} disabled={r.removed || isActiveScan(r.lastScanStatus)} onClick={() => scan.mutate()}>
@@ -249,34 +286,67 @@ export function RepositoryDetailPage() {
         </Card>
 
         <Card className="lg:col-span-3">
-          <CardHeader title="Scan history" description="Scan runs are kept for 90 days." />
-          <ErrorAlert error={runs.error} />
-          {runs.isLoading ? (
-            <CenteredSpinner />
-          ) : !runs.data?.items.length ? (
-            <EmptyState icon={<History className="size-5" />} title="No scans yet" description={r.active ? 'The first scan starts shortly after monitoring is turned on.' : 'Turn on monitoring or run a scan manually.'} />
-          ) : (
+          <div className="flex gap-1 border-b border-slate-200 px-3 pt-2 dark:border-slate-800" role="tablist">
+            {(
+              [
+                ['findings', 'Findings'],
+                ['dependencies', 'Dependencies'],
+                ['history', 'Scan history'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === key ? 'border-indigo-600 text-indigo-700 dark:text-indigo-300' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {tab === 'findings' && <FindingsTable repoId={r.id} />}
+          {tab === 'dependencies' && <DependenciesTable repoId={r.id} />}
+          {tab === 'history' && (
             <>
-              <Table head={['Queued', 'Trigger', 'Status', 'Branch / commit', 'Duration', 'Ecosystems']}>
-                {runs.data.items.map((run) => (
-                  <tr key={run.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" onClick={() => setOpenRun(run.id)}>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{formatDateTime(run.queuedAt)}</td>
-                    <td className="px-4 py-2.5">{TRIGGER_LABELS[run.trigger]}</td>
-                    <td className="px-4 py-2.5">
-                      <ScanStatusBadge status={run.status} />
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs">
-                      {run.branch ?? '—'}
-                      {run.commitSha && <span className="text-slate-500"> @ {run.commitSha.slice(0, 8)}</span>}
-                    </td>
-                    <td className="px-4 py-2.5">{formatDuration(run.durationMs)}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex flex-wrap gap-1">{run.stats?.ecosystems.map((e) => <Badge key={e} tone="indigo">{e}</Badge>) ?? (run.error ? <span className="text-xs text-red-600 dark:text-red-400">{run.error.slice(0, 80)}</span> : '—')}</div>
-                    </td>
-                  </tr>
-                ))}
-              </Table>
-              <Pagination page={runsPage} pageSize={RUNS_PAGE_SIZE} total={runs.data.total} onPage={setRunsPage} />
+              <p className="px-5 pt-3 text-xs text-slate-500">Scan runs are kept for 90 days.</p>
+              <ErrorAlert error={runs.error} />
+              {runs.isLoading ? (
+                <CenteredSpinner />
+              ) : !runs.data?.items.length ? (
+                <EmptyState icon={<History className="size-5" />} title="No scans yet" description={r.active ? 'The first scan starts shortly after monitoring is turned on.' : 'Turn on monitoring or run a scan manually.'} />
+              ) : (
+                <>
+                  <Table head={['Queued', 'Trigger', 'Status', 'Branch / commit', 'Duration', 'Result']}>
+                    {runs.data.items.map((run) => (
+                      <tr key={run.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" onClick={() => setOpenRun(run.id)}>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{formatDateTime(run.queuedAt)}</td>
+                        <td className="px-4 py-2.5">{TRIGGER_LABELS[run.trigger]}</td>
+                        <td className="px-4 py-2.5">
+                          <ScanStatusBadge status={run.status} />
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-xs">
+                          {run.branch ?? '—'}
+                          {run.commitSha && <span className="text-slate-500"> @ {run.commitSha.slice(0, 8)}</span>}
+                        </td>
+                        <td className="px-4 py-2.5">{formatDuration(run.durationMs)}</td>
+                        <td className="px-4 py-2.5">
+                          {run.error ? (
+                            <span className="text-xs text-red-600 dark:text-red-400">{run.error.slice(0, 80)}</span>
+                          ) : run.stats?.findings ? (
+                            <span className="text-xs">
+                              {run.stats.findings.new} new · {run.stats.findings.fixed} fixed
+                            </span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">{run.stats?.ecosystems.map((e) => <Badge key={e} tone="indigo">{e}</Badge>) ?? '—'}</div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </Table>
+                  <Pagination page={runsPage} pageSize={RUNS_PAGE_SIZE} total={runs.data.total} onPage={setRunsPage} />
+                </>
+              )}
             </>
           )}
         </Card>

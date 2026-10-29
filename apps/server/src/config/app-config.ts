@@ -21,6 +21,14 @@ const envSchema = z.object({
   ARGUS_SCAN_WORKDIR: z.string().optional(),
   ARGUS_SCAN_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(720).default(30),
   ARGUS_SCHEDULER_INTERVAL_SECONDS: z.coerce.number().int().min(1).max(3600).default(30),
+  ARGUS_OFFLINE: z.enum(['true', 'false']).default('false'),
+  ARGUS_GITLEAKS_PATH: z.string().min(1).default('gitleaks'),
+  ARGUS_OSV_URL: z.url().default('https://api.osv.dev'),
+  ARGUS_KEV_URL: z.url().default('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'),
+  ARGUS_EPSS_URL: z.url().default('https://api.first.org/data/v1/epss'),
+  ARGUS_EOL_URL: z.url().default('https://endoflife.date'),
+  ARGUS_NPM_REGISTRY_URL: z.url().default('https://registry.npmjs.org'),
+  ARGUS_NUGET_URL: z.url().default('https://api.nuget.org/v3-flatcontainer'),
   WEBSITES_PORT: z.coerce.number().int().positive().optional(),
   PORT: z.coerce.number().int().positive().default(8080),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -50,6 +58,11 @@ export class AppConfig {
   readonly scanWorkdir!: string;
   readonly scanTimeoutMs!: number;
   readonly schedulerIntervalMs!: number;
+  /** No outbound threat-intelligence lookups; scanners that need them report partial results. */
+  readonly offline!: boolean;
+  readonly gitleaksPath!: string;
+  /** Base URLs of public data sources; point them at internal mirrors if required. */
+  readonly intel!: { osv: string; kev: string; epss: string; eol: string; npmRegistry: string; nuget: string };
   readonly port!: number;
   readonly logLevel!: string;
   readonly isProduction!: boolean;
@@ -87,6 +100,16 @@ export class AppConfig {
       scanWorkdir: resolve(e.ARGUS_SCAN_WORKDIR ?? join(tmpdir(), 'argus-scans')),
       scanTimeoutMs: e.ARGUS_SCAN_TIMEOUT_MINUTES * 60_000,
       schedulerIntervalMs: e.ARGUS_SCHEDULER_INTERVAL_SECONDS * 1000,
+      offline: e.ARGUS_OFFLINE === 'true',
+      gitleaksPath: e.ARGUS_GITLEAKS_PATH,
+      intel: {
+        osv: trimSlash(e.ARGUS_OSV_URL),
+        kev: e.ARGUS_KEV_URL,
+        epss: trimSlash(e.ARGUS_EPSS_URL),
+        eol: trimSlash(e.ARGUS_EOL_URL),
+        npmRegistry: trimSlash(e.ARGUS_NPM_REGISTRY_URL),
+        nuget: trimSlash(e.ARGUS_NUGET_URL),
+      },
       // Azure App Service passes the container port in WEBSITES_PORT.
       port: e.WEBSITES_PORT ?? e.PORT,
       logLevel: e.LOG_LEVEL,
@@ -94,6 +117,10 @@ export class AppConfig {
       version: readVersion(),
     });
   }
+}
+
+function trimSlash(url: string): string {
+  return url.replace(/\/+$/, '');
 }
 
 function parseTrustProxy(value: string): boolean | number | string {

@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnApplica
 import { type DataStore } from '@argus/data';
 import { AppConfig } from '../config/app-config';
 import { DATA_STORE } from '../core/tokens';
+import { IntelService } from '../scanning/intel.service';
 import { SourcesService } from '../sources/sources.service';
 import { ScansService } from './scans.service';
 import { nextRunAt } from './schedule';
@@ -14,6 +15,7 @@ const SOURCE_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
 const HOUSEKEEPING_INTERVAL_MS = 60 * 60_000;
 const JOB_RETENTION_MS = 7 * 24 * 60 * 60_000;
 const SCAN_RUN_RETENTION_MS = 90 * 24 * 60 * 60_000;
+const INTEL_STALE_MS = 7 * 24 * 60 * 60_000;
 
 /**
  * Turns schedules into jobs. Every worker runs this loop, but a database lease ensures that only one
@@ -32,6 +34,7 @@ export class SchedulerService implements OnApplicationBootstrap, OnApplicationSh
     private readonly scans: ScansService,
     private readonly sources: SourcesService,
     private readonly config: AppConfig,
+    private readonly intel: IntelService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -86,6 +89,9 @@ export class SchedulerService implements OnApplicationBootstrap, OnApplicationSh
   private async housekeeping(): Promise<void> {
     const jobs = await this.store.jobs.deleteFinishedBefore(new Date(Date.now() - JOB_RETENTION_MS));
     const runs = await this.store.scanRuns.deleteFinishedBefore(new Date(Date.now() - SCAN_RUN_RETENTION_MS));
-    if (jobs || runs) this.logger.log(`Housekeeping removed ${jobs} finished job(s) and ${runs} old scan run(s)`);
+    // Expired intel is kept for a week so scans can fall back to it while a feed is unreachable.
+    const cache = await this.store.cache.deleteExpired(new Date(Date.now() - INTEL_STALE_MS));
+    if (jobs || runs || cache) this.logger.log(`Housekeeping removed ${jobs} finished job(s), ${runs} old scan run(s) and ${cache} stale intel entries`);
+    if (!this.intel.offline) await this.intel.kev().catch((err: unknown) => this.logger.warn(`CISA KEV refresh failed: ${(err as Error).message}`));
   }
 }

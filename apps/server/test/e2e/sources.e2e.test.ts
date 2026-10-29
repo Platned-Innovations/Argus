@@ -1,104 +1,18 @@
 import 'reflect-metadata';
-import { execFileSync } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
-import { type AddressInfo } from 'node:net';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, normalize } from 'node:path';
+import { join } from 'node:path';
 import { type INestApplication } from '@nestjs/common';
 import { type RepositoryDto, type ScanRunDto, type SourceDto } from '@argus/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
 import { AppConfig } from '../../src/config/app-config';
 import { BASE_TEST_ENV, Client, dbHarnesses, waitFor } from './helpers';
+import { createGitRepo, type FixtureRepo, type MockGitHub, startMockGitHub } from './mock-github';
 
 const TOKEN = 'ghp_e2eTestToken0123456789';
 const EXPECTED_GIT_AUTH = `Basic ${Buffer.from(`x-access-token:${TOKEN}`).toString('base64')}`;
-
-/** A git repository with an npm manifest, a .NET project and a certificate, served over git's "dumb" HTTP protocol. */
-function createFixtureRepo(root: string): { bare: string; sha: string } {
-  const work = join(root, 'work');
-  mkdirSync(join(work, 'src'), { recursive: true });
-  mkdirSync(join(work, 'certs'));
-  writeFileSync(join(work, 'package.json'), JSON.stringify({ name: 'fixture', dependencies: { lodash: '4.17.20' } }));
-  writeFileSync(join(work, 'src', 'App.csproj'), '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net6.0</TargetFramework></PropertyGroup></Project>');
-  writeFileSync(join(work, 'certs', 'server.pem'), '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n');
-  writeFileSync(join(work, 'README.md'), '# fixture\n');
-  const git = (args: string[], cwd = work) => execFileSync('git', ['-c', 'user.name=Argus Test', '-c', 'user.email=test@example.com', ...args], { cwd, stdio: 'pipe' }).toString().trim();
-  git(['init', '-q', '-b', 'main']);
-  git(['add', '.']);
-  git(['commit', '-q', '-m', 'initial']);
-  const sha = git(['rev-parse', 'HEAD']);
-  const bare = join(root, 'bare.git');
-  git(['clone', '-q', '--bare', work, bare], root);
-  git(['update-server-info'], bare);
-  return { bare, sha };
-}
-
-interface MockGitHub {
-  server: Server;
-  baseUrl: string;
-  gitAuthHeaders: string[];
-}
-
-/** Just enough of the GitHub Enterprise REST API, plus static git files for every acme/*.git clone URL. */
-async function startMockGitHub(bare: string): Promise<MockGitHub> {
-  const gitAuthHeaders: string[] = [];
-  const state = { baseUrl: '' };
-  const repo = (id: number, name: string, cloneUrl = `${state.baseUrl}/acme/${name}.git`) => ({
-    id,
-    full_name: `acme/${name}`,
-    name,
-    owner: { login: 'acme' },
-    html_url: `${state.baseUrl}/acme/${name}`,
-    clone_url: cloneUrl,
-    default_branch: 'main',
-    private: true,
-    language: 'TypeScript',
-    description: `${name} service`,
-    archived: false,
-    pushed_at: '2026-10-01T00:00:00Z',
-  });
-
-  const server = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', state.baseUrl);
-    if (url.pathname.startsWith('/api/v3/')) {
-      if (req.headers.authorization !== `Bearer ${TOKEN}`) {
-        res.writeHead(401, { 'content-type': 'application/json' }).end('{"message":"Bad credentials"}');
-        return;
-      }
-      const json = (body: unknown, headers: Record<string, string> = {}) => res.writeHead(200, { 'content-type': 'application/json', ...headers }).end(JSON.stringify(body));
-      if (url.pathname === '/api/v3/user') return json({ login: 'argus-bot' });
-      if (url.pathname === '/api/v3/orgs/acme/repos') {
-        if (url.searchParams.get('per_page') === '1') return json([repo(101, 'app-one')]);
-        if (url.searchParams.get('page') === '2') return json([repo(103, 'lib-three'), repo(104, 'evil', 'https://evil.invalid/acme/evil.git')]);
-        return json([repo(101, 'app-one'), repo(102, 'app-two')], { link: `<${state.baseUrl}/api/v3/orgs/acme/repos?per_page=100&page=2>; rel="next"` });
-      }
-      res.writeHead(404).end();
-      return;
-    }
-    const m = /^\/acme\/[\w-]+\.git\/(.+)$/.exec(url.pathname);
-    if (m) {
-      gitAuthHeaders.push(req.headers.authorization ?? '');
-      if (req.headers.authorization !== EXPECTED_GIT_AUTH) {
-        res.writeHead(401, { 'www-authenticate': 'Basic realm="git"' }).end();
-        return;
-      }
-      const file = normalize(join(bare, m[1]));
-      if (!file.startsWith(normalize(bare)) || !existsSync(file) || !statSync(file).isFile()) {
-        res.writeHead(404).end();
-        return;
-      }
-      res.writeHead(200, { 'content-type': 'application/octet-stream' }).end(readFileSync(file));
-      return;
-    }
-    res.writeHead(404).end();
-  });
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-  state.baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  return { server, baseUrl: state.baseUrl, gitAuthHeaders };
-}
 
 const harnesses = dbHarnesses();
 
@@ -106,7 +20,7 @@ describe.each(harnesses)('sources, repositories & scans e2e: $name', (h) => {
   let app: INestApplication;
   let admin: Client;
   let mock: MockGitHub;
-  let fixture: { bare: string; sha: string };
+  let fixture: FixtureRepo;
   let tmp: string;
   let scanWorkdir: string;
   let source: SourceDto;
@@ -117,11 +31,26 @@ describe.each(harnesses)('sources, repositories & scans e2e: $name', (h) => {
   beforeAll(async () => {
     tmp = mkdtempSync(join(tmpdir(), 'argus-e2e-'));
     scanWorkdir = join(tmp, 'scans');
-    fixture = createFixtureRepo(tmp);
-    mock = await startMockGitHub(fixture.bare);
+    // An npm manifest, a .NET project and a certificate file (content is not a real certificate).
+    fixture = createGitRepo(tmp, {
+      'package.json': JSON.stringify({ name: 'fixture', dependencies: { lodash: '4.17.20' } }),
+      'src/App.csproj': '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net6.0</TargetFramework></PropertyGroup></Project>',
+      'certs/server.pem': '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n',
+      'README.md': '# fixture\n',
+    });
+    mock = await startMockGitHub({
+      bare: fixture.bare,
+      token: TOKEN,
+      repos: [
+        { id: 101, name: 'app-one' },
+        { id: 102, name: 'app-two' },
+        { id: 103, name: 'lib-three' },
+        { id: 104, name: 'evil', cloneUrl: 'https://evil.invalid/acme/evil.git' },
+      ],
+    });
     const env = await h.env();
     app = await createApiApp(
-      AppConfig.fromEnv({ ...env, ...BASE_TEST_ENV, ARGUS_ADMIN_PASSWORD: 'Initial-Admin-Pass-1', ARGUS_ROLE: 'all', ARGUS_SCAN_WORKDIR: scanWorkdir, ARGUS_SCHEDULER_INTERVAL_SECONDS: '1' }),
+      AppConfig.fromEnv({ ...env, ...BASE_TEST_ENV, ARGUS_ADMIN_PASSWORD: 'Initial-Admin-Pass-1', ARGUS_ROLE: 'all', ARGUS_SCAN_WORKDIR: scanWorkdir, ARGUS_SCHEDULER_INTERVAL_SECONDS: '1', ARGUS_OFFLINE: 'true', ARGUS_GITLEAKS_PATH: 'argus-test-no-gitleaks' }),
     );
     await app.init();
     admin = new Client(app);

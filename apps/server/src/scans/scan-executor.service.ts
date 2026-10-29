@@ -1,7 +1,7 @@
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import { type DataStore, type Job, type Repository, type ScanRun, type ScanStatsRecord, type Source } from '@argus/data';
+import { type DataStore, type Job, type Repository, type ScanRun, type ScanStatsRecord } from '@argus/data';
 import { Redactor } from '../common/redact';
 import { AppConfig } from '../config/app-config';
 import { DATA_STORE } from '../core/tokens';
@@ -9,48 +9,26 @@ import { type JobContext, JobRunner, PermanentJobError } from '../jobs/job-runne
 import { assertCloneUrlAllowed, ProviderError } from '../sources/providers';
 import { SourcesService } from '../sources/sources.service';
 import { GitError, runGit } from './git';
-import { inventory } from './inventory';
+import { ScanPipeline } from '../scanning/scan-pipeline.service';
+import { inventory, walkFiles } from './inventory';
 
 export const SCAN_JOB = 'repo.scan';
 const MAX_LOG_LINES = 500;
 
-/** Everything a scan step can use. Phase 2 scanners plug in as further steps. */
-export interface ScanContext {
-  run: ScanRun;
-  repo: Repository;
-  source: Source;
-  workdir: string;
-  log(message: string): void;
-  stats: ScanStatsRecord | null;
-}
-
-export interface ScanStep {
-  name: string;
-  run(ctx: ScanContext): Promise<void>;
-}
-
-const inventoryStep: ScanStep = {
-  name: 'inventory',
-  async run(ctx) {
-    ctx.stats = await inventory(ctx.workdir);
-    ctx.log(`Inventory: ${ctx.stats.files} files, ${(ctx.stats.bytes / 1024 / 1024).toFixed(1)} MiB; ecosystems: ${ctx.stats.ecosystems.join(', ') || 'none detected'}`);
-  },
-};
-
 /**
- * Executes `repo.scan` jobs: shallow-clones the repository into an ephemeral workspace, runs the scan steps,
+ * Executes `repo.scan` jobs: shallow-clones the repository into an ephemeral workspace, runs the scanners,
  * records the outcome, and always deletes the workspace.
  */
 @Injectable()
 export class ScanExecutor implements OnModuleInit {
   private readonly logger = new Logger('ScanExecutor');
-  private readonly steps: ScanStep[] = [inventoryStep];
 
   constructor(
     @Inject(DATA_STORE) private readonly store: DataStore,
     private readonly sources: SourcesService,
     private readonly runner: JobRunner,
     private readonly config: AppConfig,
+    private readonly pipeline: ScanPipeline,
   ) {}
 
   onModuleInit(): void {
@@ -80,7 +58,7 @@ export class ScanExecutor implements OnModuleInit {
     const authHeader = client.gitAuthHeader();
     redactor = new Redactor([conn.token, authHeader, authHeader.replace(/^Authorization:\s*\S+\s+/, '')]);
     const workdir = join(this.config.scanWorkdir, run.id);
-    const ctx: ScanContext = { run, repo, source, workdir, log, stats: null };
+    let stats: ScanStatsRecord | null = null;
 
     await this.store.scanRuns.update(run.id, { status: 'running', startedAt: new Date(started), attempts: job.attempts, error: null });
     log(`Scan started (attempt ${job.attempts} of ${job.maxAttempts}) for ${repo.fullName}`);
@@ -98,18 +76,21 @@ export class ScanExecutor implements OnModuleInit {
       log(`Checked out ${checkedOut} at ${commitSha}`);
       await this.store.scanRuns.update(run.id, { commitSha, branch: checkedOut, log: lines });
 
-      for (const step of this.steps) {
-        log(`Step: ${step.name}`);
-        await step.run(ctx);
-      }
-      log('Scan completed');
-      await this.finish(run, repo, 'succeeded', lines, started, { stats: ctx.stats });
+      const files = await walkFiles(workdir);
+      stats = inventory(files);
+      log(`Inventory: ${stats.files} files, ${(stats.bytes / 1024 / 1024).toFixed(1)} MiB; ecosystems: ${stats.ecosystems.join(', ') || 'none detected'}`);
+      const result = await this.pipeline.run(repo, run, workdir, files, log);
+      stats = { ...stats, ...result.stats };
+      for (const w of result.warnings) log(`Warning: ${w}`);
+      const f = result.stats.findings;
+      log(`Scan completed: ${f ? `${f.new} new, ${f.fixed} fixed, ${f.reopened} reopened` : 'no findings recorded'}`);
+      await this.finish(run, repo, 'succeeded', lines, started, { stats });
     } catch (err) {
       const permanent = (err instanceof ProviderError && err.permanent) || (err instanceof GitError && /authentication failed|could not read username|not found|403/i.test(err.message));
       const message = redactor.redact(err instanceof Error ? err.message : String(err));
       log(`Error: ${message}`);
       if (permanent || jobCtx.finalAttempt) {
-        await this.finish(run, repo, 'failed', lines, started, { error: message, stats: ctx.stats });
+        await this.finish(run, repo, 'failed', lines, started, { error: message, stats });
         throw new PermanentJobError(message);
       }
       log('Will retry later');

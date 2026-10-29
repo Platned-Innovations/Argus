@@ -208,6 +208,98 @@ migrations['0002_sources_repos_jobs'] = {
   },
 };
 
+migrations['0003_findings'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .alterTable('repositories')
+      .addColumn('disabled_scanners', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .execute();
+
+    await db.schema
+      .createTable('findings')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('repo_id', 'uuid', (c) => c.notNull().references('repositories.id').onDelete('cascade'))
+      .addColumn('source_id', 'uuid', (c) => c.notNull())
+      .addColumn('team_id', 'uuid')
+      .addColumn('scanner', 'text', (c) => c.notNull())
+      .addColumn('rule_id', 'text', (c) => c.notNull())
+      .addColumn('fingerprint', 'text', (c) => c.notNull())
+      .addColumn('title', 'text', (c) => c.notNull())
+      .addColumn('description', 'text')
+      .addColumn('severity', 'text', (c) => c.notNull())
+      .addColumn('risk_score', 'integer', (c) => c.notNull())
+      .addColumn('risk_factors', 'jsonb', (c) => c.notNull())
+      .addColumn('status', 'text', (c) => c.notNull())
+      .addColumn('path', 'text')
+      .addColumn('line', 'integer')
+      .addColumn('package_ecosystem', 'text')
+      .addColumn('package_name', 'text')
+      .addColumn('package', 'jsonb')
+      .addColumn('advisory', 'jsonb')
+      .addColumn('secret', 'jsonb')
+      .addColumn('details', 'jsonb')
+      .addColumn('remediation', 'text')
+      .addColumn('suppression_id', 'uuid')
+      .addColumn('first_seen_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('last_seen_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('first_run_id', 'uuid', (c) => c.notNull())
+      .addColumn('last_run_id', 'uuid', (c) => c.notNull())
+      .addColumn('fixed_at', 'timestamptz')
+      .addUniqueConstraint('findings_repo_fingerprint_unique', ['repo_id', 'fingerprint'])
+      .execute();
+    await db.schema.createIndex('findings_status_score_idx').on('findings').columns(['status', 'risk_score desc']).execute();
+    await db.schema.createIndex('findings_team_idx').on('findings').columns(['team_id', 'status']).execute();
+    await db.schema.createIndex('findings_repo_status_idx').on('findings').columns(['repo_id', 'status']).execute();
+    await db.schema.createIndex('findings_package_idx').on('findings').columns(['package_ecosystem', 'package_name']).execute();
+
+    await db.schema
+      .createTable('dependencies')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('repo_id', 'uuid', (c) => c.notNull().references('repositories.id').onDelete('cascade'))
+      .addColumn('team_id', 'uuid')
+      .addColumn('ecosystem', 'text', (c) => c.notNull())
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('name_lower', 'text', (c) => c.notNull())
+      .addColumn('version', 'text', (c) => c.notNull())
+      .addColumn('direct', 'boolean', (c) => c.notNull())
+      .addColumn('dev', 'boolean', (c) => c.notNull())
+      .addColumn('license', 'text')
+      .addColumn('manifest_path', 'text', (c) => c.notNull())
+      .addColumn('latest_version', 'text')
+      .addColumn('deprecated', 'text')
+      .addColumn('vulnerabilities', 'integer', (c) => c.notNull().defaultTo(0))
+      .execute();
+    await db.schema.createIndex('dependencies_repo_idx').on('dependencies').column('repo_id').execute();
+    await db.schema.createIndex('dependencies_name_idx').on('dependencies').columns(['name_lower', 'ecosystem']).execute();
+
+    await db.schema
+      .createTable('suppressions')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('repo_id', 'uuid', (c) => c.references('repositories.id').onDelete('cascade'))
+      .addColumn('scanner', 'text')
+      .addColumn('rule_id', 'text')
+      .addColumn('path_pattern', 'text')
+      .addColumn('package_name', 'text')
+      .addColumn('reason', 'text', (c) => c.notNull())
+      .addColumn('expires_at', 'timestamptz')
+      .addColumn('created_by', 'uuid')
+      .addColumn('created_by_name', 'text')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+    await db.schema.createIndex('suppressions_repo_idx').on('suppressions').column('repo_id').execute();
+
+    await db.schema
+      .createTable('intel_cache')
+      .addColumn('key', 'text', (c) => c.primaryKey())
+      .addColumn('value', 'jsonb', (c) => c.notNull())
+      .addColumn('fetched_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('expires_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+    await db.schema.createIndex('intel_cache_expires_idx').on('intel_cache').column('expires_at').execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

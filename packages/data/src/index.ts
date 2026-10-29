@@ -4,6 +4,7 @@ import { createPostgresStore } from './postgres/store';
 
 export * from './models';
 export * from './scanning-models';
+export * from './findings-models';
 export * from './store';
 export * from './errors';
 

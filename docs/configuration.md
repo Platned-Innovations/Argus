@@ -29,6 +29,14 @@ Runtime policies (password rules, MFA, sessions) are set in the UI under **Admin
 | `ARGUS_SCAN_WORKDIR` | `<os temp>/argus-scans` | Parent directory for the temporary scan checkouts. Each scan uses a subdirectory, deleted when the scan ends. Needs free space for your largest repository. |
 | `ARGUS_SCAN_TIMEOUT_MINUTES` | `30` | Maximum time a clone may take. |
 | `ARGUS_SCHEDULER_INTERVAL_SECONDS` | `30` | How often the scheduler checks for due scans and stale sources. |
+| `ARGUS_OFFLINE` | `false` | `true` turns off every outbound threat-intelligence lookup (OSV, KEV, EPSS, endoflife.date, registries). See [offline mode](features/scanners-and-findings.md#data-sources-caching-and-offline-mode). |
+| `ARGUS_GITLEAKS_PATH` | `gitleaks` | Gitleaks binary used by the secrets scanner. The Docker image includes it. Without Gitleaks, built-in rules are used. |
+| `ARGUS_OSV_URL` | `https://api.osv.dev` | OSV API base URL, or an internal mirror. |
+| `ARGUS_KEV_URL` | CISA feed URL | URL of the CISA Known Exploited Vulnerabilities JSON feed. |
+| `ARGUS_EPSS_URL` | `https://api.first.org/data/v1/epss` | FIRST EPSS API. |
+| `ARGUS_EOL_URL` | `https://endoflife.date` | endoflife.date base URL. |
+| `ARGUS_NPM_REGISTRY_URL` | `https://registry.npmjs.org` | npm registry, or an internal proxy such as Artifactory or Azure Artifacts. |
+| `ARGUS_NUGET_URL` | `https://api.nuget.org/v3-flatcontainer` | NuGet flat-container endpoint. |
 | `HTTPS_PROXY` / `NO_PROXY` | — | Outbound proxy. Git uses it directly; also set `NODE_USE_ENV_PROXY=1` so API calls use it. |
 | `NODE_EXTRA_CA_CERTS` / `GIT_SSL_CAINFO` | — | CA bundle for code hosts that use a private certificate authority (API calls and git respectively). |
 | `ARGUS_WEB_DIR` | bundled | Directory containing the built web UI. |
@@ -51,3 +59,16 @@ Under **Administration → Security settings**, visible to administrators and se
 | Session lifetime (days of inactivity) | 7 | 1–90 |
 
 Every change is recorded in the audit log, with the before and after values.
+
+## In-app scanning settings
+
+Under **Administration → Scanning settings**:
+
+- **Risk score adjustments.** These are the points added or removed for KEV, EPSS, public repositories, business criticality, dev and transitive dependencies, and test paths. See [risk score](features/scanners-and-findings.md#risk-score).
+- **License policy.** SPDX ids that are not allowed (default: AGPL, GPL-2.0, GPL-3.0, SSPL, CPAL, OSL-3.0) or that need review (default: LGPL, MPL-2.0, EPL, CDDL, UNLICENSED).
+- **Early warnings.**
+  - Framework end-of-life warning: default 180 days.
+  - Certificate and token expiry warning: default 30 days.
+- **Threat-intelligence status.** When each source was last used, any errors, and whether Gitleaks is installed.
+
+Changes apply from the next scan.

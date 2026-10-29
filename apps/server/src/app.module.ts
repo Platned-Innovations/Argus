@@ -10,6 +10,7 @@ import { AuthGuard, CsrfGuard, PermissionsGuard } from './auth/guards';
 import { DuplicateKeyFilter } from './common/duplicate-key.filter';
 import { type AppConfig } from './config/app-config';
 import { CoreModule } from './core/core.module';
+import { FindingsModule } from './findings/findings.module';
 import { HealthController } from './health/health.controller';
 import { JobsModule } from './jobs/jobs.module';
 import { ScansModule } from './scans/scans.module';
@@ -50,6 +51,7 @@ export class AppModule {
         JobsModule,
         SourcesModule,
         ScansModule,
+        FindingsModule,
         ...(config.webDir
           ? [
               ServeStaticModule.forRoot({

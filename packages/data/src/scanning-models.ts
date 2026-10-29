@@ -1,3 +1,4 @@
+import { type ScanStats, type ScannerName } from '@argus/shared';
 import { type Page } from './models';
 
 // ---------------------------------------------------------------- sources & repositories
@@ -71,6 +72,7 @@ export interface Repository extends DiscoveredRepo {
   scanOnPush: boolean;
   jiraProjectKey: string | null;
   notifyEmails: string[];
+  disabledScanners: ScannerName[];
   nextScanAt: Date | null;
   lastScanAt: Date | null;
   lastScanStatus: ScanStatus | null;
@@ -82,7 +84,7 @@ export interface Repository extends DiscoveredRepo {
 export type RepositoryPatch = Partial<
   Pick<
     Repository,
-    'active' | 'teamId' | 'criticality' | 'branch' | 'schedule' | 'scanOnPush' | 'jiraProjectKey' | 'notifyEmails' | 'nextScanAt' | 'lastScanAt' | 'lastScanStatus' | 'lastScanRunId'
+    'active' | 'teamId' | 'criticality' | 'branch' | 'schedule' | 'scanOnPush' | 'jiraProjectKey' | 'notifyEmails' | 'disabledScanners' | 'nextScanAt' | 'lastScanAt' | 'lastScanStatus' | 'lastScanRunId'
   >
 >;
 
@@ -120,12 +122,7 @@ export interface RepositoryListFilter {
 
 export type ScanTrigger = 'schedule' | 'manual' | 'push' | 'activation';
 
-export interface ScanStatsRecord {
-  files: number;
-  bytes: number;
-  ecosystems: string[];
-  manifests: string[];
-}
+export type ScanStatsRecord = ScanStats;
 
 export interface ScanRun {
   id: string;

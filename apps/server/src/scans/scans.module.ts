@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScanningModule } from '../scanning/scanning.module';
 import { SourcesModule } from '../sources/sources.module';
 import { ReposController, ScansController } from './repos.controller';
 import { ReposService } from './repos.service';
@@ -8,7 +9,7 @@ import { SchedulerService } from './scheduler.service';
 import { WebhooksController } from './webhooks.controller';
 
 @Module({
-  imports: [SourcesModule],
+  imports: [SourcesModule, ScanningModule],
   controllers: [ReposController, ScansController, WebhooksController],
   providers: [ReposService, ScansService, ScanExecutor, SchedulerService],
 })

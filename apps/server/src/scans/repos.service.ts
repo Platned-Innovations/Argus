@@ -1,8 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { type DataStore, type Provider, type Repository, type RepositoryPatch, type User } from '@argus/data';
-import { type ListReposQuery, type Paged, type RepoBulkUpdateInput, type RepositoryDto, type RepoUpdateInput, type ScanRunDto } from '@argus/shared';
+import { type DataStore, type Dependency, type Finding, type Provider, type Repository, type RepositoryPatch, type User } from '@argus/data';
+import { type DependencyDto, type ListDependenciesQuery, type ListReposQuery, type Paged, type RepoBulkUpdateInput, type RepositoryDto, type RepoUpdateInput, type ScanRunDto } from '@argus/shared';
 import { type RequestContext } from '../common/request';
+import { AppConfig } from '../config/app-config';
 import { AuditService } from '../core/audit.service';
+import { buildCycloneDx } from '../findings/sbom';
 import { DATA_STORE } from '../core/tokens';
 import { toRepositoryDto, toScanRunDto } from './mappers';
 import { canSeeRepo, ScansService, visibleTeams } from './scans.service';
@@ -14,6 +17,7 @@ export class ReposService {
     @Inject(DATA_STORE) private readonly store: DataStore,
     private readonly scans: ScansService,
     private readonly audit: AuditService,
+    private readonly config: AppConfig,
   ) {}
 
   private async providers(): Promise<Map<string, Provider>> {
@@ -52,6 +56,7 @@ export class ReposService {
     const repo = await this.require(id, actor);
     const patch = await this.buildPatch(repo, input);
     const updated = (await this.store.repositories.update(id, patch))!;
+    await this.cascadeTeam(repo, patch);
     await this.audit.record({
       action: 'repo.updated',
       actor,
@@ -64,7 +69,11 @@ export class ReposService {
 
   async bulkUpdate(input: RepoBulkUpdateInput, actor: User, ctx: RequestContext): Promise<{ updated: number }> {
     const repos = (await this.store.repositories.findByIds([...new Set(input.ids)])).filter((r) => canSeeRepo(actor, r));
-    for (const repo of repos) await this.store.repositories.update(repo.id, await this.buildPatch(repo, input.patch));
+    for (const repo of repos) {
+      const patch = await this.buildPatch(repo, input.patch);
+      await this.store.repositories.update(repo.id, patch);
+      await this.cascadeTeam(repo, patch);
+    }
     await this.audit.record({ action: 'repo.bulk_updated', actor, details: { count: repos.length, changed: Object.keys(input.patch), patch: input.patch }, ip: ctx.ip });
     return { updated: repos.length };
   }
@@ -78,6 +87,56 @@ export class ReposService {
     return { run: toScanRunDto(run, repo.fullName), alreadyQueued: !created };
   }
 
+  /** Findings, inventory and scan history follow the repository to its new team, so visibility stays consistent. */
+  private async cascadeTeam(repo: Repository, patch: RepositoryPatch): Promise<void> {
+    if (patch.teamId === undefined || patch.teamId === repo.teamId) return;
+    await Promise.all([
+      this.store.findings.setTeamForRepo(repo.id, patch.teamId),
+      this.store.dependencies.setTeamForRepo(repo.id, patch.teamId),
+      this.store.scanRuns.setTeamForRepo(repo.id, patch.teamId),
+    ]);
+  }
+
+  async dependencies(id: string, q: ListDependenciesQuery, user: User): Promise<Paged<DependencyDto>> {
+    await this.require(id, user);
+    const page = await this.store.dependencies.listForRepo(id, { search: q.search || undefined, ecosystem: q.ecosystem, vulnerableOnly: q.vulnerableOnly, offset: (q.page - 1) * q.pageSize, limit: q.pageSize });
+    return {
+      items: page.items.map((d) => ({
+        ecosystem: d.ecosystem,
+        name: d.name,
+        version: d.version,
+        direct: d.direct,
+        dev: d.dev,
+        license: d.license,
+        manifestPath: d.manifestPath,
+        latestVersion: d.latestVersion,
+        deprecated: d.deprecated,
+        vulnerabilities: d.vulnerabilities,
+      })),
+      total: page.total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  }
+
+  async sbom(id: string, user: User, ctx: RequestContext) {
+    const repo = await this.require(id, user);
+    const deps: Dependency[] = [];
+    for (let offset = 0; ; offset += 5000) {
+      const page = await this.store.dependencies.listForRepo(id, { offset, limit: 5000 });
+      deps.push(...page.items);
+      if (page.items.length < 5000) break;
+    }
+    const vulns: Finding[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const page = await this.store.findings.list({ repoId: id, scanner: 'dependencies', status: 'open', offset, limit: 1000 });
+      vulns.push(...page.items.filter((f) => f.advisory));
+      if (page.items.length < 1000) break;
+    }
+    await this.audit.record({ action: 'repo.sbom_exported', actor: user, target: { type: 'repository', id }, details: { fullName: repo.fullName, components: deps.length }, ip: ctx.ip });
+    return { fileName: `${repo.fullName.replace(/[^\w.-]+/g, '_')}.cdx.json`, document: buildCycloneDx(repo, deps, vulns, { version: this.config.version }, randomUUID()) };
+  }
+
   private async buildPatch(repo: Repository, input: RepoUpdateInput): Promise<RepositoryPatch> {
     if (input.teamId && !(await this.store.teams.findById(input.teamId))) throw new BadRequestException('The team does not exist.');
     if (input.schedule?.preset === 'custom') {
@@ -87,7 +146,7 @@ export class ReposService {
     if (input.active && repo.removedAt) throw new ConflictException(`${repo.fullName} is no longer available from its source and cannot be activated.`);
 
     const patch: RepositoryPatch = {};
-    for (const key of ['active', 'teamId', 'criticality', 'branch', 'scanOnPush', 'jiraProjectKey', 'notifyEmails'] as const) {
+    for (const key of ['active', 'teamId', 'criticality', 'branch', 'scanOnPush', 'jiraProjectKey', 'notifyEmails', 'disabledScanners'] as const) {
       if (input[key] !== undefined) Object.assign(patch, { [key]: input[key] });
     }
     if (input.schedule) patch.schedule = { preset: input.schedule.preset, cron: input.schedule.preset === 'custom' ? input.schedule.cron : null };

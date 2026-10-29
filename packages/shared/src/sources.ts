@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SCANNERS, type ScannerName, type Severity } from './findings';
 import { pageFields } from './schemas';
 
 export const PROVIDERS = ['github', 'bitbucket_cloud', 'bitbucket_server'] as const;
@@ -88,13 +89,15 @@ export const repoUpdateSchema = z
     scanOnPush: z.boolean(),
     jiraProjectKey: z.string().trim().regex(/^[A-Z][A-Z0-9_]{0,49}$/, 'Use the Jira project key, e.g. PAY.').nullable(),
     notifyEmails: z.array(z.email()).max(20),
+    /** Scanners turned off for this repository. */
+    disabledScanners: z.array(z.enum(SCANNERS)).max(SCANNERS.length),
   })
   .partial();
 export type RepoUpdateInput = z.infer<typeof repoUpdateSchema>;
 
 export const repoBulkUpdateSchema = z.object({
   ids: z.array(z.uuid()).min(1).max(500),
-  patch: repoUpdateSchema.pick({ active: true, teamId: true, criticality: true, schedule: true, scanOnPush: true }),
+  patch: repoUpdateSchema.pick({ active: true, teamId: true, criticality: true, schedule: true, scanOnPush: true, disabledScanners: true }),
 });
 export type RepoBulkUpdateInput = z.infer<typeof repoBulkUpdateSchema>;
 
@@ -175,6 +178,7 @@ export interface RepositoryDto {
   scanOnPush: boolean;
   jiraProjectKey: string | null;
   notifyEmails: string[];
+  disabledScanners: ScannerName[];
   nextScanAt: string | null;
   lastScanAt: string | null;
   lastScanStatus: ScanStatus | null;
@@ -183,12 +187,23 @@ export interface RepositoryDto {
   updatedAt: string;
 }
 
+export interface ScannerRunResult {
+  scanner: ScannerName;
+  status: 'ok' | 'partial' | 'failed' | 'skipped';
+  findings: number;
+  durationMs: number;
+  message: string | null;
+}
+
 export interface ScanStats {
   files: number;
   bytes: number;
   /** Ecosystems detected from manifest files, e.g. ["npm", "nuget"]. */
   ecosystems: string[];
   manifests: string[];
+  dependencies?: number;
+  scanners?: ScannerRunResult[];
+  findings?: { open: Record<Severity, number>; new: number; fixed: number; reopened: number };
 }
 
 export interface ScanRunDto {

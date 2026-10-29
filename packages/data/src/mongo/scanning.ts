@@ -32,6 +32,11 @@ function strip<T extends { _id: string }>(doc: T): Omit<T, '_id'> & { id: string
   return { id: _id, ...rest };
 }
 
+/** Repository documents written before a field existed get its default. */
+function toRepository(doc: RepositoryDoc): Repository {
+  return { ...strip(doc), disabledScanners: doc.disabledScanners ?? [] };
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -52,6 +57,7 @@ export class MongoSourceRepo implements SourceRepo {
     private readonly col: Collection<SourceDoc>,
     private readonly repos: Collection<RepositoryDoc>,
     private readonly runs: Collection<ScanRunDoc>,
+    private readonly db: Db,
   ) {}
 
   async create(input: NewSource): Promise<Source> {
@@ -87,7 +93,10 @@ export class MongoSourceRepo implements SourceRepo {
   async delete(id: string): Promise<boolean> {
     const res = await this.col.deleteOne({ _id: id });
     if (res.deletedCount === 0) return false;
+    const repoIds = (await this.repos.find({ sourceId: id }, { projection: { _id: 1 } }).toArray()).map((r) => r._id);
     await this.runs.deleteMany({ sourceId: id });
+    // Mirrors the ON DELETE CASCADE foreign keys of the PostgreSQL schema.
+    for (const name of ['findings', 'dependencies', 'suppressions']) await this.db.collection(name).deleteMany({ repoId: { $in: repoIds } });
     await this.repos.deleteMany({ sourceId: id });
     return true;
   }
@@ -132,6 +141,7 @@ export class MongoRepositoryRepo implements RepositoryRepo {
             scanOnPush: true,
             jiraProjectKey: null,
             notifyEmails: [],
+            disabledScanners: [],
             nextScanAt: active ? defaults.firstScanAt : null,
             lastScanAt: null,
             lastScanStatus: null,
@@ -154,17 +164,17 @@ export class MongoRepositoryRepo implements RepositoryRepo {
 
   async findById(id: string): Promise<Repository | null> {
     const doc = await this.col.findOne({ _id: id });
-    return doc ? strip(doc) : null;
+    return doc ? toRepository(doc) : null;
   }
 
   async findByExternalId(sourceId: string, externalId: string): Promise<Repository | null> {
     const doc = await this.col.findOne({ sourceId, externalId });
-    return doc ? strip(doc) : null;
+    return doc ? toRepository(doc) : null;
   }
 
   async findByIds(ids: string[]): Promise<Repository[]> {
     if (!ids.length) return [];
-    return (await this.col.find({ _id: { $in: ids } }).toArray()).map(strip);
+    return (await this.col.find({ _id: { $in: ids } }).toArray()).map(toRepository);
   }
 
   async list(filter: RepositoryListFilter): Promise<Page<Repository>> {
@@ -183,16 +193,16 @@ export class MongoRepositoryRepo implements RepositoryRepo {
       this.col.countDocuments(q),
       this.col.find(q).sort({ active: -1, fullName: 1 }).skip(filter.offset).limit(filter.limit).toArray(),
     ]);
-    return { items: docs.map(strip), total };
+    return { items: docs.map(toRepository), total };
   }
 
   async update(id: string, patch: RepositoryPatch): Promise<Repository | null> {
     const doc = await this.col.findOneAndUpdate({ _id: id }, { $set: { ...patch, updatedAt: new Date() } }, { returnDocument: 'after' });
-    return doc ? strip(doc) : null;
+    return doc ? toRepository(doc) : null;
   }
 
   async findDue(now: Date, limit: number): Promise<Repository[]> {
-    return (await this.col.find({ active: true, removedAt: null, nextScanAt: { $lte: now } }).sort({ nextScanAt: 1 }).limit(limit).toArray()).map(strip);
+    return (await this.col.find({ active: true, removedAt: null, nextScanAt: { $lte: now } }).sort({ nextScanAt: 1 }).limit(limit).toArray()).map(toRepository);
   }
 }
 
@@ -253,6 +263,10 @@ export class MongoScanRunRepo implements ScanRunRepo {
 
   async deleteFinishedBefore(before: Date): Promise<number> {
     return (await this.col.deleteMany({ finishedAt: { $lt: before }, status: { $in: ['succeeded', 'failed', 'cancelled'] } })).deletedCount;
+  }
+
+  async setTeamForRepo(repoId: string, teamId: string | null): Promise<void> {
+    await this.col.updateMany({ repoId }, { $set: { teamId } });
   }
 }
 
