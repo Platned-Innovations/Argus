@@ -99,7 +99,8 @@ Modules communicate through a small in-process event bus (`DomainEvents`) rather
 | `scan.failed` | scan executor | notifications |
 | `findings.changed` | suppressions | tickets (accept / reopen) |
 | `ticket.created`, `ticket.reopened`, `ticket.sla_breached` | tickets | notifications |
-| `scheduler.tick` | leader scheduler | SLA checks, Jira sync, weekly digests |
+| `intel.emerging_threats` | continuous re-matching | notifications |
+| `scheduler.tick` | leader scheduler | SLA checks, Jira sync, weekly digests, news-feed fetching, scheduled re-matching |
 
 Notifications are delivered through the job queue (`notification.deliver`), with retries. In split deployments, events are handled in the process that raises them (scans in workers, suppression changes in the API), and delivery always runs on a worker.
 
@@ -137,6 +138,18 @@ schedule / manual / push webhook
 
 Source code is cloned only for the duration of a scan and is never persisted (see [security](security.md#source-code-handling)).
 
+## Threat intelligence
+
+Background jobs, all through the job queue:
+
+| Job | Triggered by | Does |
+|---|---|---|
+| `intel.crawl` | scheduler, per due news source; **Fetch now** | Fetches an RSS/Atom feed and stores new items. |
+| `intel.extract` | new items, when AI extraction is on | Asks AI for npm/NuGet advisories, in batches of 10, into the review queue. |
+| `intel.rematch` | schedule (OSV refresh), **Re-check now**, new Argus advisories | Matches every stored inventory; opens findings, publishes `findings.changed` and `intel.emerging_threats`. |
+
+Scans and re-matching share one matcher (`scanning/vulnerability-matcher.ts`) and one finding builder (`scanning/observe.ts`), so the same vulnerability always gets the same fingerprint. See [Threat intelligence](features/threat-intelligence.md).
+
 ## AI gateway
 
 Every AI request, whatever the feature, goes through `AiService` (`apps/server/src/ai`):
@@ -154,7 +167,7 @@ provider client (Anthropic SDK · OpenAI Chat Completions · Gemini generateCont
 validate answer (zod) ─► record usage + cost ─► audit (no content) ─► return / store insight
 ```
 
-Results that are kept (ticket suggestions, finding hints) are stored in `ai_insights`, one per subject and use case. Token usage and estimated cost go to `ai_usage`. See [AI assistance](features/ai-assistance.md) and [security](security.md#7-ai-guardrails).
+Security news is processed the same way (`advisory_extraction`), without a repository. Results that are kept (ticket suggestions, finding hints) are stored in `ai_insights`, one per subject and use case. Token usage and estimated cost go to `ai_usage`. See [AI assistance](features/ai-assistance.md) and [security](security.md#7-ai-guardrails).
 
 ## Technology choices
 

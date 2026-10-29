@@ -8,6 +8,7 @@
   - [Scanners, findings and risk scoring](features/scanners-and-findings.md)
   - [Tickets, email, Jira and notifications](features/tickets-and-notifications.md)
   - [AI assistance](features/ai-assistance.md)
+  - [Threat intelligence](features/threat-intelligence.md)
 - **[Configuration](configuration.md):** environment variables and in-app settings.
 - **Deployment**
   - [Docker and docker compose](deployment/docker.md)
