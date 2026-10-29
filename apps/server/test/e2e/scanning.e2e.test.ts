@@ -3,10 +3,12 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type INestApplication } from '@nestjs/common';
+import { type DataStore } from '@argus/data';
 import { type FindingDto, type FindingSummary, type Paged, type RepositoryDto, type ScanRunDto } from '@argus/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
 import { AppConfig } from '../../src/config/app-config';
+import { DATA_STORE } from '../../src/core/tokens';
 import { BASE_TEST_ENV, Client, dbHarnesses, waitFor } from './helpers';
 import { createGitRepo, type FixtureRepo, type MockGitHub, startMockGitHub } from './mock-github';
 import { intelEnv, intelRoutes, lockfile, LODASH_GHSA } from './mock-intel';
@@ -211,6 +213,25 @@ describe.each(harnesses)('scanners, findings & SBOM e2e: $name', (h) => {
 
     const actions = new Set(((await admin.call('get', '/api/v1/audit?pageSize=100')).body.items as { action: string }[]).map((e) => e.action));
     for (const a of ['suppression.created', 'suppression.deleted', 'repo.sbom_exported', 'settings.scanning_updated']) expect(actions).toContain(a);
+  });
+
+  it('reports ongoing scans as activity, within the caller\'s scope', async () => {
+    expect((await admin.call('get', '/api/v1/activity')).body).toEqual({ scans: { running: [], runningTotal: 0, queued: 0 }, tasks: [] });
+
+    // A run row without a job is never picked up by the worker, so it stays "running" for the assertions.
+    const store = app.get<DataStore>(DATA_STORE);
+    const run = await store.scanRuns.create({ repoId: repo.id, sourceId: repo.sourceId, teamId, trigger: 'manual', requestedBy: null, branch: null });
+    await store.scanRuns.update(run.id, { status: 'running', startedAt: new Date() });
+    const busy = (await admin.call('get', '/api/v1/activity')).body;
+    expect(busy.scans).toMatchObject({ runningTotal: 1, queued: 0, running: [{ id: run.id, repoId: repo.id, repoFullName: repo.fullName }] });
+
+    await admin.call('post', '/api/v1/users', { username: 'viewer.other', displayName: 'Other', role: 'viewer', password: 'Viewer-Other-Pass-1234', teamIds: [] });
+    const v = new Client(app);
+    await v.login('viewer.other', 'Viewer-Other-Pass-1234');
+    await v.call('post', '/api/v1/auth/change-password', { currentPassword: 'Viewer-Other-Pass-1234', newPassword: 'Viewer-Other-Pass-5678' });
+    expect((await v.call('get', '/api/v1/activity')).body.scans).toEqual({ running: [], runningTotal: 0, queued: 0 });
+
+    await store.scanRuns.update(run.id, { status: 'cancelled', finishedAt: new Date() });
   });
 
   it('leaves no workspace or scanner report behind', () => {

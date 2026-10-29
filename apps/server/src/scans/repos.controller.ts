@@ -75,6 +75,17 @@ export class ReposController {
   }
 }
 
+@Controller('activity')
+export class ActivityController {
+  constructor(private readonly scans: ScansService) {}
+
+  @Get()
+  @RequirePermissions('repos:read')
+  get(@CurrentUser() me: RequestUser) {
+    return this.scans.activity(me.user);
+  }
+}
+
 @Controller('scans')
 export class ScansController {
   constructor(private readonly scans: ScansService) {}

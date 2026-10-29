@@ -246,3 +246,22 @@ export interface ScanRunDto {
   stats: ScanStats | null;
   log?: string[];
 }
+
+/** Background job types shown as ongoing activity (scans are reported separately). */
+export const BACKGROUND_TASK_LABELS: Record<string, string> = {
+  'source.sync': 'Discovering repositories',
+  'intel.rematch': 'Matching new advisories',
+  'intel.crawl': 'Reading security news',
+  'intel.extract': 'Extracting advisories',
+  'notification.deliver': 'Sending notifications',
+};
+
+/** What Argus is working on right now, for the activity indicator. Scans are limited to the caller's scope. */
+export interface ActivityDto {
+  scans: {
+    running: { id: string; repoId: string; repoFullName: string | null; startedAt: string | null }[];
+    runningTotal: number;
+    queued: number;
+  };
+  tasks: { type: string; label: string; running: number }[];
+}
