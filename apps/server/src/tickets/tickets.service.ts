@@ -308,8 +308,12 @@ export class TicketsService implements OnModuleInit {
 
   // ------------------------------------------------------------------ actions
 
+  private lastEventAt = 0;
+
   private async event(ticketId: string, type: TicketEventType, actor: { actorId: string | null; actorName: string | null }, body: string | null, data: Record<string, unknown> | null): Promise<TicketEvent> {
-    return this.store.tickets.addEvent({ ticketId, type, actorId: actor.actorId, actorName: actor.actorName, body, data });
+    // Events are listed by time; strictly increasing timestamps keep events recorded in the same millisecond in order.
+    this.lastEventAt = Math.max(Date.now(), this.lastEventAt + 1);
+    return this.store.tickets.addEvent({ ticketId, type, actorId: actor.actorId, actorName: actor.actorName, body, data, createdAt: new Date(this.lastEventAt) });
   }
 
   async recordEvent(ticketId: string, type: TicketEventType, actor: User | null, body: string | null, data: Record<string, unknown> | null): Promise<void> {
