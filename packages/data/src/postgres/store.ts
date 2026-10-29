@@ -366,7 +366,8 @@ class PgSettingsRepo implements SettingsRepo {
 export function createPostgresStore(url: string): DataStore {
   const db: Db = new Kysely<Database>({
     dialect: new PostgresDialect({ pool: new Pool({ connectionString: url, max: 10 }) }),
-    plugins: [new CamelCasePlugin()],
+    // Column names map snake_case <-> camelCase; keys inside jsonb values are stored and returned exactly as written.
+    plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })],
   });
   return {
     kind: 'postgres',
