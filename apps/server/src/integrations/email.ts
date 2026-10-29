@@ -42,7 +42,14 @@ export async function sendViaGraph(cfg: GraphConfig, clientSecret: string, env: 
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message: { subject: content.subject, body: { contentType: 'HTML', content: content.html }, toRecipients: recipients(env.to), ccRecipients: recipients(env.cc) },
+      message: {
+        subject: content.subject,
+        body: { contentType: 'HTML', content: content.html },
+        toRecipients: recipients(env.to),
+        ccRecipients: recipients(env.cc),
+        // Inline file attachments (up to 3 MB in one sendMail request).
+        attachments: (content.attachments ?? []).map((a) => ({ '@odata.type': '#microsoft.graph.fileAttachment', name: a.filename, contentType: a.contentType, contentBytes: a.content.toString('base64') })),
+      },
       saveToSentItems: true,
     }),
   });
@@ -82,6 +89,7 @@ export async function sendViaSmtp(cfg: SmtpConfig, secret: string | null, env: E
       subject: content.subject,
       text: content.text,
       html: content.html,
+      attachments: content.attachments?.map((a) => ({ filename: a.filename, contentType: a.contentType, content: a.content })),
     });
   } catch (err) {
     throw new IntegrationError(`SMTP delivery failed: ${err instanceof Error ? err.message : String(err)}`);

@@ -23,7 +23,8 @@ Developers and Viewers see only their teams' repositories, as everywhere else in
 ## Reports
 
 **Reports** in the navigation opens a printable security report: the same figures, for the organisation, one team, or one repository. Open a repository's report with **Report** on its page.
-- **Print / save as PDF** uses the browser's print dialog. Navigation and controls are hidden in print.
+- **PDF** downloads the report as a PDF file: headline figures, open findings by severity, found and fixed by week, the riskiest repositories, what is expiring and end-of-life frameworks. Each download is audited (`report.pdf_exported`).
+- **Print** uses the browser's print dialog, with the charts. Navigation and controls are hidden in print.
 - **Findings CSV** downloads every open and suppressed finding in scope: repository, severity, risk, scanner, rule, location, package and versions, advisory and CVEs, KEV and EPSS, dates and ticket key. Cells are protected against spreadsheet formula injection, and each export is audited (`report.findings_exported`).
 
 **Monthly report by email.** A notification rule with the *Monthly security report* event sends a summary on the 1st of each month at 07:00 UTC. It is built from the same figures, for the last 30 days, scoped to the rule's teams:
@@ -34,6 +35,8 @@ Developers and Viewers see only their teams' repositories, as everywhere else in
 - what is expiring
 - end-of-life frameworks
 - the three riskiest repositories
+
+Email channels attach the full report as a PDF (`security-report-YYYY-MM.pdf`). Teams, Slack and webhook channels get the summary only.
 
 ## Credential inventory
 

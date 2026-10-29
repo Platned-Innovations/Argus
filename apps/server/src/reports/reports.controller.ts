@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Query, Req } from '@nestjs/common';
+import { Controller, Get, Header, Query, Req, StreamableFile } from '@nestjs/common';
 import { dashboardQuerySchema } from '@argus/shared';
 import { type Request } from 'express';
 import { type z } from 'zod';
@@ -16,6 +16,13 @@ export class ReportsController {
   @RequirePermissions('reports:read')
   dashboard(@Query(new ZodPipe(dashboardQuerySchema)) q: z.infer<typeof dashboardQuerySchema>, @CurrentUser() me: RequestUser) {
     return this.reports.dashboard(q, me.user);
+  }
+
+  @Get('reports/summary.pdf')
+  @RequirePermissions('reports:read')
+  async summaryPdf(@Query(new ZodPipe(dashboardQuerySchema)) q: z.infer<typeof dashboardQuerySchema>, @CurrentUser() me: RequestUser, @Req() req: Request): Promise<StreamableFile> {
+    const pdf = await this.reports.summaryPdf(q, me.user, requestContext(req));
+    return new StreamableFile(pdf, { type: 'application/pdf', disposition: `attachment; filename="security-report-${new Date().toISOString().slice(0, 10)}.pdf"` });
   }
 
   @Get('reports/findings.csv')

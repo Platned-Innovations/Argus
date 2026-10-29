@@ -89,7 +89,7 @@ See [Threat intelligence](threat-intelligence.md).
 | Feature | Status |
 |---|---|
 | Organisation, team and repository dashboards (risk trend, found vs fixed, MTTR, SLA compliance, riskiest repositories, expiring credentials, EOL exposure) | ✅ |
-| Printable report (save as PDF), findings CSV export, monthly report by email | ✅ |
+| Report as PDF download and printable page, findings CSV export, monthly report by email with the PDF attached | ✅ |
 | Prometheus metrics, OpenAPI documentation | ✅ |
 
 See [Dashboards, reports and credentials](dashboards-and-reports.md).

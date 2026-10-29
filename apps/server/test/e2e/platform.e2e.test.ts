@@ -233,6 +233,23 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       expect(msg.title).toMatch(/^Security report — /);
       expect(msg.summary).toContain('0 open finding(s)');
       expect(msg.facts.map((x) => x.name)).toEqual(expect.arrayContaining(['Open critical / high', 'Mean time to fix (critical)', 'Overdue tickets']));
+      // Email channels attach the same report as a PDF.
+      expect(msg.attachments).toEqual([expect.objectContaining({ filename: expect.stringMatching(/^security-report-\d{4}-\d{2}\.pdf$/), contentType: 'application/pdf' })]);
+      expect(msg.attachments![0].content.subarray(0, 8).toString('latin1')).toBe('%PDF-1.4');
+    });
+
+    it('downloads the report as a PDF, within the caller\'s scope, and audits it', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/reports/summary.pdf?days=90').set('Cookie', [...admin.cookies].map(([k, v]) => k + '=' + v).join('; ')).buffer(true).parse((r, cb) => {
+        const chunks: Buffer[] = [];
+        r.on('data', (c: Buffer) => chunks.push(c));
+        r.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('application/pdf');
+      expect(res.headers['content-disposition']).toMatch(/^attachment; filename="security-report-\d{4}-\d{2}-\d{2}\.pdf"$/);
+      expect((res.body as Buffer).subarray(0, 8).toString('latin1')).toBe('%PDF-1.4');
+      expect((await admin.call('get', '/api/v1/audit?action=report.pdf_exported')).body.items).toHaveLength(1);
+      expect((await dev.call('get', `/api/v1/reports/summary.pdf?teamId=${'0'.repeat(8)}-0000-4000-8000-000000000000`)).status).toBe(403);
     });
   });
 
