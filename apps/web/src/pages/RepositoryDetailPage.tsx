@@ -42,6 +42,7 @@ interface FormState {
   jiraProjectKey: string;
   notifyEmails: string;
   disabledScanners: ScannerName[];
+  aiEnabled: boolean;
 }
 
 function toForm(r: RepositoryDto): FormState {
@@ -56,6 +57,7 @@ function toForm(r: RepositoryDto): FormState {
     jiraProjectKey: r.jiraProjectKey ?? '',
     notifyEmails: r.notifyEmails.join(', '),
     disabledScanners: r.disabledScanners,
+    aiEnabled: r.aiEnabled,
   };
 }
 
@@ -82,6 +84,7 @@ function SettingsCard({ repo }: { repo: RepositoryDto }) {
           .map((e) => e.trim())
           .filter(Boolean),
         disabledScanners: form.disabledScanners,
+        aiEnabled: form.aiEnabled,
       };
       return api<RepositoryDto>(`/repos/${repo.id}`, { method: 'PATCH', body });
     },
@@ -166,6 +169,12 @@ function SettingsCard({ repo }: { repo: RepositoryDto }) {
             </Field>
           </div>
           <Checkbox label="Scan on push" description="Requires the source's push webhook to be configured." checked={form.scanOnPush} onChange={(e) => setForm({ ...form, scanOnPush: e.target.checked })} />
+          <Checkbox
+            label="Allow AI assistance"
+            description="When off, nothing from this repository (findings, code snippets, tickets) is sent to an AI provider."
+            checked={form.aiEnabled}
+            onChange={(e) => setForm({ ...form, aiEnabled: e.target.checked })}
+          />
           <div>
             <div className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Scanners</div>
             <div className="grid gap-2 sm:grid-cols-2">

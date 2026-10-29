@@ -116,8 +116,9 @@ A scan runs as follows:
    4. frameworks
    5. certificates
 4. Turn each scanner result into findings: compute the risk score, apply suppressions from the database and from `.argus.yml`, then reconcile with the stored findings.
-5. Replace the repository's dependency inventory.
-6. Delete the workspace.
+5. Replace the repository's dependency inventory, and publish `scan.completed` (tickets are opened, updated and resolved).
+6. If AI triage is enabled, assess new secret and vulnerability findings while the checkout still exists (capped per scan; never fails the scan).
+7. Delete the workspace.
 
 Scanners talk to the outside world only through `IntelService`, which caches every lookup in the database (`intel_cache`). See [Scanners and findings](features/scanners-and-findings.md).
 
@@ -135,6 +136,25 @@ schedule / manual / push webhook
 ```
 
 Source code is cloned only for the duration of a scan and is never persisted (see [security](security.md#source-code-handling)).
+
+## AI gateway
+
+Every AI request, whatever the feature, goes through `AiService` (`apps/server/src/ai`):
+
+```
+feature (ticket suggestion, draft, scan triage)
+   │  facts + repository excerpts
+   ▼
+AiService ── switches: AI on? feature on? repository opted in? provider configured? budget left?
+   │        redact secrets ─► cap context ─► add untrusted-data preamble
+   ▼
+provider client (Anthropic SDK · OpenAI Chat Completions · Gemini generateContent), JSON-schema output
+   │
+   ▼
+validate answer (zod) ─► record usage + cost ─► audit (no content) ─► return / store insight
+```
+
+Results that are kept (ticket suggestions, finding hints) are stored in `ai_insights`, one per subject and use case. Token usage and estimated cost go to `ai_usage`. See [AI assistance](features/ai-assistance.md) and [security](security.md#7-ai-guardrails).
 
 ## Technology choices
 

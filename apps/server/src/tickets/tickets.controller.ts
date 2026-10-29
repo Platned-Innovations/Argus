@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Header, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
+  aiDraftSchema,
   channelSchema,
   channelTestSchema,
   jiraSettingsSchema,
@@ -25,10 +26,13 @@ import { SettingsService } from '../core/settings.service';
 import { ChannelsService } from '../integrations/channels.service';
 import { JiraService } from '../integrations/jira.service';
 import { NotificationsService } from '../integrations/notifications.service';
+import { TicketAiService } from './ticket-ai.service';
 import { TicketsService } from './tickets.service';
 
 /** Outbound calls to third parties are rate limited per user IP. */
 const OUTBOUND_LIMIT = { default: { limit: 20, ttl: 60_000 } };
+/** AI requests cost money; keep one user from running up the bill. */
+const AI_LIMIT = { default: { limit: 10, ttl: 60_000 } };
 
 @Controller('tickets')
 export class TicketsController {
@@ -37,6 +41,7 @@ export class TicketsController {
     private readonly notifications: NotificationsService,
     private readonly jira: JiraService,
     private readonly channels: ChannelsService,
+    private readonly ticketAi: TicketAiService,
   ) {}
 
   @Get()
@@ -129,6 +134,34 @@ export class TicketsController {
   @Throttle(OUTBOUND_LIMIT)
   createJira(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(ticketJiraSchema)) body: z.infer<typeof ticketJiraSchema>, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.jira.createIssue(id, body, me.user, requestContext(req));
+  }
+
+  @Get(':id/ai/remediation')
+  @RequirePermissions('tickets:read')
+  aiRemediation(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser) {
+    return this.ticketAi.getRemediation(id, me.user);
+  }
+
+  @Post(':id/ai/remediation')
+  @HttpCode(200)
+  @RequirePermissions('ai:use')
+  @Throttle(AI_LIMIT)
+  generateAiRemediation(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser) {
+    return this.ticketAi.generateRemediation(id, me.user);
+  }
+
+  @Post(':id/ai/remediation/comment')
+  @RequirePermissions('tickets:write', 'ai:use')
+  commentAiRemediation(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser) {
+    return this.ticketAi.commentRemediation(id, me.user);
+  }
+
+  @Post(':id/ai/draft')
+  @HttpCode(200)
+  @RequirePermissions('tickets:write', 'ai:use')
+  @Throttle(AI_LIMIT)
+  aiDraft(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(aiDraftSchema)) body: z.infer<typeof aiDraftSchema>, @CurrentUser() me: RequestUser) {
+    return this.ticketAi.draft(id, body.target, me.user);
   }
 
   @Post(':id/jira/sync')

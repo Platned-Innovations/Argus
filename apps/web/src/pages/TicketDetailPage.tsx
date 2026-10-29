@@ -1,4 +1,5 @@
 import {
+  type AiProvider,
   type AssigneeDto,
   type FindingDto,
   type TicketDetailDto,
@@ -13,6 +14,7 @@ import { ArrowLeft, Eye, EyeOff, ExternalLink, Mail, RefreshCw, SquareKanban } f
 import { type FormEvent, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { toast } from 'sonner';
+import { AiHintBadge, AiLabel, DraftWithAiButton, RemediationPanel } from '../components/ai';
 import { FindingModal, findingLocation, FindingStatusBadge, SeverityBadge } from '../components/findings';
 import { DueBadge, TicketStatusBadge } from '../components/tickets';
 import { Button, Card, CardHeader, CenteredSpinner, ErrorAlert, Field, Input, Modal, Select } from '../components/ui';
@@ -49,6 +51,8 @@ function eventText(e: TicketEventDto): string {
       return `created Jira issue ${d.key}`;
     case 'jira_status':
       return `saw ${d.key} move to "${d.status}" in Jira`;
+    case 'ai_suggestion':
+      return `generated an AI-assisted remediation suggestion (${d.provider} · ${d.model})`;
   }
 }
 
@@ -167,11 +171,14 @@ function EmailModal({ ticket, onClose }: { ticket: TicketDto; onClose(): void })
               <Field label="To" hint="Comma-separated addresses.">{(id) => <Input id={id} value={to} onChange={(e) => setTo(e.target.value)} required />}</Field>
               <Field label="Cc">{(id) => <Input id={id} value={cc} onChange={(e) => setCc(e.target.value)} />}</Field>
             </div>
+            <div className="flex justify-end">
+              <DraftWithAiButton ticketId={ticket.id} target="email" onDraft={(d) => setMessage(d.body.slice(0, 5000))} />
+            </div>
             <Field label="Message">
               {(id) => (
                 <textarea
                   id={id}
-                  rows={4}
+                  rows={8}
                   maxLength={5000}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -190,8 +197,14 @@ function JiraModal({ ticket, onClose }: { ticket: TicketDto; onClose(): void }) 
   const qc = useQueryClient();
   const [projectKey, setProjectKey] = useState('');
   const [issueType, setIssueType] = useState('');
+  const [summary, setSummary] = useState('');
+  const [description, setDescription] = useState('');
   const mutation = useMutation({
-    mutationFn: () => api<{ key: string }>(`/tickets/${ticket.id}/jira`, { method: 'POST', body: { projectKey: projectKey.trim().toUpperCase() || undefined, issueType: issueType.trim() || undefined } }),
+    mutationFn: () =>
+      api<{ key: string }>(`/tickets/${ticket.id}/jira`, {
+        method: 'POST',
+        body: { projectKey: projectKey.trim().toUpperCase() || undefined, issueType: issueType.trim() || undefined, summary: summary.trim() || undefined, description: description.trim() || undefined },
+      }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['ticket', ticket.id] });
       toast.success(`Created ${r.key}.`);
@@ -207,6 +220,7 @@ function JiraModal({ ticket, onClose }: { ticket: TicketDto; onClose(): void }) 
       open
       onClose={onClose}
       title={`Create Jira issue for ${ticket.key}`}
+      wide
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -225,6 +239,32 @@ function JiraModal({ ticket, onClose }: { ticket: TicketDto; onClose(): void }) 
         </Field>
         <Field label="Issue type" hint="Leave empty for the default issue type.">
           {(id) => <Input id={id} value={issueType} onChange={(e) => setIssueType(e.target.value)} placeholder="e.g. Bug" />}
+        </Field>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-slate-500">Summary and description are generated from the ticket unless you enter them.</p>
+          <DraftWithAiButton
+            ticketId={ticket.id}
+            target="jira"
+            onDraft={(d) => {
+              setSummary(d.subject.slice(0, 200));
+              setDescription(d.body);
+            }}
+          />
+        </div>
+        <Field label="Summary (optional)" hint={`Prefixed with [${ticket.key}].`}>
+          {(id) => <Input id={id} value={summary} maxLength={200} onChange={(e) => setSummary(e.target.value)} placeholder={ticket.title} />}
+        </Field>
+        <Field label="Description (optional)">
+          {(id) => (
+            <textarea
+              id={id}
+              rows={8}
+              maxLength={30_000}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="block w-full rounded-md border-0 bg-white px-3 py-2 text-sm shadow-xs ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-indigo-600 dark:bg-slate-900 dark:ring-slate-700"
+            />
+          )}
         </Field>
       </form>
     </Modal>
@@ -336,6 +376,7 @@ export function TicketDetailPage() {
               {t.remediation}
             </Card>
           )}
+          <RemediationPanel ticketId={t.id} />
           {t.description && (
             <Card className="p-5">
               <div className="mb-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">Details</div>
@@ -351,6 +392,7 @@ export function TicketDetailPage() {
                     <button className="flex w-full items-center gap-3 px-5 py-2.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50" onClick={() => setOpenFinding(q.data!.id)}>
                       <FindingStatusBadge status={q.data.status} />
                       <code className="min-w-0 flex-1 truncate text-xs">{findingLocation(q.data)}</code>
+                      {q.data.aiHint && <AiHintBadge hint={q.data.aiHint} />}
                       <span className="text-xs text-slate-500">{formatRelative(q.data.lastSeenAt)}</span>
                     </button>
                   </li>
@@ -369,6 +411,7 @@ export function TicketDetailPage() {
                 <li key={e.id} className="text-sm">
                   <div>
                     <span className="font-medium">{e.actorName ?? 'Argus'}</span> <span className="text-slate-600 dark:text-slate-300">{eventText(e)}</span>{' '}
+                    {e.data?.aiAssisted === true && <AiLabel provider={e.data.provider as AiProvider} model={String(e.data.model)} />}{' '}
                     <span className="text-xs text-slate-400" title={formatDateTime(e.createdAt)}>
                       {formatRelative(e.createdAt)}
                     </span>

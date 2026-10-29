@@ -8,6 +8,7 @@ import { CryptoService } from '../core/crypto.service';
 import { DomainEvents } from '../core/domain-events';
 import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
+import { ScanAiTriage } from './ai-triage';
 import { compileGlobs } from './glob';
 import { IntelService } from './intel.service';
 import { EMPTY_REPO_CONFIG, parseRepoConfig, REPO_CONFIG_FILES, type RepoScanConfig } from './repo-config';
@@ -53,6 +54,7 @@ export class ScanPipeline {
     private readonly settings: SettingsService,
     private readonly crypto: CryptoService,
     private readonly events: DomainEvents,
+    private readonly triage: ScanAiTriage,
     intel: IntelService,
     config: AppConfig,
   ) {
@@ -86,6 +88,8 @@ export class ScanPipeline {
     const observed: ObservedFinding[] = [];
     const results: ScannerRunResult[] = [];
     const completed: ScannerName[] = [];
+    /** fingerprint -> detected secret, in memory for AI triage during this scan only. */
+    const secretValues = new Map<string, string>();
 
     for (const scanner of this.scanners) {
       if (!enabled.includes(scanner.name)) {
@@ -98,10 +102,12 @@ export class ScanPipeline {
         for (const d of out.findings) {
           const risk = computeRisk({ ...d.risk, publicRepo: repo.visibility === 'public', criticality: repo.criticality }, settings.riskWeights);
           const suppression = matchSuppression(rules, scanner.name, d);
+          const fingerprint = createHash('sha256').update([scanner.name, d.ruleId, ...d.identity].join('\u0000')).digest('hex').slice(0, 40);
+          if (d.secretValue) secretValues.set(fingerprint, d.secretValue);
           observed.push({
             scanner: scanner.name,
             ruleId: d.ruleId,
-            fingerprint: createHash('sha256').update([scanner.name, d.ruleId, ...d.identity].join('\u0000')).digest('hex').slice(0, 40),
+            fingerprint,
             title: d.title.slice(0, 500),
             description: d.description?.slice(0, 4000) ?? null,
             severity: risk.severity,
@@ -152,6 +158,13 @@ export class ScanPipeline {
 
     // Tickets are opened, updated and resolved from the reconciled findings.
     await this.events.emit('scan.completed', { repo, run });
+
+    // AI hints need the checkout, so they run before it is deleted. A failure never fails the scan.
+    try {
+      await this.triage.run(repo, files, secretValues, readText, log);
+    } catch (err) {
+      warnings.push(`AI triage failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     const open = Object.fromEntries(SEVERITIES.map((s) => [s, 0])) as Record<Severity, number>;
     for (const o of observed) if (!o.suppressionId) open[o.severity]++;

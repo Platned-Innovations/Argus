@@ -125,6 +125,20 @@ The Jira key and link are stored on the ticket.
 
 **Status sync.** Argus checks linked issues every 15 minutes, or immediately with **Sync**. When the issue moves to a *Done* status, the ticket becomes **Resolved**, and the next scan verifies the fix.
 
+## AI assistance on tickets
+
+If an administrator has turned on AI assistance:
+
+- **Suggest a fix** on a ticket asks the configured AI model for step-by-step remediation. The result shows:
+  - the fixed version and the breaking-change risk
+  - the reasoning and a confidence level
+  - which model produced it
+
+  **Regenerate** replaces the suggestion. **Add as comment** posts it to the ticket, labelled AI-assisted.
+- **Draft with AI** in the **Create Jira issue** and **Email** dialogs fills in the summary and description, or the message, for you to edit before sending.
+
+AI never changes a ticket's status. See [AI assistance](ai-assistance.md) for what is sent to the provider and how secrets are protected.
+
 ## Notification rules
 
 A rule says **when** to notify, **what** qualifies and **where** to send it:

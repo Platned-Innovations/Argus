@@ -38,6 +38,8 @@ export interface DraftFinding {
   details: Record<string, unknown> | null;
   remediation: string | null;
   risk: Omit<RiskInput, 'publicRepo' | 'criticality'>;
+  /** The detected secret, kept in memory for this scan only (AI triage redacts it); never stored. */
+  secretValue?: string;
 }
 
 export interface InventoryItem extends ParsedDependency {

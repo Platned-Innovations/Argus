@@ -17,7 +17,7 @@ interface SecretRule {
   accept?: (value: string) => boolean;
 }
 
-const PLACEHOLDER = /^(x+|\*+|changeme|change_me|password|secret|example|sample|dummy|test|todo|redacted|null|none|undefined|<[^>]*>|\$\{.*\}|\{\{.*\}\}|%[A-Z_]+%)$/i;
+export const PLACEHOLDER = /^(x+|\*+|changeme|change_me|password|secret|example|sample|dummy|test|todo|redacted|null|none|undefined|<[^>]*>|\$\{.*\}|\{\{.*\}\}|%[A-Z_]+%)$/i;
 
 export function shannonEntropy(s: string): number {
   const counts = new Map<string, number>();
@@ -94,7 +94,7 @@ function ruleLabel(ruleId: string): string {
 function draft(input: ScanInput, ruleId: string, label: string, explanation: string, path: string, line: number | null, value: string, base: number, tool: string): DraftFinding {
   const hash = input.hashSecret(value);
   const testPath = isTestPath(path);
-  return {
+  const finding: DraftFinding = {
     ruleId,
     identity: [path, hash],
     title: `${label} in ${path}`,
@@ -108,6 +108,9 @@ function draft(input: ScanInput, ruleId: string, label: string, explanation: str
     remediation: REMEDIATION,
     risk: { base, baseLabel: label, testPath },
   };
+  // Non-enumerable: available to AI triage in memory, but never copied by spreads or serialised.
+  Object.defineProperty(finding, 'secretValue', { value, enumerable: false });
+  return finding;
 }
 
 interface GitleaksResult {

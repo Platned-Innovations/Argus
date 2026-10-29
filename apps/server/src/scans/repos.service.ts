@@ -147,7 +147,7 @@ export class ReposService {
     if (input.active && repo.removedAt) throw new ConflictException(`${repo.fullName} is no longer available from its source and cannot be activated.`);
 
     const patch: RepositoryPatch = {};
-    for (const key of ['active', 'teamId', 'criticality', 'branch', 'scanOnPush', 'jiraProjectKey', 'notifyEmails', 'disabledScanners'] as const) {
+    for (const key of ['active', 'teamId', 'criticality', 'branch', 'scanOnPush', 'jiraProjectKey', 'notifyEmails', 'disabledScanners', 'aiEnabled'] as const) {
       if (input[key] !== undefined) Object.assign(patch, { [key]: input[key] });
     }
     if (input.schedule) patch.schedule = { preset: input.schedule.preset, cron: input.schedule.preset === 'custom' ? input.schedule.cron : null };

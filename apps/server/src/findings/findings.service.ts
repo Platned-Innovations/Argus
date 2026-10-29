@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { type DataStore, type Finding, type Suppression, type User } from '@argus/data';
+import { type AiInsight, type DataStore, type Finding, type Suppression, type User } from '@argus/data';
 import {
   type FindingDto,
   type FindingSummary,
@@ -22,7 +22,7 @@ import { satisfies } from '../scanning/versions';
 const PAGE = 500;
 const MAX_PACKAGE_ROWS = 5000;
 
-export function toFindingDto(f: Finding, repoFullName: string | null): FindingDto {
+export function toFindingDto(f: Finding, repoFullName: string | null, ai: AiInsight | null = null): FindingDto {
   return {
     id: f.id,
     repoId: f.repoId,
@@ -47,6 +47,17 @@ export function toFindingDto(f: Finding, repoFullName: string | null): FindingDt
     firstSeenAt: f.firstSeenAt.toISOString(),
     lastSeenAt: f.lastSeenAt.toISOString(),
     fixedAt: f.fixedAt?.toISOString() ?? null,
+    aiHint: ai
+      ? {
+          useCase: ai.useCase,
+          verdict: String(ai.output.verdict),
+          rationale: String(ai.output.rationale),
+          confidence: Number(ai.output.confidence),
+          provider: ai.provider,
+          model: ai.model,
+          createdAt: ai.createdAt.toISOString(),
+        }
+      : null,
   };
 }
 
@@ -72,6 +83,10 @@ export class FindingsService {
     return new Map((await this.store.repositories.findByIds([...new Set(ids)])).map((r) => [r.id, r.fullName]));
   }
 
+  private async aiHints(ids: string[]): Promise<Map<string, AiInsight>> {
+    return new Map((await this.store.aiInsights.listForSubjects('finding', ids)).map((i) => [i.subjectId, i]));
+  }
+
   async list(q: ListFindingsQuery, user: User): Promise<Paged<FindingDto>> {
     const page = await this.store.findings.list({
       repoId: q.repoId,
@@ -83,14 +98,14 @@ export class FindingsService {
       offset: (q.page - 1) * q.pageSize,
       limit: q.pageSize,
     });
-    const names = await this.repoNames(page.items.map((f) => f.repoId));
-    return { items: page.items.map((f) => toFindingDto(f, names.get(f.repoId) ?? null)), total: page.total, page: q.page, pageSize: q.pageSize };
+    const [names, hints] = await Promise.all([this.repoNames(page.items.map((f) => f.repoId)), this.aiHints(page.items.map((f) => f.id))]);
+    return { items: page.items.map((f) => toFindingDto(f, names.get(f.repoId) ?? null, hints.get(f.id) ?? null)), total: page.total, page: q.page, pageSize: q.pageSize };
   }
 
   async get(id: string, user: User): Promise<FindingDto> {
     const f = await this.store.findings.findById(id);
     if (!f || !canSeeFinding(user, f)) throw new NotFoundException('Finding not found.');
-    return toFindingDto(f, (await this.repoNames([f.repoId])).get(f.repoId) ?? null);
+    return toFindingDto(f, (await this.repoNames([f.repoId])).get(f.repoId) ?? null, (await this.aiHints([f.id])).get(f.id) ?? null);
   }
 
   async summary(repoId: string | undefined, user: User): Promise<FindingSummary> {

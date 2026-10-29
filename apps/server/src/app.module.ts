@@ -4,10 +4,12 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { type IncomingMessage } from 'node:http';
+import { AiModule } from './ai/ai.module';
 import { AuditController } from './audit/audit.controller';
 import { AuthModule } from './auth/auth.module';
 import { AuthGuard, CsrfGuard, PermissionsGuard } from './auth/guards';
 import { DuplicateKeyFilter } from './common/duplicate-key.filter';
+import { IntegrationErrorFilter } from './common/integration-error.filter';
 import { type AppConfig } from './config/app-config';
 import { CoreModule } from './core/core.module';
 import { FindingsModule } from './findings/findings.module';
@@ -54,6 +56,7 @@ export class AppModule {
         ScansModule,
         FindingsModule,
         TicketsModule,
+        AiModule,
         ...(config.webDir
           ? [
               ServeStaticModule.forRoot({
@@ -78,6 +81,7 @@ export class AppModule {
         { provide: APP_GUARD, useExisting: AuthGuard },
         { provide: APP_GUARD, useExisting: PermissionsGuard },
         { provide: APP_FILTER, useClass: DuplicateKeyFilter },
+        { provide: APP_FILTER, useClass: IntegrationErrorFilter },
       ],
     };
   }

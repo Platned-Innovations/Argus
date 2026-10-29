@@ -120,20 +120,20 @@ export class JiraService implements OnModuleInit {
       .join('\n\n');
   }
 
-  async createIssue(ticketId: string, input: { projectKey?: string; issueType?: string }, actor: User, ctx: RequestContext) {
+  async createIssue(ticketId: string, input: { projectKey?: string; issueType?: string; summary?: string; description?: string }, actor: User, ctx: RequestContext) {
     const t = await this.tickets.require(ticketId, actor);
     this.tickets.assertNoJira(t);
     const repo = await this.store.repositories.findById(t.repoId);
     const projectKey = input.projectKey ?? repo?.jiraProjectKey;
     if (!projectKey) throw new BadRequestException('Choose a Jira project, or set one on the repository.');
     const { settings, call } = await this.client();
-    const description = this.describe(t, repo);
+    const description = input.description ?? this.describe(t, repo);
     const created = await call<{ key: string }>('/issue', {
       method: 'POST',
       body: JSON.stringify({
         fields: {
           project: { key: projectKey },
-          summary: `[${t.key}] ${t.title}`.slice(0, 250),
+          summary: `[${t.key}] ${input.summary ?? t.title}`.slice(0, 250),
           issuetype: { name: input.issueType ?? settings.defaultIssueType },
           description: settings.deployment === 'cloud' ? adf(description) : description,
           labels: ['argus', ...(settings.label ? [settings.label] : [])],

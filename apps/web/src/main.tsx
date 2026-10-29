@@ -8,6 +8,7 @@ import { AppShell } from './components/AppShell';
 import { CenteredSpinner, EmptyState } from './components/ui';
 import { ApiError } from './lib/api';
 import { AuthProvider, useAuth } from './lib/auth';
+import { AiSettingsPage } from './pages/admin/AiSettingsPage';
 import { AuditPage } from './pages/admin/AuditPage';
 import { IntegrationsPage } from './pages/admin/IntegrationsPage';
 import { ScanningSettingsPage } from './pages/admin/ScanningSettingsPage';
@@ -75,6 +76,7 @@ function App() {
               <Route path="tickets" element={<Allow permission="tickets:read"><TicketsPage /></Allow>} />
               <Route path="tickets/:id" element={<Allow permission="tickets:read"><TicketDetailPage /></Allow>} />
               <Route path="intel" element={<ComingSoonPage title="Threat intel" description="Vulnerability advisories and security news." phase="Threat intelligence" />} />
+              <Route path="admin/ai" element={<Allow permission="settings:manage"><AiSettingsPage /></Allow>} />
               <Route path="admin/integrations" element={<Allow permission="settings:manage"><IntegrationsPage /></Allow>} />
               <Route path="admin/sources" element={<Allow permission="sources:manage"><SourcesPage /></Allow>} />
               <Route path="admin/users" element={<Allow permission="users:read"><UsersPage /></Allow>} />

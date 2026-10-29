@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { type FindingAiHintDto } from './ai';
 import { pageFields } from './schemas';
 
 export const SCANNERS = ['secrets', 'dependencies', 'frameworks', 'certificates', 'licenses'] as const;
@@ -96,6 +97,8 @@ export interface FindingDto {
   firstSeenAt: string;
   lastSeenAt: string;
   fixedAt: string | null;
+  /** AI assessment of this finding, if one was made. Never changes status or score. */
+  aiHint: FindingAiHintDto | null;
 }
 
 export interface FindingSummary {

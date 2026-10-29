@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDataStore, type DataStore, DuplicateKeyError, type NewUser } from '../src';
 import { findingsContract } from './findings.contract';
 import { ticketsContract } from './tickets.contract';
+import { aiContract } from './ai.contract';
 import { startMongo } from './mongo-container';
 import { scanningContract } from './scanning.contract';
 
@@ -202,6 +203,7 @@ describe.each(harnesses)('DataStore contract: $name', (h) => {
   scanningContract(() => store);
   findingsContract(() => store);
   ticketsContract(() => store);
+  aiContract(() => store);
 
   describe('settings', () => {
     it('round-trips JSON values and upserts', async () => {
@@ -209,6 +211,12 @@ describe.each(harnesses)('DataStore contract: $name', (h) => {
       await store.settings.set('k', { a: 1, list: [1, 2] }, null);
       await store.settings.set('k', { a: 2, list: [] }, null);
       expect((await store.settings.get('k'))?.value).toEqual({ a: 2, list: [] });
+    });
+
+    it('keeps keys inside JSON values exactly as written', async () => {
+      const value = { use_cases: { ticket_draft: { provider_name: 'openai' } }, camelCase: [{ snake_key: 1 }] };
+      await store.settings.set('nested-keys', value, null);
+      expect((await store.settings.get('nested-keys'))?.value).toEqual(value);
     });
   });
 });

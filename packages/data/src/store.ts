@@ -59,6 +59,8 @@ import {
   type TicketPatch,
   type TicketSummaryRecord,
 } from './tickets-models';
+import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
+import { type AiSubjectType, type AiUseCase } from '@argus/shared';
 
 export interface UserRepo {
   create(input: NewUser): Promise<User>;
@@ -248,6 +250,20 @@ export interface NotificationRuleRepo {
   delete(id: string): Promise<boolean>;
 }
 
+export interface AiUsageRepo {
+  record(usage: NewAiUsage): Promise<void>;
+  /** Totals grouped by provider, model and use case for [from, to). */
+  summary(from: Date, to: Date): Promise<AiUsageSummaryRecord[]>;
+  totalCost(from: Date, to: Date): Promise<number>;
+}
+
+export interface AiInsightRepo {
+  /** Stores the insight, replacing the previous one for the same subject and use case. */
+  put(insight: NewAiInsight): Promise<AiInsight>;
+  find(subjectType: AiSubjectType, subjectId: string, useCase: AiUseCase): Promise<AiInsight | null>;
+  listForSubjects(subjectType: AiSubjectType, subjectIds: string[]): Promise<AiInsight[]>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -270,6 +286,8 @@ export interface DataStore {
   readonly counters: CounterRepo;
   readonly channels: ChannelRepo;
   readonly notificationRules: NotificationRuleRepo;
+  readonly aiUsage: AiUsageRepo;
+  readonly aiInsights: AiInsightRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;
