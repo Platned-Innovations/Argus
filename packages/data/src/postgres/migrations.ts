@@ -435,6 +435,71 @@ migrations['0005_ai'] = {
   },
 };
 
+migrations['0006_intel'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('intel_sources')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('name', 'text', (c) => c.notNull())
+      .addColumn('url', 'text', (c) => c.notNull())
+      .addColumn('enabled', 'boolean', (c) => c.notNull())
+      .addColumn('interval_minutes', 'integer', (c) => c.notNull())
+      .addColumn('last_fetched_at', 'timestamptz')
+      .addColumn('last_error', 'text')
+      .addColumn('last_new_items', 'integer')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+
+    await db.schema
+      .createTable('intel_items')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('source_id', 'uuid', (c) => c.notNull().references('intel_sources.id').onDelete('cascade'))
+      .addColumn('guid', 'text', (c) => c.notNull())
+      .addColumn('title', 'text', (c) => c.notNull())
+      .addColumn('link', 'text')
+      .addColumn('published_at', 'timestamptz')
+      .addColumn('summary', 'text', (c) => c.notNull())
+      .addColumn('status', 'text', (c) => c.notNull())
+      .addColumn('candidates', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .addColumn('extraction', 'jsonb')
+      .addColumn('error', 'text')
+      .addColumn('advisory_ids', 'jsonb', (c) => c.notNull().defaultTo(sql`'[]'::jsonb`))
+      .addColumn('reviewed_by', 'uuid')
+      .addColumn('reviewed_at', 'timestamptz')
+      .addColumn('fetched_at', 'timestamptz', (c) => c.notNull())
+      .addUniqueConstraint('intel_items_source_guid_unique', ['source_id', 'guid'])
+      .execute();
+    await db.schema.createIndex('intel_items_status_idx').on('intel_items').columns(['status', 'fetched_at']).execute();
+
+    await db.schema
+      .createTable('advisories')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('key', 'text', (c) => c.notNull().unique())
+      .addColumn('ecosystem', 'text', (c) => c.notNull())
+      .addColumn('package_name', 'text', (c) => c.notNull())
+      .addColumn('package_key', 'text', (c) => c.notNull())
+      .addColumn('affected_range', 'text', (c) => c.notNull())
+      .addColumn('fixed_version', 'text')
+      .addColumn('severity', 'text', (c) => c.notNull())
+      .addColumn('cvss_score', 'double precision')
+      .addColumn('cve_ids', 'jsonb', (c) => c.notNull())
+      .addColumn('title', 'text', (c) => c.notNull())
+      .addColumn('summary', 'text', (c) => c.notNull())
+      .addColumn('refs', 'jsonb', (c) => c.notNull())
+      .addColumn('source', 'text', (c) => c.notNull())
+      .addColumn('source_item_id', 'uuid')
+      .addColumn('withdrawn', 'boolean', (c) => c.notNull())
+      .addColumn('auto_approved', 'boolean', (c) => c.notNull())
+      .addColumn('created_by', 'uuid')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('updated_at', 'timestamptz', (c) => c.notNull())
+      .execute();
+    await db.schema.createIndex('advisories_package_idx').on('advisories').columns(['ecosystem', 'package_key']).execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

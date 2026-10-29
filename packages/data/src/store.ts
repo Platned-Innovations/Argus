@@ -59,8 +59,20 @@ import {
   type TicketPatch,
   type TicketSummaryRecord,
 } from './tickets-models';
+import {
+  type Advisory,
+  type AdvisoryListFilter,
+  type IntelItem,
+  type IntelItemListFilter,
+  type IntelItemPatch,
+  type IntelSource,
+  type IntelSourcePatch,
+  type NewAdvisory,
+  type NewIntelItem,
+  type NewIntelSource,
+} from './intel-models';
 import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
-import { type AiSubjectType, type AiUseCase } from '@argus/shared';
+import { type AiSubjectType, type AiUseCase, type Ecosystem, type IntelItemStatus } from '@argus/shared';
 
 export interface UserRepo {
   create(input: NewUser): Promise<User>;
@@ -264,6 +276,40 @@ export interface AiInsightRepo {
   listForSubjects(subjectType: AiSubjectType, subjectIds: string[]): Promise<AiInsight[]>;
 }
 
+export interface IntelSourceRepo {
+  create(input: NewIntelSource): Promise<IntelSource>;
+  findById(id: string): Promise<IntelSource | null>;
+  /** By name. */
+  list(): Promise<IntelSource[]>;
+  update(id: string, patch: IntelSourcePatch): Promise<IntelSource | null>;
+  /** Also deletes the source's items. */
+  delete(id: string): Promise<boolean>;
+}
+
+export interface IntelItemRepo {
+  /** Inserts entries not seen before (by source and guid) and returns only those. */
+  insertNew(items: NewIntelItem[]): Promise<IntelItem[]>;
+  findById(id: string): Promise<IntelItem | null>;
+  update(id: string, patch: IntelItemPatch): Promise<IntelItem | null>;
+  /** Newest first. */
+  list(filter: IntelItemListFilter): Promise<{ items: IntelItem[]; total: number }>;
+  /** Oldest first, for background processing. */
+  listByStatus(status: IntelItemStatus, limit: number): Promise<IntelItem[]>;
+  countByStatus(): Promise<Record<IntelItemStatus, number>>;
+}
+
+export interface AdvisoryRepo {
+  /** Assigns the next ARGUS-<year>-<n> key. */
+  create(input: Omit<NewAdvisory, 'key'>): Promise<Advisory>;
+  findById(id: string): Promise<Advisory | null>;
+  /** Newest first. */
+  list(filter: AdvisoryListFilter): Promise<{ items: Advisory[]; total: number }>;
+  update(id: string, patch: Partial<Pick<Advisory, 'withdrawn'>>): Promise<Advisory | null>;
+  /** Advisories that are not withdrawn for any of these packages (NuGet names compare case-insensitively). */
+  listActiveForPackages(packages: { ecosystem: Ecosystem; name: string }[]): Promise<Advisory[]>;
+  countActive(): Promise<number>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -288,6 +334,9 @@ export interface DataStore {
   readonly notificationRules: NotificationRuleRepo;
   readonly aiUsage: AiUsageRepo;
   readonly aiInsights: AiInsightRepo;
+  readonly intelSources: IntelSourceRepo;
+  readonly intelItems: IntelItemRepo;
+  readonly advisories: AdvisoryRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

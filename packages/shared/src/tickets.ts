@@ -259,7 +259,7 @@ export const channelTestSchema = z.object({ to: z.email().optional() });
 
 // ---------------------------------------------------------------- notification rules
 
-export const NOTIFICATION_EVENTS = ['ticket_created', 'ticket_reopened', 'sla_breached', 'scan_failed', 'weekly_digest'] as const;
+export const NOTIFICATION_EVENTS = ['ticket_created', 'ticket_reopened', 'sla_breached', 'scan_failed', 'weekly_digest', 'emerging_threat'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
@@ -268,6 +268,7 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   sla_breached: 'SLA breached',
   scan_failed: 'Scan failed',
   weekly_digest: 'Weekly digest (Mondays 07:00 UTC)',
+  emerging_threat: 'Emerging threat (a new advisory affects repositories between scans)',
 };
 
 export const notificationRuleSchema = z.object({

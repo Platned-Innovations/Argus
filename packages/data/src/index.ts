@@ -7,6 +7,7 @@ export * from './scanning-models';
 export * from './findings-models';
 export * from './tickets-models';
 export * from './ai-models';
+export * from './intel-models';
 export * from './store';
 export * from './errors';
 
