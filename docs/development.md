@@ -9,7 +9,7 @@
 
 ```bash
 npm install
-cp .env.example .env            # set ARGUS_MASTER_KEY; point ARGUS_DB_URL at a local database
+cp .env.example .env            # set ARGUS_MASTER_KEY; uncomment ARGUS_DB_URL and point it at a local database
 docker run -d --name argus-pg -e POSTGRES_USER=argus -e POSTGRES_PASSWORD=argus -e POSTGRES_DB=argus -p 5432:5432 postgres:17-alpine
 npm run dev
 ```
