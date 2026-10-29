@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { type StatsFilter, type TicketStatRow } from '../platform-models';
 import { type ExpressionBuilder, type Kysely, type Selectable, sql } from 'kysely';
 import { ACTIVE_TICKET_STATUSES, type ChannelType, type NotificationEvent, type ScannerName, type Severity, SEVERITIES, type TicketEventType, type TicketStatus } from '@argus/shared';
 import { type Page } from '../models';
@@ -157,6 +158,18 @@ export class PgTicketRepo implements TicketRepo {
 
   async setTeamForRepo(repoId: string, teamId: string | null): Promise<void> {
     await this.db.updateTable('tickets').set({ teamId }).where('repoId', '=', repoId).execute();
+  }
+
+  async statsRows(f: StatsFilter): Promise<TicketStatRow[]> {
+    if (f.visibleTeamIds && f.visibleTeamIds.length === 0) return [];
+    let q = this.db
+      .selectFrom('tickets')
+      .select(['severity', 'status', 'createdAt', 'dueAt', 'resolvedAt'])
+      .where((eb) => eb.or([eb('status', 'in', ACTIVE_TICKET_STATUSES), eb('createdAt', '>=', f.since), eb('resolvedAt', '>=', f.since)]));
+    if (f.visibleTeamIds) q = q.where('teamId', 'in', f.visibleTeamIds);
+    if (f.teamId) q = q.where('teamId', '=', f.teamId);
+    if (f.repoId) q = q.where('repoId', '=', f.repoId);
+    return (await q.limit(200_000).execute()).map((r) => ({ ...r, severity: r.severity as Severity, status: r.status as TicketStatus }));
   }
 
   async addEvent(e: NewTicketEvent): Promise<TicketEvent> {

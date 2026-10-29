@@ -265,11 +265,18 @@ export function RepositoryDetailPage() {
             </div>
           )}
         </div>
-        {can('scans:run') && (
-          <Button icon={<Play className="size-4" />} loading={scan.isPending} disabled={r.removed || isActiveScan(r.lastScanStatus)} onClick={() => scan.mutate()}>
-            {isActiveScan(r.lastScanStatus) ? 'Scan in progress…' : 'Scan now'}
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {can('reports:read') && (
+            <Link to={`/reports?repoId=${r.id}`}>
+              <Button variant="secondary">Report</Button>
+            </Link>
+          )}
+          {can('scans:run') && (
+            <Button icon={<Play className="size-4" />} loading={scan.isPending} disabled={r.removed || isActiveScan(r.lastScanStatus)} onClick={() => scan.mutate()}>
+              {isActiveScan(r.lastScanStatus) ? 'Scan in progress…' : 'Scan now'}
+            </Button>
+          )}
+        </div>
       </div>
       <ErrorAlert error={scan.error} />
 

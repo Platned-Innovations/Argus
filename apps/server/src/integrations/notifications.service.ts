@@ -19,12 +19,14 @@ import { DATA_STORE } from '../core/tokens';
 import { JobRunner, PermanentJobError } from '../jobs/job-runner.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { severityRank } from '../tickets/ticket-rules';
+import { loadDashboard } from '../reports/reports.service';
 import { ChannelsService } from './channels.service';
 import { type Message } from './messages';
 import { IntegrationError } from './outbound';
 
 export const NOTIFY_JOB = 'notification.deliver';
 const DIGEST_KEY = 'notifications.lastDigestWeek';
+const MONTHLY_KEY = 'notifications.lastMonthlyReport';
 
 interface NotifyPayload {
   ruleId: string;
@@ -80,6 +82,7 @@ export class NotificationsService implements OnModuleInit {
       }
     });
     this.events.on('scheduler.tick', ({ now }) => this.maybeSendDigests(now));
+    this.events.on('scheduler.tick', ({ now }) => this.maybeSendMonthlyReports(now));
     this.events.on('intel.emerging_threats', async ({ threats }) => {
       for (const threat of threats) {
         const rules = (await this.matchingRules('emerging_threat', null, threat.severity)).filter((r) => !r.teamIds.length || threat.teamIds.some((t) => t !== null && r.teamIds.includes(t)));
@@ -174,6 +177,7 @@ export class NotificationsService implements OnModuleInit {
     let message: Message;
     let extraRecipients: string[] = [];
     if (p.event === 'weekly_digest') message = await this.digestMessage(rule);
+    else if (p.event === 'monthly_report') message = await this.monthlyReportMessage(rule);
     else if (p.event === 'emerging_threat' && p.threat) {
       const t = p.threat;
       // A team-scoped rule only names that team's repositories.
@@ -261,6 +265,45 @@ export class NotificationsService implements OnModuleInit {
         ...SEVERITIES.filter((s) => summary.bySeverity[s]).map((s) => ({ name: `Open ${s}`, value: String(summary.bySeverity[s]) })),
         { name: 'Unassigned', value: String(summary.unassigned) },
         ...breached.items.map((t) => ({ name: `Overdue ${t.key}`, value: t.title.slice(0, 120) })),
+      ],
+    };
+  }
+
+  // ------------------------------------------------------------------ monthly report
+
+  private async maybeSendMonthlyReports(now: Date): Promise<void> {
+    if (now.getUTCDate() !== 1 || now.getUTCHours() < 7) return;
+    const month = now.toISOString().slice(0, 7);
+    if ((await this.settings.getSystemValue<string>(MONTHLY_KEY)) === month) return;
+    await this.settings.setSystemValue(MONTHLY_KEY, month);
+    for (const rule of await this.store.notificationRules.list()) {
+      if (rule.enabled && rule.events.includes('monthly_report')) await this.enqueue({ ruleId: rule.id, event: 'monthly_report' });
+    }
+  }
+
+  /** The last 30 days in figures, for management: posture, remediation speed, SLA compliance, riskiest repositories. */
+  async monthlyReportMessage(rule: NotificationRule): Promise<Message> {
+    const now = new Date();
+    const d = await loadDashboard(this.store, { visibleTeamIds: rule.teamIds.length ? rule.teamIds : undefined }, 30, now);
+    const fixed = d.newVsFixed.reduce((n, w) => n + w.fixed, 0);
+    const opened = d.newVsFixed.reduce((n, w) => n + w.opened, 0);
+    const label = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toLocaleString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const mttr = (s: 'critical' | 'high') => (d.mttrDays[s] === null ? 'n/a' : `${d.mttrDays[s]} days`);
+    return {
+      event: 'monthly_report',
+      title: `Security report — ${label}${rule.teamIds.length ? ` (${rule.name})` : ''}`,
+      summary: `${d.openTotal} open finding(s), ${d.open.critical} critical and ${d.open.high} high. In the last 30 days ${opened} were found and ${fixed} fixed. SLA compliance: ${d.sla.compliancePct === null ? 'no tickets resolved' : `${d.sla.compliancePct}% of ${d.sla.resolved} resolved ticket(s) on time`}.`,
+      severity: d.open.critical ? 'critical' : d.open.high ? 'high' : null,
+      url: this.link('/reports'),
+      facts: [
+        { name: 'Open critical / high', value: `${d.open.critical} / ${d.open.high}` },
+        { name: 'Found / fixed (30 days)', value: `${opened} / ${fixed}` },
+        { name: 'Mean time to fix (critical)', value: mttr('critical') },
+        { name: 'Mean time to fix (high)', value: mttr('high') },
+        { name: 'Overdue tickets', value: String(d.sla.breached) },
+        { name: 'Expiring within 180 days', value: String(d.expiring.length) },
+        { name: 'End-of-life frameworks', value: String(d.eol.length) },
+        ...d.topRepos.slice(0, 3).map((r, i) => ({ name: `Riskiest repository #${i + 1}`, value: `${r.fullName} (${r.critical} critical, ${r.high} high)` })),
       ],
     };
   }

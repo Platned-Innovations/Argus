@@ -72,7 +72,7 @@ import {
   type NewIntelItem,
   type NewIntelSource,
 } from './intel-models';
-import { type ApiToken, type NewApiToken } from './platform-models';
+import { type ApiToken, type FindingStatRow, type NewApiToken, type StatsFilter, type TicketStatRow } from './platform-models';
 import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
 import { type AiSubjectType, type AiUseCase, type Ecosystem, type IntelItemStatus } from '@argus/shared';
 
@@ -197,6 +197,8 @@ export interface FindingRepo {
   setTicket(ids: string[], ticketId: string): Promise<void>;
   /** Every finding of a repository (all statuses), for ticket synchronisation. */
   listAllForRepo(repoId: string): Promise<Finding[]>;
+  /** Open and suppressed findings, plus ones first seen or fixed since `since` (for dashboards). */
+  statsRows(filter: StatsFilter): Promise<FindingStatRow[]>;
 }
 
 export interface DependencyRepo {
@@ -241,6 +243,8 @@ export interface TicketRepo {
   /** Tickets linked to Jira that are not closed. */
   listJiraLinked(limit: number): Promise<Ticket[]>;
   setTeamForRepo(repoId: string, teamId: string | null): Promise<void>;
+  /** Active tickets, plus ones created or resolved since `since` (for dashboards). */
+  statsRows(filter: StatsFilter): Promise<TicketStatRow[]>;
   addEvent(event: NewTicketEvent): Promise<TicketEvent>;
   /** Oldest first. */
   listEvents(ticketId: string): Promise<TicketEvent[]>;

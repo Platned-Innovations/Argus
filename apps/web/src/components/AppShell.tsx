@@ -1,5 +1,5 @@
 import { type Permission, ROLE_LABELS } from '@argus/shared';
-import { BellRing, Bot, Bug, FolderGit2, PackageSearch, Plug, ShieldOff, SlidersHorizontal, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
+import { BellRing, Bot, Bug, FileBarChart, FolderGit2, PackageSearch, Plug, ShieldOff, SlidersHorizontal, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Settings2, ShieldAlert, UserCircle, Users, UsersRound, X } from 'lucide-react';
 import { type ComponentType, type ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth';
@@ -23,6 +23,7 @@ const sections: { title?: string; items: NavItem[] }[] = [
       { to: '/packages', label: 'Package search', icon: PackageSearch, permission: 'repos:read' },
       { to: '/suppressions', label: 'Suppressions', icon: ShieldOff, permission: 'findings:read' },
       { to: '/tickets', label: 'Tickets', icon: ShieldAlert, permission: 'tickets:read' },
+      { to: '/reports', label: 'Reports', icon: FileBarChart, permission: 'reports:read' },
       { to: '/intel', label: 'Threat intel', icon: Radar, permission: 'findings:read' },
     ],
   },
@@ -124,13 +125,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="min-h-screen lg:flex">
-      <aside className="hidden w-64 shrink-0 flex-col gap-6 border-r border-slate-200 bg-white px-3 py-5 lg:sticky lg:top-0 lg:flex lg:h-screen dark:border-slate-800 dark:bg-slate-900">
+      <aside className="hidden w-64 shrink-0 print:!hidden flex-col gap-6 border-r border-slate-200 bg-white px-3 py-5 lg:sticky lg:top-0 lg:flex lg:h-screen dark:border-slate-800 dark:bg-slate-900">
         <Logo />
         <Sidebar />
         <UserMenu />
       </aside>
 
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden dark:border-slate-800 dark:bg-slate-900">
+      <header className="sticky top-0 z-30 print:hidden flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden dark:border-slate-800 dark:bg-slate-900">
         <Logo />
         <button onClick={() => setOpen(true)} aria-label="Open navigation" className="rounded p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800">
           <Menu className="size-5" />

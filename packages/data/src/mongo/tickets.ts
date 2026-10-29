@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { type StatsFilter, type TicketStatRow } from '../platform-models';
 import { type Collection, type Db, type Filter } from 'mongodb';
 import { ACTIVE_TICKET_STATUSES, type Severity, SEVERITIES } from '@argus/shared';
 import { type Page } from '../models';
@@ -124,6 +125,16 @@ export class MongoTicketRepo implements TicketRepo {
 
   async setTeamForRepo(repoId: string, teamId: string | null): Promise<void> {
     await this.col.updateMany({ repoId }, { $set: { teamId } });
+  }
+
+  async statsRows(f: StatsFilter): Promise<TicketStatRow[]> {
+    if (f.visibleTeamIds && f.visibleTeamIds.length === 0) return [];
+    const q: Filter<TicketDoc> = { $or: [{ status: { $in: ACTIVE_TICKET_STATUSES } }, { createdAt: { $gte: f.since } }, { resolvedAt: { $gte: f.since } }] };
+    if (f.visibleTeamIds) q.teamId = { $in: f.visibleTeamIds };
+    if (f.teamId) q.teamId = f.teamId;
+    if (f.repoId) q.repoId = f.repoId;
+    const docs = await this.col.find(q, { projection: { _id: 0, severity: 1, status: 1, createdAt: 1, dueAt: 1, resolvedAt: 1 } }).limit(200_000).toArray();
+    return docs.map((d) => ({ severity: d.severity, status: d.status, createdAt: d.createdAt, dueAt: d.dueAt ?? null, resolvedAt: d.resolvedAt ?? null }));
   }
 
   async addEvent(e: NewTicketEvent): Promise<TicketEvent> {

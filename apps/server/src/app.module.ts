@@ -17,6 +17,7 @@ import { HealthController } from './health/health.controller';
 import { MetricsController } from './health/metrics.controller';
 import { OpenApiController, OpenApiService } from './health/openapi';
 import { IntelModule } from './intel/intel.module';
+import { ReportsModule } from './reports/reports.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ScansModule } from './scans/scans.module';
 import { SettingsController } from './settings/settings.controller';
@@ -62,6 +63,7 @@ export class AppModule {
         TicketsModule,
         AiModule,
         IntelModule,
+        ReportsModule,
         ...(config.webDir
           ? [
               ServeStaticModule.forRoot({

@@ -105,6 +105,33 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
     });
   });
 
+  describe('dashboards and reports', () => {
+    it("serves the dashboard within the caller's scope, and a findings CSV", async () => {
+      const d = (await admin.call('get', '/api/v1/dashboard?days=30')).body;
+      expect(d).toMatchObject({ days: 30, openTotal: 0, sla: { resolved: 0, compliancePct: null } });
+      expect(d.trend).toHaveLength(30);
+      expect((await admin.call('get', '/api/v1/dashboard?days=7')).status).toBe(400);
+      const team = (await admin.call('post', '/api/v1/teams', { name: 'Reports team' })).body.id;
+      // A developer only sees their own teams.
+      expect((await dev.call('get', `/api/v1/dashboard?teamId=${team}`)).status).toBe(403);
+      expect((await dev.call('get', '/api/v1/dashboard')).status).toBe(200);
+      expect((await dev.call('get', `/api/v1/dashboard?repoId=${crypto.randomUUID()}`)).status).toBe(404);
+      const csv = await admin.call('get', '/api/v1/reports/findings.csv');
+      expect(csv.status).toBe(200);
+      expect(csv.headers['content-type']).toMatch(/text\/csv/);
+      expect(csv.text.split('\r\n')[0]).toBe('repository,severity,risk_score,status,scanner,rule,title,location,package,version,fixed_version,advisory,cves,kev,epss,first_seen,last_seen,ticket');
+      expect((await admin.call('get', '/api/v1/audit?action=report.findings_exported')).body.items).toHaveLength(1);
+    });
+
+    it('builds the monthly report notification from the same figures', async () => {
+      const { NotificationsService } = await import('../../src/integrations/notifications.service');
+      const msg = await app.get(NotificationsService).monthlyReportMessage({ id: 'r', name: 'All', enabled: true, events: ['monthly_report'], minSeverity: 'low', teamIds: [], channelIds: [], recipients: [], includeRepoRecipients: false, createdAt: new Date(), updatedAt: new Date() });
+      expect(msg.title).toMatch(/^Security report — /);
+      expect(msg.summary).toContain('0 open finding(s)');
+      expect(msg.facts.map((x) => x.name)).toEqual(expect.arrayContaining(['Open critical / high', 'Mean time to fix (critical)', 'Overdue tickets']));
+    });
+  });
+
   describe('metrics and OpenAPI', () => {
     it('serves Prometheus metrics only with the metrics token', async () => {
       expect((await request(app.getHttpServer()).get('/metrics')).status).toBe(401);
