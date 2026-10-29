@@ -52,6 +52,12 @@ describe.each(harnesses)('auth & administration e2e: $name', (h) => {
     expect((await new Client(app).call('get', '/api/v1/users')).status).toBe(401);
   });
 
+  it('answers an unreadable request body with 400, not "Cannot POST" (404)', async () => {
+    const res = await request(app.getHttpServer()).post('/api/v1/auth/login').set('Content-Type', 'application/json').send('{');
+    expect(res.status).toBe(400);
+    expect(res.body.message).not.toMatch(/Cannot POST/);
+  });
+
   it('seeds the admin, who must change the password before doing anything else', async () => {
     const bad = await new Client(app).login('admin', 'wrong-password');
     expect(bad.status).toBe(401);
