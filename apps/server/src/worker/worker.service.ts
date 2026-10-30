@@ -55,5 +55,6 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
     // Keep expired sessions for a day so refresh-token reuse is still detectable shortly after expiry.
     const removed = await this.store.sessions.deleteExpired(new Date(Date.now() - 86_400_000));
     if (removed) this.logger.log(`Removed ${removed} expired sessions`);
+    await this.store.loginLinks.deleteExpiredBefore(new Date(Date.now() - 86_400_000));
   }
 }

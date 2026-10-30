@@ -10,6 +10,7 @@ Status legend: ✅ available · 🔜 planned (phase shown)
 | Roles (Administrator, Security Manager, Developer, Viewer) and teams | ✅ | [User management](user-management.md) |
 | Invite links with a preset role and teams, an expiry date, optional invited addresses (each emailed its own link) and a use limit | ✅ | [User management](user-management.md#invite-links) |
 | TOTP multi-factor authentication, recovery codes, org-wide enforcement | ✅ | [User management](user-management.md#multi-factor-authentication) |
+| Sign-in links by email (one-time, 15 minutes; MFA still applies) | ✅ | [User management](user-management.md#sign-in-links-by-email) |
 | Password policy, account lockout, session management | ✅ | [Configuration](../configuration.md#in-app-security-settings) |
 | Audit log with filtering and CSV export | ✅ | [User management](user-management.md#audit-log) |
 | PostgreSQL or MongoDB storage | ✅ | [Architecture](../architecture.md#data-layer) |

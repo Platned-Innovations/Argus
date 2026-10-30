@@ -58,6 +58,7 @@ const EMAIL_KINDS: Record<string, EmailKind> = {
   emerging_threat: { label: 'Emerging threat', action: 'Open advisory', why: ruleReason('emerging threats') },
   credential_expiring: { label: 'Credential expiring', action: 'Open credentials', why: ruleReason('credential expiry notices') },
   invite: { label: 'Invitation', action: 'Create your account', why: (p) => `You received this because an administrator invited you to ${p}. If you were not expecting it, you can ignore this email.` },
+  sign_in_link: { label: 'Sign-in link', action: 'Sign in', why: (p) => `Someone asked to sign in to ${p} with this email address. If it was not you, ignore this email: the link only works for whoever opens it from this inbox, and your password has not changed.` },
   test: { label: 'Test message', action: 'Open', why: (p) => `This test was sent from the integration settings in ${p}.` },
 };
 

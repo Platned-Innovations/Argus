@@ -461,6 +461,16 @@ export interface InvitesTable {
   revokedAt: Date | null;
 }
 
+export interface LoginLinksTable {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+  createdAt: Date;
+  requestedIp: string | null;
+}
+
 export interface Database {
   users: UsersTable;
   teams: TeamsTable;
@@ -491,4 +501,5 @@ export interface Database {
   credentials: CredentialsTable;
   savedViews: SavedViewsTable;
   invites: InvitesTable;
+  loginLinks: LoginLinksTable;
 }

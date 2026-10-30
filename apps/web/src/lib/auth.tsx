@@ -9,6 +9,8 @@ interface AuthContextValue {
   setMe(me: MeDto): void;
   login(username: string, password: string): Promise<LoginResponse>;
   verifyMfa(mfaToken: string, code: string): Promise<LoginResponse>;
+  /** Signs in with the token from an emailed sign-in link; users with MFA then enter their code as usual. */
+  signInWithLink(token: string): Promise<LoginResponse>;
   logout(): Promise<void>;
   can(permission: Permission): boolean;
 }
@@ -52,6 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMe,
       async login(username, password) {
         const res = await api<LoginResponse>('/auth/login', { method: 'POST', body: { username, password } });
+        if (res.status === 'ok') setMe(res.user);
+        return res;
+      },
+      async signInWithLink(token) {
+        const res = await api<LoginResponse>('/auth/sign-in-link/verify', { method: 'POST', body: { token } });
         if (res.status === 'ok') setMe(res.user);
         return res;
       },

@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
 import { base32Decode, currentStep, hotp } from '../../src/auth/totp';
 import { AppConfig } from '../../src/config/app-config';
-import { Client, dbHarnesses } from './helpers';
+import { Client, dbHarnesses, waitFor } from './helpers';
 
 const ADMIN_PASSWORD = 'Initial-Admin-Pass-1';
 const NEW_ADMIN_PASSWORD = 'Changed-Root-Pass-2';
@@ -30,6 +30,7 @@ describe.each(harnesses)('auth & administration e2e: $name', (h) => {
       ARGUS_WEB_DIR: '/nonexistent',
       LOG_LEVEL: 'silent',
       ARGUS_AUTH_RATE_LIMIT: '1000',
+      ARGUS_PUBLIC_URL: 'http://argus.test',
       NODE_ENV: 'test',
     });
     app = await createApiApp(config);
@@ -266,12 +267,77 @@ describe.each(harnesses)('auth & administration e2e: $name', (h) => {
       expect((await admin.call('post', `/api/v1/invites/${invite.id}/send`, sendBody)).body).toEqual({ sent: ['bob@example.com'], failed: [] });
       expect(mails.map((m) => m.to)).toEqual([['bob@example.com']]);
       const body = mails[0].raw.replace(/=\r?\n/g, '').replace(/=3D/g, '=');
-      expect(body).toContain(`https://argus.example.com/invite#${token}&email=bob%40example.com`);
+      // ARGUS_PUBLIC_URL wins over the browser-supplied base URL.
+      expect(body).toContain(`http://argus.test/invite#${token}&email=bob%40example.com`);
       expect(body).toContain('Welcome aboard.');
 
       expect((await guest.call('post', '/api/v1/invites/accept', { ...signUp, username: 'bob.invited', email: 'bob@example.com' })).status).toBe(200);
       expect((await admin.call('get', '/api/v1/invites')).body.find((i: { id: string }) => i.id === invite.id)).toMatchObject({ status: 'used', uses: 2, usedEmails: ['ann@example.com', 'bob@example.com'] });
       expect((await admin.call('post', `/api/v1/invites/${invite.id}/send`, sendBody)).status).toBe(400);
+    } finally {
+      await new Promise<void>((r) => smtp.close(() => r()));
+    }
+  });
+
+  it('signs users in with a one-time link sent by email, still asking for their MFA code', async () => {
+    const mails: { to: string[]; raw: string }[] = [];
+    const smtp = new SMTPServer({
+      authOptional: true,
+      onData: (stream, session, cb) => {
+        let raw = '';
+        stream.on('data', (d: Buffer) => (raw += d.toString()));
+        stream.on('end', () => {
+          mails.push({ to: session.envelope.rcptTo.map((r) => r.address), raw });
+          cb();
+        });
+      },
+      logger: false,
+    });
+    await new Promise<void>((r) => smtp.listen(0, '127.0.0.1', r));
+    const tokenIn = async (to: string) => {
+      const mail = await waitFor(async () => mails.find((m) => m.to.includes(to)), { what: `sign-in email to ${to}` });
+      return /\/login#link=([\w-]+)/.exec(mail.raw.replace(/=\r?\n/g, '').replace(/=3D/g, '='))![1];
+    };
+    try {
+      const guest = new Client(app);
+      expect((await guest.call('get', '/api/v1/auth/options')).body).toEqual({ signInLinks: false });
+      const port = (smtp.server.address() as AddressInfo).port;
+      const channel = (
+        await admin.call('post', '/api/v1/integrations/channels', { type: 'email_smtp', name: 'Sign-in mail', enabled: true, config: { host: '127.0.0.1', port, security: 'starttls', authMode: 'none', from: 'argus@acme.com', fromName: 'Argus' } })
+      ).body;
+      const security = (await admin.call('get', '/api/v1/settings/security')).body;
+      expect((await admin.call('put', '/api/v1/settings/security', { ...security, signInLinks: true, signInLinkChannelId: null })).status).toBe(400);
+      expect((await admin.call('put', '/api/v1/settings/security', { ...security, signInLinks: true, signInLinkChannelId: channel.id })).status).toBe(200);
+      expect((await guest.call('get', '/api/v1/auth/options')).body).toEqual({ signInLinks: true });
+
+      // The answer never says whether the account exists.
+      expect((await guest.call('post', '/api/v1/auth/sign-in-link', { login: 'nobody@example.com' })).body).toEqual({ ok: true });
+      expect((await guest.call('post', '/api/v1/auth/sign-in-link', { login: 'Invited@Example.com' })).body).toEqual({ ok: true });
+      const token = await tokenIn('invited@example.com');
+      expect(mails.find((m) => m.to.includes('invited@example.com'))!.raw).toContain('Sign in to Argus');
+
+      const signedIn = await guest.call('post', '/api/v1/auth/sign-in-link/verify', { token });
+      expect(signedIn.status).toBe(200);
+      expect(signedIn.body.user.username).toBe('invited.dev');
+      expect(guest.cookies.has('argus_at')).toBe(true);
+      expect((await new Client(app).call('post', '/api/v1/auth/sign-in-link/verify', { token })).status).toBe(401);
+      expect((await new Client(app).call('post', '/api/v1/auth/sign-in-link/verify', { token: 'not-a-real-sign-in-token' })).status).toBe(401);
+
+      // A second request within a minute sends nothing new; the account is not flooded.
+      await guest.call('post', '/api/v1/auth/sign-in-link', { login: 'invited.dev' });
+
+      // With MFA, the link replaces only the password.
+      await guest.call('post', '/api/v1/auth/sign-in-link', { login: 'dev.one' });
+      const mfaStep = await new Client(app).call('post', '/api/v1/auth/sign-in-link/verify', { token: await tokenIn('dev@example.com') });
+      expect(mfaStep.body.status).toBe('mfa_required');
+      expect(mfaStep.body.mfaToken).toEqual(expect.any(String));
+      expect(mails.filter((m) => m.to.includes('invited@example.com'))).toHaveLength(1);
+      expect(mails.some((m) => m.to.includes('nobody@example.com'))).toBe(false);
+
+      const actions = ((await admin.call('get', '/api/v1/audit?pageSize=100')).body.items as { action: string; details: { method?: string } }[]).map((e) => `${e.action}:${e.details?.method ?? ''}`);
+      expect(actions).toContain('auth.login:sign_in_link');
+      expect(actions).toContain('auth.sign_in_link_requested:');
+      await admin.call('put', '/api/v1/settings/security', { ...security, signInLinks: false });
     } finally {
       await new Promise<void>((r) => smtp.close(() => r()));
     }

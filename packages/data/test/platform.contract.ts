@@ -210,4 +210,34 @@ export function platformContract(getStore: () => DataStore): void {
       expect(await store.invites.findById(inv.id)).toMatchObject({ uses: 2, usedEmails: ['bob@example.com', 'ann@example.com'] });
     });
   });
+
+  describe('sign-in links', () => {
+    it('are used once, only before they expire, and a newer link replaces older ones', async () => {
+      const store = getStore();
+      const user = await store.users.create({ username: `link${randomTag()}`, email: null, displayName: 'Link', passwordHash: 'h', role: 'viewer', teamIds: [], mustChangePassword: false });
+      const now = new Date();
+      const tag = randomTag();
+      const soon = new Date(now.getTime() + 15 * 60_000);
+      const first = await store.loginLinks.create({ userId: user.id, tokenHash: `ll-a-${tag}`, expiresAt: soon, requestedIp: '10.0.0.9' });
+      expect(first).toMatchObject({ userId: user.id, usedAt: null, requestedIp: '10.0.0.9' });
+
+      const twice = await Promise.all([1, 2].map(() => store.loginLinks.consume(`ll-a-${tag}`, now)));
+      expect(twice.filter(Boolean)).toHaveLength(1);
+      expect(twice.find(Boolean)).toMatchObject({ id: first.id, userId: user.id });
+      expect(await store.loginLinks.consume('unknown', now)).toBeNull();
+
+      const expired = await store.loginLinks.create({ userId: user.id, tokenHash: `ll-b-${tag}`, expiresAt: new Date(now.getTime() - 1000), requestedIp: null });
+      expect(await store.loginLinks.consume(`ll-b-${tag}`, now)).toBeNull();
+
+      await new Promise((r) => setTimeout(r, 5));
+      const older = await store.loginLinks.create({ userId: user.id, tokenHash: `ll-c-${tag}`, expiresAt: soon, requestedIp: null });
+      expect((await store.loginLinks.latestForUser(user.id))?.id).toBe(older.id);
+      expect(await store.loginLinks.invalidateForUser(user.id, now)).toBe(2);
+      expect(await store.loginLinks.consume(`ll-c-${tag}`, now)).toBeNull();
+
+      expect(await store.loginLinks.deleteExpiredBefore(now)).toBeGreaterThanOrEqual(1);
+      expect((await store.loginLinks.latestForUser(user.id))?.id).toBe(older.id);
+      expect(expired.id).not.toBe(older.id);
+    });
+  });
 }

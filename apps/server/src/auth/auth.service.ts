@@ -57,6 +57,16 @@ export class AuthService {
     return this.completeLogin(user, ctx, 'password');
   }
 
+  /**
+   * Continues a sign-in after the first factor was proven another way (a sign-in link): locked accounts are refused,
+   * and users with MFA still have to enter their code.
+   */
+  async continueVerifiedLogin(user: User, ctx: RequestContext, method: string): Promise<LoginResult> {
+    this.assertNotLocked(user);
+    if (user.mfaEnabled) return { kind: 'mfa', mfaToken: this.tokens.signMfa(user.id) };
+    return this.completeLogin(user, ctx, method);
+  }
+
   async verifyMfaLogin(mfaToken: string, code: string, ctx: RequestContext): Promise<LoginResult> {
     const claims = this.tokens.verifyMfa(mfaToken);
     const user = await this.store.users.findById(claims.sub);
