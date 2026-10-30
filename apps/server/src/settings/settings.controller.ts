@@ -1,7 +1,9 @@
-import { Body, Controller, Get, HttpCode, Post, Put, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Post, Put, Req } from '@nestjs/common';
+import { type DataStore } from '@argus/data';
 import {
   type BrandingSettings,
   brandingSettingsSchema,
+  isEmailChannel,
   type RetentionSettings,
   retentionSettingsSchema,
   type ScanningSettings,
@@ -16,8 +18,10 @@ import { type Request } from 'express';
 import { AllowRestricted, CurrentUser, Public, RequirePermissions } from '../auth/decorators';
 import { type RequestUser, requestContext } from '../common/request';
 import { ZodPipe } from '../common/zod.pipe';
+import { AppConfig } from '../config/app-config';
 import { AuditService } from '../core/audit.service';
 import { SettingsService } from '../core/settings.service';
+import { DATA_STORE } from '../core/tokens';
 import { SettingsTransferService } from './settings-transfer.service';
 
 @Controller('settings')
@@ -26,6 +30,8 @@ export class SettingsController {
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
     private readonly transfer: SettingsTransferService,
+    @Inject(DATA_STORE) private readonly store: DataStore,
+    private readonly config: AppConfig,
   ) {}
 
   /** Public: the sign-in page shows the product name and notice before anyone signs in. */
@@ -104,6 +110,11 @@ export class SettingsController {
   @Put('security')
   @RequirePermissions('settings:manage')
   async updateSecurity(@Body(new ZodPipe(securitySettingsSchema)) body: SecuritySettings, @CurrentUser() me: RequestUser, @Req() req: Request): Promise<SecuritySettings> {
+    if (body.signInLinks) {
+      if (!this.config.publicUrl) throw new BadRequestException('Sign-in links need ARGUS_PUBLIC_URL, so the emailed link points to this installation.');
+      const channel = body.signInLinkChannelId ? await this.store.channels.findById(body.signInLinkChannelId) : null;
+      if (!channel || !isEmailChannel(channel.type)) throw new BadRequestException('Choose the email channel that sends sign-in links.');
+    }
     const before = await this.settings.getSecurity();
     const after = await this.settings.updateSecurity(body, me.user.id);
     const changed = Object.fromEntries(

@@ -100,6 +100,24 @@ At sign-in, after the password, Argus asks for a code from the app or a recovery
 
 **Enforcing MFA:** under **Security settings → Require MFA for all users**, every user without MFA is taken to enrollment at their next sign-in and cannot use Argus until they finish. While enforcement is on, users cannot turn MFA off.
 
+## Sign-in links by email
+
+Users can sign in with a one-time link sent to their email address instead of their password, for example when they have forgotten it or simply prefer it. An administrator turns this on under **Security settings → Sign-in links by email** and chooses the email channel (from **Integrations**) that sends the links. It needs `ARGUS_PUBLIC_URL`, so the link points to this installation.
+
+1. On the sign-in page, choose **Email me a sign-in link** and enter your username or email address.
+2. Open the link in the email. It signs you in.
+3. **If you use MFA, you are still asked for your authentication code.** The link only replaces the password.
+
+How the links are protected:
+
+- Each link works **once** and expires after **15 minutes**. Asking for a new link cancels the previous one, and an account gets at most one new link per minute.
+- Only active, unlocked users with an email address get a link.
+- The sign-in page shows the same message whether or not an account exists, and responds equally fast either way, so it cannot be used to discover accounts.
+- The token travels in the link's URL fragment (`/login#link=…`), which browsers never send to the server, so it stays out of server and proxy logs. Only a keyed hash of it is stored.
+- Requests, sign-ins and failed attempts are recorded in the audit log.
+
+A link signs you in, but it does not change your password. To set a new password, use **Profile → Change password**, which asks for the current one. If you have forgotten it, an administrator can reset it.
+
 ## Password policy and lockout
 
 These are configured under **Security settings**:

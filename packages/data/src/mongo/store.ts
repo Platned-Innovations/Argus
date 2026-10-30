@@ -53,7 +53,7 @@ import {
   type TicketDoc,
   type TicketEventDoc,
 } from './tickets';
-import { type ApiTokenDoc, bootstrapPlatformIndexes, type CredentialDoc, type InviteDoc, MongoApiTokenRepo, MongoCredentialRepo, MongoInviteRepo, MongoSavedViewRepo, type SavedViewDoc } from './platform';
+import { type ApiTokenDoc, bootstrapPlatformIndexes, type CredentialDoc, type InviteDoc, type LoginLinkDoc, MongoApiTokenRepo, MongoCredentialRepo, MongoInviteRepo, MongoLoginLinkRepo, MongoSavedViewRepo, type SavedViewDoc } from './platform';
 import { type AdvisoryDoc, bootstrapIntelIndexes, type IntelItemDoc, type IntelSourceDoc, MongoAdvisoryRepo, MongoIntelItemRepo, MongoIntelSourceRepo } from './intel';
 import { type AiInsightDoc, type AiUsageDoc, bootstrapAiIndexes, MongoAiInsightRepo, MongoAiUsageRepo } from './ai';
 
@@ -65,7 +65,7 @@ type SettingDoc = { _id: string; value: unknown; updatedAt: Date; updatedBy: str
 type MetaDoc = { _id: string; version: number; updatedAt: Date };
 
 /** Bump when index/bootstrap definitions below change. */
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 async function mapDuplicate<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -383,6 +383,7 @@ export async function createMongoStore(url: string, dbName?: string): Promise<Da
     credentials: new MongoCredentialRepo(db.collection<CredentialDoc>('credentials')),
     savedViews: new MongoSavedViewRepo(db.collection<SavedViewDoc>('saved_views')),
     invites: new MongoInviteRepo(db.collection<InviteDoc>('invites')),
+    loginLinks: new MongoLoginLinkRepo(db.collection<LoginLinkDoc>('login_links')),
     advisories: new MongoAdvisoryRepo(db.collection<AdvisoryDoc>('advisories'), db.collection<{ _id: string; value: number }>('counters')),
     migrate: () => bootstrap(db),
     async ping() {

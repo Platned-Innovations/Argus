@@ -120,3 +120,18 @@ export interface Invite {
 }
 
 export type NewInvite = Pick<Invite, 'tokenHash' | 'role' | 'teamIds' | 'emails' | 'maxUses' | 'expiresAt' | 'note' | 'createdBy'>;
+
+/** A one-time sign-in link sent by email. Only a keyed hash of its token is stored. */
+export interface LoginLink {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  /** Set when the link is used, or when a newer link replaces it. */
+  usedAt: Date | null;
+  createdAt: Date;
+  /** Address the link was requested from, for the audit trail. */
+  requestedIp: string | null;
+}
+
+export type NewLoginLink = Pick<LoginLink, 'userId' | 'tokenHash' | 'expiresAt' | 'requestedIp'>;

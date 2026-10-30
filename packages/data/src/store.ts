@@ -72,7 +72,7 @@ import {
   type NewIntelItem,
   type NewIntelSource,
 } from './intel-models';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type FindingStatRow, type Invite, type NewApiToken, type NewCredential, type NewInvite, type NewSavedView, type SavedView, type StatsFilter, type TicketStatRow } from './platform-models';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type FindingStatRow, type Invite, type LoginLink, type NewApiToken, type NewCredential, type NewInvite, type NewLoginLink, type NewSavedView, type SavedView, type StatsFilter, type TicketStatRow } from './platform-models';
 import { type AiInsight, type AiUsageSummaryRecord, type NewAiInsight, type NewAiUsage } from './ai-models';
 import { type AiSubjectType, type AiUseCase, type Ecosystem, type IntelItemStatus } from '@argus/shared';
 
@@ -380,6 +380,17 @@ export interface InviteRepo {
   revoke(id: string): Promise<boolean>;
 }
 
+export interface LoginLinkRepo {
+  create(input: NewLoginLink): Promise<LoginLink>;
+  /** Atomically marks an unused, unexpired link as used and returns it; null when unknown, used or expired. */
+  consume(tokenHash: string, now: Date): Promise<LoginLink | null>;
+  /** The user's most recently created link, used or not (to limit how often links are sent). */
+  latestForUser(userId: string): Promise<LoginLink | null>;
+  /** Marks every unused link of the user as used, so only the newest link works. */
+  invalidateForUser(userId: string, now: Date): Promise<number>;
+  deleteExpiredBefore(before: Date): Promise<number>;
+}
+
 export type DataStoreKind = 'postgres' | 'mongodb';
 
 export interface DataStore {
@@ -411,6 +422,7 @@ export interface DataStore {
   readonly credentials: CredentialRepo;
   readonly savedViews: SavedViewRepo;
   readonly invites: InviteRepo;
+  readonly loginLinks: LoginLinkRepo;
   /** Applies pending schema migrations / index bootstrap. Safe to call concurrently from several instances. */
   migrate(): Promise<void>;
   ping(): Promise<boolean>;

@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { type Collection, type Db, type Filter } from 'mongodb';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type Invite, type NewApiToken, type NewCredential, type NewInvite, type NewSavedView, type SavedView } from '../platform-models';
-import { type ApiTokenRepo, type CredentialRepo, type InviteRepo, type SavedViewRepo } from '../store';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type Invite, type LoginLink, type NewApiToken, type NewCredential, type NewInvite, type NewLoginLink, type NewSavedView, type SavedView } from '../platform-models';
+import { type ApiTokenRepo, type CredentialRepo, type InviteRepo, type LoginLinkRepo, type SavedViewRepo } from '../store';
 
 export type ApiTokenDoc = Omit<ApiToken, 'id'> & { _id: string };
 export type CredentialDoc = Omit<Credential, 'id'> & { _id: string };
 export type SavedViewDoc = Omit<SavedView, 'id'> & { _id: string; nameLower: string };
 export type InviteDoc = Omit<Invite, 'id'> & { _id: string };
+export type LoginLinkDoc = Omit<LoginLink, 'id'> & { _id: string };
 
 function strip<T extends { _id: string }>(d: T): Omit<T, '_id'> & { id: string } {
   const { _id, ...rest } = d;
@@ -144,6 +145,12 @@ export async function bootstrapPlatformIndexes(db: Db): Promise<void> {
     { key: { archived: 1, expiresAt: 1 }, name: 'archived_expiry' },
   ]);
   await db.collection('invites').createIndexes([{ key: { tokenHash: 1 }, unique: true, name: 'token_hash_unique' }]);
+  await db.collection('login_links').createIndexes([
+    { key: { tokenHash: 1 }, unique: true, name: 'token_hash_unique' },
+    { key: { userId: 1, createdAt: -1 }, name: 'user_created' },
+    // MongoDB removes links a day after they expire.
+    { key: { expiresAt: 1 }, name: 'expires_ttl', expireAfterSeconds: 86_400 },
+  ]);
   // Schema 11: one optional `email` became `emails` (each usable once) plus `usedEmails`. Idempotent.
   await db.collection('invites').updateMany({ email: { $exists: true } }, [
     {
@@ -197,5 +204,33 @@ export class MongoInviteRepo implements InviteRepo {
 
   async revoke(id: string): Promise<boolean> {
     return (await this.col.updateOne({ _id: id, revokedAt: null }, { $set: { revokedAt: new Date() } })).modifiedCount > 0;
+  }
+}
+
+export class MongoLoginLinkRepo implements LoginLinkRepo {
+  constructor(private readonly col: Collection<LoginLinkDoc>) {}
+
+  async create(input: NewLoginLink): Promise<LoginLink> {
+    const doc: LoginLinkDoc = { ...input, _id: randomUUID(), usedAt: null, createdAt: new Date() };
+    await this.col.insertOne(doc);
+    return strip(doc);
+  }
+
+  async consume(tokenHash: string, now: Date): Promise<LoginLink | null> {
+    const d = await this.col.findOneAndUpdate({ tokenHash, usedAt: null, expiresAt: { $gt: now } }, { $set: { usedAt: now } }, { returnDocument: 'after' });
+    return d ? strip(d) : null;
+  }
+
+  async latestForUser(userId: string): Promise<LoginLink | null> {
+    const d = await this.col.find({ userId }).sort({ createdAt: -1 }).limit(1).next();
+    return d ? strip(d) : null;
+  }
+
+  async invalidateForUser(userId: string, now: Date): Promise<number> {
+    return (await this.col.updateMany({ userId, usedAt: null }, { $set: { usedAt: now } })).modifiedCount;
+  }
+
+  async deleteExpiredBefore(before: Date): Promise<number> {
+    return (await this.col.deleteMany({ expiresAt: { $lt: before } })).deletedCount;
   }
 }

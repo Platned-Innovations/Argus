@@ -601,6 +601,23 @@ migrations['0011_invite_emails'] = {
   },
 };
 
+migrations['0012_login_links'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    await db.schema
+      .createTable('login_links')
+      .addColumn('id', 'uuid', (c) => c.primaryKey())
+      .addColumn('user_id', 'uuid', (c) => c.notNull().references('users.id').onDelete('cascade'))
+      .addColumn('token_hash', 'text', (c) => c.notNull().unique())
+      .addColumn('expires_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('used_at', 'timestamptz')
+      .addColumn('created_at', 'timestamptz', (c) => c.notNull())
+      .addColumn('requested_ip', 'text')
+      .execute();
+    await db.schema.createIndex('login_links_user_idx').on('login_links').columns(['user_id', 'created_at']).execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

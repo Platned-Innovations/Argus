@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { type Kysely, type Selectable, sql } from 'kysely';
 import { type CredentialKind, type CredentialSource, type Permission, type Role, type SavedViewPage } from '@argus/shared';
-import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type Invite, type NewApiToken, type NewCredential, type NewInvite, type NewSavedView, type SavedView } from '../platform-models';
-import { type ApiTokenRepo, type CredentialRepo, type InviteRepo, type SavedViewRepo } from '../store';
+import { type ApiToken, type Credential, type CredentialListFilter, type CredentialPatch, type Invite, type LoginLink, type NewApiToken, type NewCredential, type NewInvite, type NewLoginLink, type NewSavedView, type SavedView } from '../platform-models';
+import { type ApiTokenRepo, type CredentialRepo, type InviteRepo, type LoginLinkRepo, type SavedViewRepo } from '../store';
 import { type ApiTokensTable, type CredentialsTable, type Database, type InvitesTable, type SavedViewsTable } from './schema';
 
 type Db = Kysely<Database>;
@@ -215,5 +215,42 @@ export class PgInviteRepo implements InviteRepo {
   async revoke(id: string): Promise<boolean> {
     const res = await this.db.updateTable('invites').set({ revokedAt: new Date() }).where('id', '=', id).where('revokedAt', 'is', null).executeTakeFirst();
     return Number(res.numUpdatedRows) > 0;
+  }
+}
+
+export class PgLoginLinkRepo implements LoginLinkRepo {
+  constructor(private readonly db: Db) {}
+
+  async create(input: NewLoginLink): Promise<LoginLink> {
+    const row = { ...input, id: randomUUID(), usedAt: null, createdAt: new Date() };
+    await this.db.insertInto('loginLinks').values(row).execute();
+    return row;
+  }
+
+  async consume(tokenHash: string, now: Date): Promise<LoginLink | null> {
+    return (
+      (await this.db
+        .updateTable('loginLinks')
+        .set({ usedAt: now })
+        .where('tokenHash', '=', tokenHash)
+        .where('usedAt', 'is', null)
+        .where('expiresAt', '>', now)
+        .returningAll()
+        .executeTakeFirst()) ?? null
+    );
+  }
+
+  async latestForUser(userId: string): Promise<LoginLink | null> {
+    return (await this.db.selectFrom('loginLinks').selectAll().where('userId', '=', userId).orderBy('createdAt', 'desc').limit(1).executeTakeFirst()) ?? null;
+  }
+
+  async invalidateForUser(userId: string, now: Date): Promise<number> {
+    const res = await this.db.updateTable('loginLinks').set({ usedAt: now }).where('userId', '=', userId).where('usedAt', 'is', null).executeTakeFirst();
+    return Number(res.numUpdatedRows);
+  }
+
+  async deleteExpiredBefore(before: Date): Promise<number> {
+    const res = await this.db.deleteFrom('loginLinks').where('expiresAt', '<', before).executeTakeFirst();
+    return Number(res.numDeletedRows);
   }
 }

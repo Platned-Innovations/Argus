@@ -1,8 +1,8 @@
-import { type SecuritySettings } from '@argus/shared';
+import { type ChannelDto, isEmailChannel, type SecuritySettings, SIGN_IN_LINK_MINUTES } from '@argus/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button, Card, CardHeader, CenteredSpinner, Checkbox, ErrorAlert, Field, Input, PageHeader } from '../../components/ui';
+import { Button, Card, CardHeader, CenteredSpinner, Checkbox, ErrorAlert, Field, Input, PageHeader, Select } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { ApiTokensCard } from '../../components/ApiTokens';
@@ -21,6 +21,8 @@ export function SecuritySettingsPage() {
   const qc = useQueryClient();
   const manage = can('settings:manage');
   const query = useQuery({ queryKey: ['settings', 'security'], queryFn: () => api<SecuritySettings>('/settings/security') });
+  const channels = useQuery({ queryKey: ['integrations', 'channels'], queryFn: () => api<ChannelDto[]>('/integrations/channels'), enabled: manage });
+  const emailChannels = (channels.data ?? []).filter((c) => isEmailChannel(c.type));
   const [form, setForm] = useState<SecuritySettings | null>(null);
   useEffect(() => {
     if (query.data) setForm(query.data);
@@ -67,6 +69,37 @@ export function SecuritySettingsPage() {
                 checked={form.mfaRequired}
                 onChange={(e) => setForm({ ...form, mfaRequired: e.target.checked })}
               />
+            </div>
+          </Card>
+          <Card>
+            <CardHeader title="Sign-in links by email" description="Lets users sign in with a one-time link sent to their email address, for example when they have forgotten their password." />
+            <div className="space-y-4 p-5">
+              <Checkbox
+                label="Allow sign-in links"
+                description={`The sign-in page offers "Email me a sign-in link". Each link works once and expires after ${SIGN_IN_LINK_MINUTES} minutes. Users with MFA still enter their code, and only users with an email address can use it. Needs ARGUS_PUBLIC_URL to be set.`}
+                checked={form.signInLinks}
+                onChange={(e) => setForm({ ...form, signInLinks: e.target.checked, signInLinkChannelId: form.signInLinkChannelId ?? emailChannels[0]?.id ?? null })}
+              />
+              {form.signInLinks &&
+                (emailChannels.length ? (
+                  <div className="max-w-sm">
+                    <Field label="Send links with" hint="An email channel from Integrations.">
+                      {(id) => (
+                        <Select id={id} value={form.signInLinkChannelId ?? ''} onChange={(e) => setForm({ ...form, signInLinkChannelId: e.target.value || null })} required>
+                          <option value="">Choose a channel</option>
+                          {emailChannels.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                              {c.enabled ? '' : ' (disabled)'}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                    </Field>
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">Set up an email channel under Integrations first; sign-in links are sent through it.</p>
+                ))}
             </div>
           </Card>
           <Card>

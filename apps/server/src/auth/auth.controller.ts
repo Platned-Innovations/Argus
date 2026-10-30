@@ -10,6 +10,9 @@ import {
   mfaEnableSchema,
   type MfaSetupResponse,
   mfaVerifySchema,
+  signInLinkRequestSchema,
+  signInLinkVerifySchema,
+  type SignInOptionsDto,
 } from '@argus/shared';
 import { type Request, type Response } from 'express';
 import { type z } from 'zod';
@@ -20,6 +23,7 @@ import { SettingsService } from '../core/settings.service';
 import { toMeDto } from '../users/user.mapper';
 import { AuthService, type LoginResult } from './auth.service';
 import { clearAuthCookies, REFRESH_COOKIE, setAuthCookies } from './cookies';
+import { SignInLinksService } from './sign-in-links.service';
 import { AllowRestricted, CurrentUser, Public, SessionOnly, SkipCsrf } from './decorators';
 
 export const AUTH_RATE_LIMIT_SETTING = 'argus.authRateLimit';
@@ -37,6 +41,7 @@ export const STRICT_LIMIT = {
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly signInLinks: SignInLinksService,
     private readonly settings: SettingsService,
     private readonly config: AppConfig,
   ) {}
@@ -48,6 +53,33 @@ export class AuthController {
   @Throttle(STRICT_LIMIT)
   async login(@Body(new ZodPipe(loginSchema)) body: z.infer<typeof loginSchema>, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<LoginResponse> {
     return this.respond(await this.auth.login(body.username, body.password, requestContext(req)), res);
+  }
+
+  /** What the sign-in page may offer besides the password. */
+  @Get('options')
+  @Public()
+  options(): Promise<SignInOptionsDto> {
+    return this.signInLinks.options();
+  }
+
+  /** Emails a one-time sign-in link. The answer is the same whether or not the account exists. */
+  @Post('sign-in-link')
+  @HttpCode(200)
+  @Public()
+  @SkipCsrf()
+  @Throttle(STRICT_LIMIT)
+  async requestSignInLink(@Body(new ZodPipe(signInLinkRequestSchema)) body: z.infer<typeof signInLinkRequestSchema>, @Req() req: Request): Promise<{ ok: true }> {
+    await this.signInLinks.request(body.login, requestContext(req));
+    return { ok: true };
+  }
+
+  @Post('sign-in-link/verify')
+  @HttpCode(200)
+  @Public()
+  @SkipCsrf()
+  @Throttle(STRICT_LIMIT)
+  async signInWithLink(@Body(new ZodPipe(signInLinkVerifySchema)) body: z.infer<typeof signInLinkVerifySchema>, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<LoginResponse> {
+    return this.respond(await this.signInLinks.signIn(body.token, requestContext(req)), res);
   }
 
   @Post('mfa/verify')

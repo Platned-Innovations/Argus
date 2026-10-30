@@ -81,8 +81,24 @@ export const securitySettingsSchema = z.object({
   mfaRequired: z.boolean(),
   accessTokenMinutes: z.number().int().min(5).max(60),
   sessionDays: z.number().int().min(1).max(90),
+  /** Users with an email address can ask for a one-time sign-in link instead of using their password (MFA still applies). */
+  signInLinks: z.boolean().default(false),
+  /** Email channel that sends sign-in links. */
+  signInLinkChannelId: z.uuid().nullable().default(null),
 });
 export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
+
+/** Sign-in links are valid this long. */
+export const SIGN_IN_LINK_MINUTES = 15;
+
+export const signInLinkRequestSchema = z.object({ login: z.string().trim().min(1).max(254) });
+/** The token travels in the body (it comes from the link's URL fragment), never in a URL the server logs. */
+export const signInLinkVerifySchema = z.object({ token: z.string().min(10).max(200) });
+
+/** Shown on the sign-in page before anyone signs in. */
+export interface SignInOptionsDto {
+  signInLinks: boolean;
+}
 
 export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
   passwordMinLength: 12,
@@ -92,6 +108,8 @@ export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
   mfaRequired: false,
   accessTokenMinutes: 15,
   sessionDays: 7,
+  signInLinks: false,
+  signInLinkChannelId: null,
 };
 
 export const auditQuerySchema = z.object({

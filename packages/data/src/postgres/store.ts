@@ -24,7 +24,7 @@ import { migrationProvider } from './migrations';
 import { PgCacheRepo, PgDependencyRepo, PgFindingRepo, PgSuppressionRepo } from './findings';
 import { PgChannelRepo, PgCounterRepo, PgNotificationRuleRepo, PgTicketRepo } from './tickets';
 import { PgAiInsightRepo, PgAiUsageRepo } from './ai';
-import { PgApiTokenRepo, PgCredentialRepo, PgInviteRepo, PgSavedViewRepo } from './platform';
+import { PgApiTokenRepo, PgCredentialRepo, PgInviteRepo, PgLoginLinkRepo, PgSavedViewRepo } from './platform';
 import { PgAdvisoryRepo, PgIntelItemRepo, PgIntelSourceRepo } from './intel';
 import { PgJobRepo, PgLockRepo, PgRepositoryRepo, PgScanRunRepo, PgSourceRepo } from './scanning';
 import { type Database, type UsersTable } from './schema';
@@ -404,6 +404,7 @@ export function createPostgresStore(url: string): DataStore {
     credentials: new PgCredentialRepo(db),
     savedViews: new PgSavedViewRepo(db),
     invites: new PgInviteRepo(db),
+    loginLinks: new PgLoginLinkRepo(db),
     async migrate() {
       const { error, results } = await new Migrator({ db, provider: migrationProvider }).migrateToLatest();
       const failed = results?.find((r) => r.status === 'Error');
