@@ -146,6 +146,24 @@ test.describe.serial('Argus in a browser', () => {
     expect(guestErrors).toEqual([]);
   });
 
+  test('copies one-time secrets on plain HTTP, where the Clipboard API is missing', async ({ page }) => {
+    // Browsers only offer navigator.clipboard on HTTPS or localhost; remove it to behave like http://<server-ip>.
+    await page.addInitScript(`
+      Object.defineProperty(Navigator.prototype, 'clipboard', { get: () => undefined });
+      document.addEventListener('copy', (e) => { window.copied = e.target.value.slice(e.target.selectionStart, e.target.selectionEnd); });
+    `);
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/admin/users');
+    await page.getByRole('button', { name: 'Invite users' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Create invite link' }).click();
+    const link = (await page.getByRole('dialog').locator('pre').textContent())!;
+    await page.getByRole('button', { name: 'Copy', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+    expect(await page.evaluate('window.copied')).toBe(link);
+    expect(errors).toEqual([]);
+  });
+
   test('shows the bundled documentation and the live API reference', async ({ page }) => {
     const errors = watchErrors(page);
     await signIn(page);

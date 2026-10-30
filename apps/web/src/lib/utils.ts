@@ -26,11 +26,34 @@ export function formatRelative(iso: string | null | undefined): string {
   return 'just now';
 }
 
+/**
+ * Copies text. Browsers only offer the Clipboard API on secure origins (HTTPS or localhost), so on plain HTTP
+ * (e.g. http://<server-ip>:8080) this falls back to copying from a hidden text field. Returns false if both fail.
+ */
 export async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Permission denied or document not focused: try the fallback.
+    }
   }
+  const field = document.createElement('textarea');
+  field.value = text;
+  field.setAttribute('readonly', '');
+  // Set through the DOM, not a style attribute, so the Content-Security-Policy (style-src 'self') allows it.
+  Object.assign(field.style, { position: 'fixed', top: '0', left: '0', opacity: '0', pointerEvents: 'none' });
+  const focused = document.activeElement as HTMLElement | null;
+  document.body.appendChild(field);
+  field.select();
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {
+    copied = false;
+  }
+  field.remove();
+  focused?.focus();
+  return copied;
 }
