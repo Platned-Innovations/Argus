@@ -12,6 +12,8 @@ import { formatRelative } from '../lib/utils';
 
 const PAGE_SIZE = 50;
 
+const MIXED_HINT = 'The selection mixes monitored and not monitored repositories. Select only one kind to start or stop monitoring.';
+
 type BulkPatch = { active?: boolean; teamId?: string | null; criticality?: Criticality; schedule?: { preset: SchedulePreset } };
 
 export function RepositoriesPage() {
@@ -21,7 +23,8 @@ export function RepositoriesPage() {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Selected repositories and whether each is monitored, so the bulk actions only offer what applies to all of them.
+  const [selected, setSelected] = useState<Map<string, boolean>>(new Map());
   const sourceId = params.get('source') ?? '';
   const teamId = params.get('team') ?? '';
   const active = params.get('active') ?? '';
@@ -32,7 +35,7 @@ export function RepositoriesPage() {
     else next.delete(key);
     setParams(next);
     setPage(1);
-    setSelected(new Set());
+    setSelected(new Map());
   };
 
   const sources = useQuery({ queryKey: ['sources', 'summary'], queryFn: () => api<Pick<SourceDto, 'id' | 'name' | 'provider'>[]>('/sources/summary') });
@@ -48,10 +51,10 @@ export function RepositoriesPage() {
   });
 
   const bulk = useMutation({
-    mutationFn: (patch: BulkPatch) => api<{ updated: number }>('/repos/bulk', { method: 'POST', body: { ids: [...selected], patch } }),
+    mutationFn: (patch: BulkPatch) => api<{ updated: number }>('/repos/bulk', { method: 'POST', body: { ids: [...selected.keys()], patch } }),
     onSuccess: (res) => {
       toast.success(`Updated ${res.updated} repositor${res.updated === 1 ? 'y' : 'ies'}.`);
-      setSelected(new Set());
+      setSelected(new Map());
       void qc.invalidateQueries({ queryKey: ['repos'] });
       void qc.invalidateQueries({ queryKey: ['sources'] });
     },
@@ -59,12 +62,17 @@ export function RepositoriesPage() {
 
   const items = query.data?.items ?? [];
   const allSelected = items.length > 0 && items.every((r) => selected.has(r.id));
-  const toggle = (id: string) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+  const toggle = (r: RepositoryDto) => {
+    const next = new Map(selected);
+    if (next.has(r.id)) next.delete(r.id);
+    else next.set(r.id, r.active);
     setSelected(next);
   };
+  // Starting applies only to repositories not yet monitored, stopping only to monitored ones: a mix allows neither.
+  const states = [...selected.values()];
+  const canStart = states.length > 0 && states.every((a) => !a);
+  const canStop = states.length > 0 && states.every((a) => a);
+  const mixed = !canStart && !canStop;
 
   return (
     <>
@@ -109,12 +117,13 @@ export function RepositoriesPage() {
         {manage && selected.size > 0 && (
           <div className="flex flex-wrap items-center gap-2 border-b border-indigo-100 bg-indigo-50 px-4 py-2.5 text-sm dark:border-indigo-500/20 dark:bg-indigo-500/10">
             <span className="font-medium">{selected.size} selected</span>
-            <Button size="sm" loading={bulk.isPending} onClick={() => bulk.mutate({ active: true })}>
+            <Button size="sm" loading={bulk.isPending} disabled={!canStart} title={canStart ? undefined : mixed ? MIXED_HINT : 'Already monitored'} onClick={() => bulk.mutate({ active: true })}>
               Start monitoring
             </Button>
-            <Button size="sm" variant="secondary" loading={bulk.isPending} onClick={() => bulk.mutate({ active: false })}>
+            <Button size="sm" variant="secondary" loading={bulk.isPending} disabled={!canStop} title={canStop ? undefined : mixed ? MIXED_HINT : 'Not monitored'} onClick={() => bulk.mutate({ active: false })}>
               Stop monitoring
             </Button>
+            {mixed && <span className="text-xs text-slate-500 dark:text-slate-400">{MIXED_HINT}</span>}
             <Select className="w-auto py-1" value="" onChange={(e) => e.target.value && bulk.mutate({ teamId: e.target.value === '__none' ? null : e.target.value })} aria-label="Assign team">
               <option value="">Assign team…</option>
               <option value="__none">No team</option>
@@ -140,7 +149,7 @@ export function RepositoriesPage() {
                 </option>
               ))}
             </Select>
-            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelected(new Set())}>
+            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelected(new Map())}>
               Clear
             </Button>
           </div>
@@ -167,7 +176,7 @@ export function RepositoriesPage() {
             <Table
               head={[
                 ...(manage
-                  ? [<input key="all" type="checkbox" aria-label="Select all" className="size-4 rounded border-slate-300" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(items.map((r) => r.id)))} />]
+                  ? [<input key="all" type="checkbox" aria-label="Select all" className="size-4 rounded border-slate-300" checked={allSelected} onChange={() => setSelected(allSelected ? new Map() : new Map(items.map((r) => [r.id, r.active])))} />]
                   : []),
                 'Repository',
                 'Team',
@@ -179,7 +188,7 @@ export function RepositoriesPage() {
                 <tr key={r.id} className={selected.has(r.id) ? 'bg-indigo-50/50 dark:bg-indigo-500/5' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}>
                   {manage && (
                     <td className="w-10 px-4 py-3">
-                      <input type="checkbox" aria-label={`Select ${r.fullName}`} className="size-4 rounded border-slate-300" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
+                      <input type="checkbox" aria-label={`Select ${r.fullName}`} className="size-4 rounded border-slate-300" checked={selected.has(r.id)} onChange={() => toggle(r)} />
                     </td>
                   )}
                   <td className="px-4 py-3">
