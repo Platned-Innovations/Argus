@@ -97,6 +97,35 @@ test.describe.serial('Argus in a browser', () => {
     expect(errors).toEqual([]);
   });
 
+  test('bulk start and stop monitoring only apply to a selection of one kind', async ({ page }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/repositories');
+    const start = page.getByRole('button', { name: 'Start monitoring' });
+    const stop = page.getByRole('button', { name: 'Stop monitoring' });
+    // acme/shop is monitored (from the previous test); acme/billing is not.
+    await expect(page.getByRole('row', { name: /acme\/billing/ }).getByText('Not monitored')).toBeVisible();
+
+    await page.getByLabel('Select acme/shop').check();
+    await expect(start).toBeDisabled();
+    await expect(stop).toBeEnabled();
+
+    await page.getByLabel('Select acme/shop').uncheck();
+    await page.getByLabel('Select acme/billing').check();
+    await expect(start).toBeEnabled();
+    await expect(stop).toBeDisabled();
+
+    await page.getByLabel('Select acme/shop').check();
+    await expect(start).toBeDisabled();
+    await expect(stop).toBeDisabled();
+    await expect(page.getByText(/mixes monitored and not monitored/)).toBeVisible();
+
+    await page.getByLabel('Select acme/shop').uncheck();
+    await expect(start).toBeEnabled();
+    await expect(page.getByText(/mixes monitored and not monitored/)).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
   test('saves a filtered ticket list as a view and applies it again', async ({ page }) => {
     const errors = watchErrors(page);
     await signIn(page);
