@@ -160,7 +160,7 @@ test.describe.serial('Argus in a browser', () => {
     const link = (await page.getByRole('dialog').locator('pre').textContent())!;
     await page.getByRole('button', { name: 'Copy', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
-    expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(link);
+    expect(await page.evaluate('window.copied')).toBe(link);
     expect(errors).toEqual([]);
   });
 
