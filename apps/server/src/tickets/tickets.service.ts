@@ -7,6 +7,8 @@ import {
   type ListTicketsQuery,
   type Paged,
   type TicketBulkInput,
+  type TicketBulkKeysInput,
+  type TicketBulkKeysResult,
   type TicketDetailDto,
   type TicketDto,
   type TicketEventDto,
@@ -423,6 +425,30 @@ export class TicketsService implements OnModuleInit {
       }
     }
     return { updated };
+  }
+
+  /** Moves the named tickets to one status. Tickets that cannot be moved are reported, not fatal. */
+  async bulkStatusByKeys(input: TicketBulkKeysInput, actor: User, ctx: RequestContext): Promise<TicketBulkKeysResult> {
+    const keys = [...new Set(input.keys)];
+    const found = await this.store.tickets.list({ keys, visibleTeamIds: visibleTeams(actor), now: new Date(), offset: 0, limit: keys.length });
+    const byKey = new Map(found.items.map((t) => [t.key, t]));
+    const result: TicketBulkKeysResult = { updated: [], unchanged: [], notFound: [], failed: [] };
+    for (const key of keys) {
+      const t = byKey.get(key);
+      if (!t) result.notFound.push(key);
+      else if (t.status === input.status) result.unchanged.push(key);
+      else {
+        try {
+          await this.changeStatus(t.id, { status: input.status, reason: input.comment, expiresAt: input.expiresAt }, actor, ctx);
+          result.updated.push(key);
+        } catch (err) {
+          if (!(err instanceof ForbiddenException || err instanceof BadRequestException || err instanceof NotFoundException)) throw err;
+          result.failed.push({ key, reason: err.message });
+        }
+      }
+    }
+    await this.audit.record({ action: 'tickets.bulk_status', actor, details: { status: input.status, updated: result.updated.length, failed: result.failed.length, notFound: result.notFound.length }, ip: ctx.ip });
+    return result;
   }
 
   /** Ensures the ticket is not already linked before creating a Jira issue. */

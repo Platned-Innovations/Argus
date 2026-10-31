@@ -147,6 +147,26 @@ export const ticketBulkSchema = z.object({
 });
 export type TicketBulkInput = z.infer<typeof ticketBulkSchema>;
 
+/** Moves tickets, named by their keys (e.g. ARG-42), to one status with a comment. */
+export const ticketBulkKeysSchema = z.object({
+  keys: z.array(z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]*-\d+$/, 'Ticket keys look like ARG-42.')).min(1).max(500),
+  status: z.enum(TICKET_STATUSES).exclude(['reopened']),
+  /** Recorded on every ticket's activity. */
+  comment: z.string().trim().min(5).max(2000),
+  /** Risk acceptance expiry; after it the tickets reopen at the next scan. */
+  expiresAt: z.coerce.date().nullable().optional(),
+});
+export type TicketBulkKeysInput = z.infer<typeof ticketBulkKeysSchema>;
+
+export interface TicketBulkKeysResult {
+  updated: string[];
+  /** Already in the requested status. */
+  unchanged: string[];
+  /** No such ticket, or not visible to you. */
+  notFound: string[];
+  failed: { key: string; reason: string }[];
+}
+
 export const ticketEmailSchema = z.object({
   channelId: z.uuid(),
   to: z.array(z.email()).min(1).max(20),

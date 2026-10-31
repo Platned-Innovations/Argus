@@ -324,6 +324,13 @@ describe.each(harnesses)('tickets, email, Jira & notifications e2e: $name', (h) 
 
   it('bulk-updates, exports, scopes by team and audits', async () => {
     const active = (await tickets()).items.map((t) => t.id);
+    const keys = (await tickets()).items.map((t) => t.key);
+    const byKey = (await admin.call('post', '/api/v1/tickets/bulk-status', { keys: [...keys, 'zzz-999'], status: 'triaged', comment: 'Reviewed in triage meeting' })).body;
+    expect(byKey).toEqual({ updated: expect.arrayContaining(keys), unchanged: [], notFound: ['ZZZ-999'], failed: [] });
+    expect((await admin.call('post', '/api/v1/tickets/bulk-status', { keys, status: 'triaged', comment: 'Reviewed in triage meeting' })).body.unchanged).toHaveLength(keys.length);
+    expect((await admin.call('post', '/api/v1/tickets/bulk-status', { keys, status: 'false_positive', comment: 'x' })).status).toBe(400);
+    const events = (await admin.call('get', `/api/v1/tickets/${active[0]}`)).body.events as { type: string; body: string | null }[];
+    expect(events.some((e) => e.type === 'status' && e.body === 'Reviewed in triage meeting')).toBe(true);
     expect((await admin.call('post', '/api/v1/tickets/bulk', { ids: active, status: 'triaged' })).body).toEqual({ updated: 2 });
     const csv = await admin.call('get', '/api/v1/tickets/export?status=active');
     expect(csv.text.split('\r\n')[0]).toBe('key,title,severity,risk_score,status,repository,assignee,due,sla_breached,open_findings,jira,created,resolved');

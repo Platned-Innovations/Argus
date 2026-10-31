@@ -57,6 +57,8 @@ export interface TicketListFilter {
   search?: string;
   visibleTeamIds?: string[];
   ids?: string[];
+  /** Exact ticket keys, e.g. "ARG-42". */
+  keys?: string[];
   now: Date;
   offset: number;
   limit: number;

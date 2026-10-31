@@ -66,7 +66,7 @@ Reopening the ticket yourself removes the suppression.
 | Assign | | Themselves | Anyone who can see the ticket |
 | Close, accept risk, mark false positive (and reopen those) | | | ✓ |
 | Email a ticket, create a Jira issue | | ✓ | ✓ |
-| Bulk changes, CSV export | Export | ✓ | ✓ |
+| Bulk changes (select rows, or move tickets by key with a comment), CSV export | Export | ✓ | ✓ |
 | Save views (private) | ✓ | ✓ | ✓ |
 | Share views with everyone, delete others' shared views | | | ✓ |
 

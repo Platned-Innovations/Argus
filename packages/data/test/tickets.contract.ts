@@ -100,6 +100,8 @@ export function ticketsContract(getStore: () => DataStore): void {
       expect((await store.tickets.list({ ...base, search: a.key })).total).toBe(1);
       expect((await store.tickets.list({ ...base, ids: [b.id, c.id] })).total).toBe(2);
       expect((await store.tickets.list({ ...base, ids: [] })).total).toBe(0);
+      expect((await store.tickets.list({ ...base, keys: [a.key, c.key] })).total).toBe(2);
+      expect((await store.tickets.list({ ...base, keys: [] })).total).toBe(0);
       expect((await store.tickets.list({ ...base, visibleTeamIds: [] })).total).toBe(0);
       expect((await store.tickets.list({ ...base, visibleTeamIds: [team.id] })).total).toBe(3);
 

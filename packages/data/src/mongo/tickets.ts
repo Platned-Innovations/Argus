@@ -69,6 +69,7 @@ export class MongoTicketRepo implements TicketRepo {
     if (f.severities?.length) and.push({ severity: { $in: f.severities } });
     if (f.repoId) and.push({ repoId: f.repoId });
     if (f.scanner) and.push({ scanner: f.scanner });
+    if (f.keys) and.push({ key: { $in: f.keys } });
     if (f.ids) and.push({ _id: { $in: f.ids } });
     if (f.assigneeId === null) and.push({ assigneeId: null });
     else if (f.assigneeId) and.push({ assigneeId: f.assigneeId });

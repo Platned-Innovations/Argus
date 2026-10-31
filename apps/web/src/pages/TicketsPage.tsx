@@ -1,9 +1,10 @@
 import { type Paged, type Severity, SEVERITIES, type TicketDto, type TicketStatus, TICKET_STATUSES, TICKET_STATUS_LABELS } from '@argus/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Search, ShieldAlert } from 'lucide-react';
+import { Download, ListChecks, Search, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
+import { BulkStatusModal } from '../components/BulkStatusModal';
 import { SeverityBadge } from '../components/findings';
 import { SavedViews } from '../components/SavedViews';
 import { DueBadge, TicketStatusBadge } from '../components/tickets';
@@ -19,6 +20,7 @@ export function TicketsPage() {
   const { me, can } = useAuth();
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const filters = useFilters(true, () => {
     setPage(1);
@@ -69,13 +71,21 @@ export function TicketsPage() {
         title="Tickets"
         description="Security issues to fix, one ticket per issue. Tickets open, update and resolve themselves from scan results."
         actions={
-          <a href={`/api/v1/tickets/export${buildQuery(query)}`} download>
-            <Button variant="secondary" icon={<Download className="size-4" />}>
-              Export CSV
-            </Button>
-          </a>
+          <div className="flex gap-2">
+            {canWrite && (
+              <Button variant="secondary" icon={<ListChecks className="size-4" />} onClick={() => setBulkOpen(true)}>
+                Bulk status
+              </Button>
+            )}
+            <a href={`/api/v1/tickets/export${buildQuery(query)}`} download>
+              <Button variant="secondary" icon={<Download className="size-4" />}>
+                Export CSV
+              </Button>
+            </a>
+          </div>
         }
       />
+      <BulkStatusModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
           <div className="relative min-w-56 flex-1">

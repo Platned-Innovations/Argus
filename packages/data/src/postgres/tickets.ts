@@ -93,6 +93,7 @@ export class PgTicketRepo implements TicketRepo {
     if (f.severities?.length) q = q.where('severity', 'in', f.severities);
     if (f.repoId) q = q.where('repoId', '=', f.repoId);
     if (f.scanner) q = q.where('scanner', '=', f.scanner);
+    if (f.keys) q = f.keys.length ? q.where('key', 'in', f.keys) : q.where(sql<boolean>`false`);
     if (f.ids) q = f.ids.length ? q.where('id', 'in', f.ids) : q.where(sql<boolean>`false`);
     if (f.assigneeId === null) q = q.where('assigneeId', 'is', null);
     else if (f.assigneeId) q = q.where('assigneeId', '=', f.assigneeId);

@@ -7,6 +7,7 @@ import {
   jiraSettingsSchema,
   listTicketsQuerySchema,
   notificationRuleSchema,
+  ticketBulkKeysSchema,
   ticketBulkSchema,
   ticketCommentSchema,
   ticketEmailSchema,
@@ -76,6 +77,13 @@ export class TicketsController {
   @RequirePermissions('tickets:write')
   bulk(@Body(new ZodPipe(ticketBulkSchema)) body: z.infer<typeof ticketBulkSchema>, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.tickets.bulk(body, me.user, requestContext(req));
+  }
+
+  @Post('bulk-status')
+  @HttpCode(200)
+  @RequirePermissions('tickets:write')
+  bulkStatus(@Body(new ZodPipe(ticketBulkKeysSchema)) body: z.infer<typeof ticketBulkKeysSchema>, @CurrentUser() me: RequestUser, @Req() req: Request) {
+    return this.tickets.bulkStatusByKeys(body, me.user, requestContext(req));
   }
 
   @Get(':id')
