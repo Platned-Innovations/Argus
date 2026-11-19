@@ -104,13 +104,13 @@ function Endpoint({ method, path, op }: { method: string; path: string; op: Oper
           {op.description && <p className="text-slate-600 dark:text-slate-300">{op.description}</p>}
           {params.length > 0 && (
             <div>
-              <h4 className="mb-1 text-xs font-semibold tracking-wide text-slate-400 uppercase">Parameters</h4>
+              <h4 className="mb-1 text-xs font-semibold text-slate-400">Parameters</h4>
               <Fields rows={params.map((p) => ({ name: p.name, required: !!p.required, schema: p.schema, where: p.in }))} />
             </div>
           )}
           {body && (
             <div>
-              <h4 className="mb-1 text-xs font-semibold tracking-wide text-slate-400 uppercase">JSON body</h4>
+              <h4 className="mb-1 text-xs font-semibold text-slate-400">JSON body</h4>
               {bodyRows.length ? <Fields rows={bodyRows} /> : <p className="font-mono text-[12px] text-slate-500">{typeLabel(body)}</p>}
             </div>
           )}

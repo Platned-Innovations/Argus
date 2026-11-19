@@ -29,7 +29,7 @@ const STATUS_TONE: Record<IntelItemStatus, 'slate' | 'amber' | 'green' | 'red' |
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
     <Card className="p-4">
-      <div className="text-xs font-medium tracking-wide text-slate-500 uppercase">{label}</div>
+      <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
       {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
     </Card>

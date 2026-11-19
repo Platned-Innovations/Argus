@@ -23,7 +23,7 @@ export function useAiStatus() {
 /** Provenance label shown on every AI output. */
 export function AiLabel({ provider, model, at }: { provider: AiProvider; model: string; at?: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-violet-600/20 ring-inset dark:bg-violet-500/10 dark:text-violet-300" title={`${AI_PROVIDER_LABELS[provider]} · ${model}${at ? ` · ${formatDateTime(at)}` : ''}`}>
+    <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-600/20 ring-inset dark:bg-indigo-500/10 dark:text-indigo-300" title={`${AI_PROVIDER_LABELS[provider]} · ${model}${at ? ` · ${formatDateTime(at)}` : ''}`}>
       <Sparkles className="size-3" /> AI-assisted · {model}
     </span>
   );
@@ -51,7 +51,7 @@ export function AiHintBadge({ hint }: { hint: FindingAiHintDto }) {
 /** Full AI hint for a finding detail view. */
 export function AiHintPanel({ hint }: { hint: FindingAiHintDto }) {
   return (
-    <div className="rounded-md bg-violet-50/60 p-3 text-sm ring-1 ring-violet-600/15 dark:bg-violet-500/5">
+    <div className="rounded-md bg-indigo-50/60 p-3 text-sm ring-1 ring-indigo-600/15 dark:bg-indigo-500/5">
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <AiHintBadge hint={hint} />
         <span className="text-xs text-slate-500">{Math.round(hint.confidence * 100)}% confidence</span>
@@ -96,7 +96,7 @@ export function RemediationPanel({ ticketId }: { ticketId: string }) {
       <CardHeader
         title={
           <span className="inline-flex items-center gap-2">
-            <Sparkles className="size-4 text-violet-600" /> AI remediation suggestion
+            <Sparkles className="size-4 text-indigo-600" /> AI remediation suggestion
           </span>
         }
         description={s ? `Generated ${formatRelative(s.createdAt)}${s.createdByName ? ` by ${s.createdByName}` : ''}. Review before acting.` : 'Step-by-step fix guidance based on this ticket’s findings and advisories.'}

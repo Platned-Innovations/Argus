@@ -41,7 +41,7 @@ function DocsNav({ onNavigate }: { onNavigate(): void }) {
         <>
           {docsNav().map((section) => (
             <div key={section.title}>
-              <div className="mb-1 px-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">{section.title}</div>
+              <div className="mb-1 px-2 text-xs font-semibold text-slate-400">{section.title}</div>
               <ul className="space-y-0.5">
                 {section.items.map((it) => (
                   <li key={it.slug}>
@@ -54,7 +54,7 @@ function DocsNav({ onNavigate }: { onNavigate(): void }) {
             </div>
           ))}
           <div>
-            <div className="mb-1 px-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">API</div>
+            <div className="mb-1 px-2 text-xs font-semibold text-slate-400">API</div>
             <NavLink to="/docs/api" onClick={onNavigate} className={navLink}>
               <span className="inline-flex items-center gap-1.5">
                 <Braces className="size-3.5" /> API reference

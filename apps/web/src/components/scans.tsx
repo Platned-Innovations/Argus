@@ -112,7 +112,7 @@ export function ScanRunModal({ runId, onClose }: { runId: string; onClose(): voi
             </div>
           )}
           <div>
-            <div className="mb-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">Log</div>
+            <div className="mb-1 text-xs font-semibold text-slate-500">Log</div>
             <pre className="max-h-72 overflow-auto rounded-md bg-slate-950 p-3 font-mono text-xs leading-5 text-slate-200">{run.log?.join('\n') || 'No output yet.'}</pre>
           </div>
         </>

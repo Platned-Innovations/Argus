@@ -176,7 +176,7 @@ export function FindingModal({ findingId, onClose }: { findingId: string; onClos
             )}
 
             <section>
-              <h3 className="mb-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">Why this score</h3>
+              <h3 className="mb-1 text-xs font-semibold text-slate-500">Why this score</h3>
               <ul className="divide-y divide-slate-100 rounded-md ring-1 ring-slate-200 dark:divide-slate-800 dark:ring-slate-800">
                 {f.riskFactors.map((rf, i) => (
                   <li key={i} className="flex justify-between px-3 py-1.5 text-sm">
@@ -256,7 +256,7 @@ export function FindingModal({ findingId, onClose }: { findingId: string; onClos
 
             {f.description && (
               <section>
-                <h3 className="mb-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">Details</h3>
+                <h3 className="mb-1 text-xs font-semibold text-slate-500">Details</h3>
                 <p className="text-sm whitespace-pre-line text-slate-700 dark:text-slate-300">{f.description}</p>
               </section>
             )}

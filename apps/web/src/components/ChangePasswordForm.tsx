@@ -38,7 +38,7 @@ export function ChangePasswordForm({ onDone }: { onDone?(): void }) {
       <Field
         label="New password"
         error={policyErrors[0]}
-        hint={`At least ${me!.passwordPolicy.minLength} characters with ${me!.passwordPolicy.requiredClasses} of: lowercase, uppercase, digit, symbol.`}
+        hint={`At least ${me!.passwordPolicy.minLength} characters with ${me!.passwordPolicy.requiredClasses} of: lowercase,, digit, symbol.`}
       >
         {(id) => <Input id={id} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} required />}
       </Field>

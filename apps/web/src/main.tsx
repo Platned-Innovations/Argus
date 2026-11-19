@@ -8,6 +8,7 @@ import { AppShell } from './components/AppShell';
 import { CenteredSpinner, EmptyState } from './components/ui';
 import { ApiError } from './lib/api';
 import { AuthProvider, useAuth } from './lib/auth';
+import { ThemeProvider, useTheme } from './lib/theme';
 import { AiSettingsPage } from './pages/admin/AiSettingsPage';
 import { AuditPage } from './pages/admin/AuditPage';
 import { IntegrationsPage } from './pages/admin/IntegrationsPage';
@@ -104,15 +105,22 @@ function App() {
   );
 }
 
+function ThemedToaster() {
+  const { mode } = useTheme();
+  return <Toaster richColors position="top-right" theme={mode} />;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-          <Toaster richColors position="top-right" />
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <App />
+            <ThemedToaster />
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 );

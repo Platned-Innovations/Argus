@@ -58,7 +58,7 @@ export function ActivityIndicator({ className, panelClassName, compact }: { clas
         <div className={cn('absolute z-50 mt-1 w-72 rounded-md border border-slate-200 bg-white p-3 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900', panelClassName)}>
           {a.scans.running.length > 0 && (
             <section>
-              <h3 className="mb-1 text-xs font-semibold tracking-wide text-slate-400 uppercase">Scanning</h3>
+              <h3 className="mb-1 text-xs font-semibold text-slate-400">Scanning</h3>
               <ul className="space-y-1">
                 {a.scans.running.map((s) => (
                   <li key={s.id} className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export function ActivityIndicator({ className, panelClassName, compact }: { clas
           )}
           {a.tasks.length > 0 && (
             <section className={cn((a.scans.running.length > 0 || a.scans.queued > 0) && 'mt-3 border-t border-slate-200 pt-2 dark:border-slate-700')}>
-              <h3 className="mb-1 text-xs font-semibold tracking-wide text-slate-400 uppercase">Background</h3>
+              <h3 className="mb-1 text-xs font-semibold text-slate-400">Background</h3>
               <ul className="space-y-1">
                 {a.tasks.map((t) => (
                   <li key={t.type} className="flex items-center gap-2">

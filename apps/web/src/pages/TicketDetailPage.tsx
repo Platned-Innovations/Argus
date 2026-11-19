@@ -379,7 +379,7 @@ export function TicketDetailPage() {
           <RemediationPanel ticketId={t.id} />
           {t.description && (
             <Card className="p-5">
-              <div className="mb-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">Details</div>
+              <div className="mb-1 text-xs font-semibold text-slate-500">Details</div>
               <p className="text-sm whitespace-pre-line text-slate-700 dark:text-slate-300">{t.description}</p>
             </Card>
           )}

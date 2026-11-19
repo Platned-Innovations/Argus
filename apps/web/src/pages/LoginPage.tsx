@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import { Button, Card, CenteredSpinner, ErrorAlert, Field, Input } from '../components/ui';
 import { api } from '../lib/api';
+import { ThemeSwitcher } from '../lib/theme';
 import { useAuth } from '../lib/auth';
 import { useBranding } from '../lib/branding';
 
@@ -107,14 +108,14 @@ export function LoginPage() {
   );
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <img src="/favicon.svg" alt="" className="size-12" />
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight">Sign in to {branding.productName}</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Continuous security & dependency monitoring</p>
+    <div className="flex min-h-screen items-center justify-center px-6 py-12">
+      <div className="page-enter w-full max-w-sm">
+        <div className="mb-10">
+          <img src="/favicon.svg" alt="" className="size-10" />
+          <h1 className="mt-8 text-[2.25rem] leading-[1.1] font-medium tracking-[-0.04em]">Sign in to {branding.productName}</h1>
+          <p className="mt-3 text-base text-slate-500 dark:text-slate-400">Continuous security and dependency monitoring.</p>
         </div>
-        <Card className="p-6">
+        <Card className="p-6 ring-slate-300 dark:ring-slate-800">
           {mfaToken ? (
             <form onSubmit={submitCode} className="space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -187,7 +188,8 @@ export function LoginPage() {
             </form>
           )}
         </Card>
-        {branding.loginNotice && <p className="mt-6 text-center text-xs whitespace-pre-line text-slate-500 dark:text-slate-400">{branding.loginNotice}</p>}
+        <ThemeSwitcher className="mt-6" />
+        {branding.loginNotice && <p className="mt-6 text-xs whitespace-pre-line text-slate-500 dark:text-slate-400">{branding.loginNotice}</p>}
       </div>
     </div>
   );

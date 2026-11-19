@@ -9,7 +9,7 @@ import { ApiTokensCard } from '../../components/ApiTokens';
 
 const numberFields: { key: keyof SecuritySettings; label: string; hint: string; min: number; max: number; group: 'password' | 'session' }[] = [
   { key: 'passwordMinLength', label: 'Minimum password length', hint: '8–128 characters.', min: 8, max: 128, group: 'password' },
-  { key: 'passwordRequiredClasses', label: 'Required character classes', hint: 'Out of lowercase, uppercase, digit, symbol (1–4).', min: 1, max: 4, group: 'password' },
+  { key: 'passwordRequiredClasses', label: 'Required character classes', hint: 'Out of lowercase,, digit, symbol (1–4).', min: 1, max: 4, group: 'password' },
   { key: 'lockoutThreshold', label: 'Lock after failed attempts', hint: 'Consecutive failures before the account is locked.', min: 3, max: 50, group: 'password' },
   { key: 'lockoutMinutes', label: 'Lockout duration (minutes)', hint: 'Administrators can unlock accounts earlier.', min: 1, max: 1440, group: 'password' },
   { key: 'accessTokenMinutes', label: 'Access token lifetime (minutes)', hint: 'Short-lived; refreshed silently while the session is active.', min: 5, max: 60, group: 'session' },

@@ -6,11 +6,11 @@ import { cn } from '../lib/utils';
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-indigo-600 text-white hover:bg-indigo-500 focus-visible:outline-indigo-600 disabled:bg-indigo-400',
+  primary: 'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:outline-indigo-600 disabled:bg-indigo-400 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:text-slate-950',
   secondary:
-    'bg-white text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:bg-slate-700',
-  danger: 'bg-red-600 text-white hover:bg-red-500 focus-visible:outline-red-600 disabled:bg-red-400',
-  ghost: 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+    'bg-transparent text-slate-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-100 hover:ring-slate-400 dark:text-slate-200 dark:ring-slate-700 dark:hover:bg-slate-800 dark:hover:ring-slate-600',
+  danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:outline-red-600 disabled:bg-red-400',
+  ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -24,8 +24,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({ variant = 'p
   <button
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center gap-2 rounded-md font-medium shadow-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-70',
-      size === 'sm' ? 'px-2.5 py-1.5 text-xs' : 'px-3.5 py-2 text-sm',
+      'inline-flex items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap pointer-fine:hover:not-disabled:-translate-y-px active:not-disabled:translate-y-px active:not-disabled:scale-[.985] disabled:cursor-not-allowed disabled:opacity-60',
+      size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-sm',
       variants[variant],
       className,
     )}
@@ -39,7 +39,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({ variant = 'p
 Button.displayName = 'Button';
 
 const fieldClass =
-  'block w-full rounded-md border-0 bg-white px-3 py-2 text-slate-900 shadow-xs ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 disabled:bg-slate-50 disabled:text-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 dark:disabled:bg-slate-800';
+  'block w-full rounded-md border-0 bg-transparent px-3 py-2 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 hover:ring-slate-400 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-indigo-600 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:ring-slate-700 dark:hover:ring-slate-600 dark:focus:bg-slate-900 dark:disabled:bg-slate-800';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(({ className, ...rest }, ref) => (
   <input ref={ref} className={cn(fieldClass, className)} {...rest} />
@@ -68,7 +68,7 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn('rounded-lg bg-white shadow-xs ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800', className)}>{children}</div>;
+  return <div className={cn('rounded-lg bg-white ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800', className)}>{children}</div>;
 }
 
 export function CardHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
@@ -94,14 +94,14 @@ const tones: Record<Tone, string> = {
 };
 
 export function Badge({ tone = 'slate', children }: { tone?: Tone; children: ReactNode }) {
-  return <span className={cn('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset', tones[tone])}>{children}</span>;
+  return <span className={cn('inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium ring-1 ring-inset', tones[tone])}>{children}</span>;
 }
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-[1.75rem] leading-9 font-medium tracking-[-0.03em]">{title}</h1>
         {description && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
@@ -146,7 +146,7 @@ export function Modal({ open, onClose, title, description, children, footer, wid
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-[10vh] backdrop-blur-xs" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-[10vh]" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -188,7 +188,7 @@ export function Table({ head, children }: { head: ReactNode[]; children: ReactNo
         <thead>
           <tr>
             {head.map((h, i) => (
-              <th key={i} scope="col" className="px-4 py-2.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase dark:text-slate-400">
+              <th key={i} scope="col" className="px-4 py-2.5 text-left text-[13px] font-medium whitespace-nowrap text-slate-500 dark:text-slate-400">
                 {h}
               </th>
             ))}

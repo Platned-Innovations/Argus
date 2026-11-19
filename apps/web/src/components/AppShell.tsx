@@ -4,6 +4,7 @@ import { type ComponentType, type ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth';
 import { useBranding } from '../lib/branding';
+import { ThemeSwitcher } from '../lib/theme';
 import { cn } from '../lib/utils';
 import { ActivityIndicator } from './activity';
 
@@ -53,8 +54,8 @@ function Logo() {
     <div className="flex items-center gap-2.5 px-2">
       <img src="/favicon.svg" alt="" className="size-8" />
       <div>
-        <div className="text-base leading-tight font-semibold">{productName}</div>
-        <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Security monitoring</div>
+        <div className="text-base leading-tight font-medium tracking-[-0.02em]">{productName}</div>
+        <div className="text-[13px] leading-tight text-slate-500 dark:text-slate-400">Security monitoring</div>
       </div>
     </div>
   );
@@ -69,7 +70,7 @@ function Sidebar({ onNavigate }: { onNavigate?(): void }) {
         if (!items.length) return null;
         return (
           <div key={i}>
-            {section.title && <div className="mb-1.5 px-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">{section.title}</div>}
+            {section.title && <div className="mb-1.5 px-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">{section.title}</div>}
             <ul className="space-y-0.5">
               {items.map((it) => (
                 <li key={it.to}>
@@ -81,14 +82,14 @@ function Sidebar({ onNavigate }: { onNavigate?(): void }) {
                       cn(
                         'group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium',
                         isActive
-                          ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
+                          ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50 [&>svg]:text-indigo-600 dark:[&>svg]:text-indigo-400'
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100',
                       )
                     }
                   >
                     <it.icon className="size-4 shrink-0" />
                     <span className="flex-1">{it.label}</span>
-                    {it.soon && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 uppercase dark:bg-slate-800">Soon</span>}
+                    {it.soon && <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[13px] font-medium text-slate-500 dark:bg-slate-800">Soon</span>}
                   </NavLink>
                 </li>
               ))}
@@ -113,6 +114,7 @@ function UserMenu() {
           <div className="truncate text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[me.role]}</div>
         </div>
       </NavLink>
+      <ThemeSwitcher className="mt-2 flex w-full" />
       <button
         onClick={async () => {
           await logout();
@@ -164,7 +166,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-        <div className="mx-auto max-w-6xl">{children}</div>
+        <div className="page-enter mx-auto max-w-6xl">{children}</div>
       </main>
     </div>
   );
