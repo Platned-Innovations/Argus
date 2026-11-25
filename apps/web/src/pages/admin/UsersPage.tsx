@@ -361,7 +361,7 @@ function EditUserModal({ user, onClose }: { user: UserDto; onClose(): void }) {
     onSuccess: (res, kind) => {
       refresh();
       if (res?.temporaryPassword) setTempPassword(res.temporaryPassword);
-      else toast.success({ 'reset-mfa': 'MFA reset.', unlock: 'Account unlocked.', 'revoke-sessions': 'Sessions signed out.', 'reset-password': '' }[kind]);
+      else toast.success({ 'reset-mfa': 'MFA reset.', unlock: 'Account unlocked.', 'revoke-sessions': 'Sessions signed out and API tokens revoked.', 'reset-password': '' }[kind]);
     },
   });
   const submit = (e: FormEvent) => {

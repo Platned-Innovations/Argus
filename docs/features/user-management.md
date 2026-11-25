@@ -81,10 +81,10 @@ Creating and revoking links needs the *Manage users* permission and a signed-in 
 Open a user to:
 
 - **Edit** their display name, email, role, teams or status. A disabled user is signed out everywhere immediately and cannot sign in.
-- **Reset password**: generates a new temporary password (shown once) and signs the user out everywhere.
-- **Reset MFA**: removes their authenticator so they can enroll again (for example, after losing a phone).
+- **Reset password**: generates a new temporary password (shown once), signs the user out everywhere and revokes their API tokens.
+- **Reset MFA**: removes their authenticator so they can enroll again (for example, after losing a phone), signs them out everywhere and revokes their API tokens.
 - **Unlock account**: clears a lockout caused by repeated failed sign-ins.
-- **Sign out everywhere**: revokes all of their sessions.
+- **Sign out everywhere**: revokes all of their sessions and API tokens, so nothing issued before keeps working.
 
 Every action is recorded in the audit log.
 

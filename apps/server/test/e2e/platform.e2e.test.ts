@@ -227,6 +227,27 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       expect(audit[0]).toMatchObject({ actorName: 'admin', targetId: tokenId });
       void bearer;
     });
+
+    it('is revoked when an administrator signs the owner out everywhere or resets their password', async () => {
+      const id = (await admin.call('post', '/api/v1/users', { username: 'ci.owner', displayName: 'CI Owner', role: 'developer', password: 'Ci-Owner-Pass-12345', teamIds: [] })).body.user.id as string;
+      const owner = new Client(app);
+      await owner.login('ci.owner', 'Ci-Owner-Pass-12345');
+      await owner.call('post', '/api/v1/auth/change-password', { currentPassword: 'Ci-Owner-Pass-12345', newPassword: 'Ci-Owner-Pass-67890' });
+      const mint = async () => ((await owner.call('post', '/api/v1/me/tokens', { name: 'CI', scopes: ['findings:read'], expiresInDays: 7 })).body as ApiTokenCreatedDto).token;
+
+      const first = await mint();
+      expect((await anon('get', '/api/v1/findings', first)).status).toBe(200);
+      expect((await admin.call('post', `/api/v1/users/${id}/revoke-sessions`)).status).toBe(200);
+      expect((await anon('get', '/api/v1/findings', first)).status).toBe(401);
+
+      await owner.login('ci.owner', 'Ci-Owner-Pass-67890');
+      const second = await mint();
+      expect((await anon('get', '/api/v1/findings', second)).status).toBe(200);
+      expect((await admin.call('post', `/api/v1/users/${id}/reset-password`)).status).toBe(200);
+      expect((await anon('get', '/api/v1/findings', second)).status).toBe(401);
+      const audit = (await admin.call('get', '/api/v1/audit?action=user.password_reset')).body.items;
+      expect(audit[0]).toMatchObject({ targetId: id, details: { tokensRevoked: 1 } });
+    });
   });
 
   describe('dashboards and reports', () => {

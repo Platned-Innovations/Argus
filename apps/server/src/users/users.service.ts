@@ -100,16 +100,16 @@ export class UsersService {
       failedLoginCount: 0,
       lockedUntil: null,
     });
-    await this.store.sessions.revokeAllForUser(id);
-    await this.audit.record({ action: 'user.password_reset', actor, target: { type: 'user', id }, details: { username: user.username }, ip: ctx.ip });
+    const { tokensRevoked } = await this.signOutEverywhere(id);
+    await this.audit.record({ action: 'user.password_reset', actor, target: { type: 'user', id }, details: { username: user.username, tokensRevoked }, ip: ctx.ip });
     return { temporaryPassword };
   }
 
   async resetMfa(id: string, actor: User, ctx: RequestContext): Promise<UserDto> {
     await this.require(id);
     const updated = (await this.store.users.update(id, { mfaEnabled: false, mfaSecretEnc: null, mfaPendingSecretEnc: null, mfaRecoveryCodes: [], mfaLastUsedStep: null }))!;
-    await this.store.sessions.revokeAllForUser(id);
-    await this.audit.record({ action: 'user.mfa_reset', actor, target: { type: 'user', id }, ip: ctx.ip });
+    const { tokensRevoked } = await this.signOutEverywhere(id);
+    await this.audit.record({ action: 'user.mfa_reset', actor, target: { type: 'user', id }, details: { tokensRevoked }, ip: ctx.ip });
     return toUserDto(updated);
   }
 
@@ -122,9 +122,18 @@ export class UsersService {
 
   async revokeSessions(id: string, actor: User, ctx: RequestContext): Promise<{ revoked: number }> {
     await this.require(id);
-    const revoked = await this.store.sessions.revokeAllForUser(id);
-    await this.audit.record({ action: 'user.sessions_revoked', actor, target: { type: 'user', id }, details: { revoked }, ip: ctx.ip });
+    const { revoked, tokensRevoked } = await this.signOutEverywhere(id);
+    await this.audit.record({ action: 'user.sessions_revoked', actor, target: { type: 'user', id }, details: { revoked, tokensRevoked }, ip: ctx.ip });
     return { revoked };
+  }
+
+  /**
+   * Ends every session and revokes every API token of the user. Used when an administrator resets the account or
+   * signs it out, which usually means it may be compromised: a token must not keep working after that.
+   */
+  private async signOutEverywhere(id: string): Promise<{ revoked: number; tokensRevoked: number }> {
+    const [revoked, tokensRevoked] = await Promise.all([this.store.sessions.revokeAllForUser(id), this.store.apiTokens.revokeAllForUser(id)]);
+    return { revoked, tokensRevoked };
   }
 
   private async require(id: string): Promise<User> {

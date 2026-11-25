@@ -59,7 +59,7 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | **Rotating refresh tokens** (opaque, 256-bit) in an HttpOnly cookie scoped to `/api/v1/auth`. Each use issues a new token and revokes the old one. | ✅ |
 | **Refresh-token reuse detection.** Presenting an already-rotated refresh token revokes the whole session family and is audited as possible token theft. | ✅ |
 | **CSRF protection.** On top of SameSite=Strict cookies, every state-changing request that carries a session must echo a double-submit token in the `X-CSRF-Token` header. | ✅ |
-| **Immediate revocation:**<br>• Disabling a user, resetting their password or resetting their MFA signs out all of their sessions at once.<br>• Access tokens issued before a password change stop working.<br>• Role changes take effect on the next request, because the user is reloaded on every request. | ✅ |
+| **Immediate revocation:**<br>• Disabling a user, resetting their password or resetting their MFA signs out all of their sessions at once. An administrator's password reset, MFA reset or "Sign out everywhere" also revokes all of the user's API tokens.<br>• Access tokens issued before a password change stop working.<br>• Role changes take effect on the next request, because the user is reloaded on every request. | ✅ |
 | `Secure` cookies and HSTS are enabled automatically when `ARGUS_PUBLIC_URL` uses `https://`. | ✅ |
 
 ## 4. Authorisation
