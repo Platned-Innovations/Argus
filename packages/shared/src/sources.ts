@@ -96,6 +96,17 @@ export const sourceTestSchema = z
   .superRefine(checkGitHubApp);
 export type SourceTestInput = z.infer<typeof sourceTestSchema>;
 
+/** The pull request code review settings of one repository. They replace the global ones (AI settings) as a set. */
+export const prReviewOverrideSchema = z.object({
+  /** Post the remarks as inline comments on the changed lines. */
+  inline: z.boolean(),
+  /** Review the pull request again on every push. */
+  everyPush: z.boolean(),
+  /** Mark the pull request as "changes requested" when the review leaves remarks. */
+  requestChanges: z.boolean(),
+});
+export type PrReviewOverride = z.infer<typeof prReviewOverrideSchema>;
+
 export const repoUpdateSchema = z
   .object({
     active: z.boolean(),
@@ -111,6 +122,8 @@ export const repoUpdateSchema = z
     disabledScanners: z.array(z.enum(SCANNERS)).max(SCANNERS.length),
     /** false excludes the repository from every AI feature. */
     aiEnabled: z.boolean(),
+    /** Pull request code review settings for this repository; null uses the global settings. */
+    prReviewOverride: prReviewOverrideSchema.nullable(),
   })
   .partial();
 export type RepoUpdateInput = z.infer<typeof repoUpdateSchema>;
@@ -201,6 +214,8 @@ export interface RepositoryDto {
   notifyEmails: string[];
   disabledScanners: ScannerName[];
   aiEnabled: boolean;
+  /** null = the global pull request code review settings apply. */
+  prReviewOverride: PrReviewOverride | null;
   nextScanAt: string | null;
   lastScanAt: string | null;
   lastScanStatus: ScanStatus | null;

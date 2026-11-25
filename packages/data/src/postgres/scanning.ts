@@ -52,6 +52,7 @@ function toRepo(r: Selectable<RepositoriesTable>): Repository {
     notifyEmails: r.notifyEmails ?? [],
     disabledScanners: (r.disabledScanners ?? []) as Repository['disabledScanners'],
     aiEnabled: r.aiEnabled ?? true,
+    prReviewOverride: r.prReviewOverride ?? null,
     lastScanStatus: r.lastScanStatus as ScanStatus | null,
   };
 }
@@ -171,6 +172,7 @@ export class PgRepositoryRepo implements RepositoryRepo {
           notifyEmails: '[]' as never,
           disabledScanners: '[]' as never,
           aiEnabled: true,
+          prReviewOverride: null,
           nextScanAt: active ? defaults.firstScanAt : null,
           lastScanAt: null,
           lastScanStatus: null,
@@ -235,7 +237,7 @@ export class PgRepositoryRepo implements RepositoryRepo {
   }
 
   async update(id: string, patch: RepositoryPatch): Promise<Repository | null> {
-    const { schedule, notifyEmails, disabledScanners, ...rest } = patch;
+    const { schedule, notifyEmails, disabledScanners, prReviewOverride, ...rest } = patch;
     await this.db
       .updateTable('repositories')
       .set({
@@ -243,6 +245,7 @@ export class PgRepositoryRepo implements RepositoryRepo {
         ...(schedule !== undefined ? { schedule: JSON.stringify(schedule) } : {}),
         ...(notifyEmails !== undefined ? { notifyEmails: JSON.stringify(notifyEmails) } : {}),
         ...(disabledScanners !== undefined ? { disabledScanners: JSON.stringify(disabledScanners) } : {}),
+        ...(prReviewOverride !== undefined ? { prReviewOverride: prReviewOverride === null ? null : JSON.stringify(prReviewOverride) } : {}),
         updatedAt: new Date(),
       })
       .where('id', '=', id)

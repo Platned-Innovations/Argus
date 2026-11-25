@@ -26,6 +26,7 @@ export function toRepositoryDto(r: Repository, provider: Provider): RepositoryDt
     notifyEmails: r.notifyEmails,
     disabledScanners: r.disabledScanners,
     aiEnabled: r.aiEnabled,
+    prReviewOverride: r.prReviewOverride,
     nextScanAt: r.nextScanAt?.toISOString() ?? null,
     lastScanAt: r.lastScanAt?.toISOString() ?? null,
     lastScanStatus: r.lastScanStatus,

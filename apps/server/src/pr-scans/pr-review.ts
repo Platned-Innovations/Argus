@@ -102,7 +102,20 @@ export interface ReviewInput {
 }
 
 /** Whether the review would run, so the diff is only fetched when it is wanted. */
-export const reviewEnabled = (ai: AiService, repo: Repository) => ai.canRun('pr_review', repo);
+export interface ReviewBehavior {
+  inline: boolean;
+  everyPush: boolean;
+  requestChanges: boolean;
+}
+
+/** The repository's own review settings when it has them, else the global ones from the AI settings. */
+export async function reviewBehavior(ai: AiService, repo: Repository): Promise<ReviewBehavior> {
+  if (repo.prReviewOverride) return repo.prReviewOverride;
+  const s = await ai.getSettings();
+  return { inline: s.prReviewInline, everyPush: s.prReviewEveryPush, requestChanges: s.prReviewRequestChanges };
+}
+
+export const reviewEnabled =(ai: AiService, repo: Repository) => ai.canRun('pr_review', repo);
 
 /** Reviews the pull request's diff. Returns null when the feature is off or there is nothing to review. */
 export async function reviewPullRequest(input: ReviewInput, log: (m: string) => void): Promise<PrReviewDto | null> {

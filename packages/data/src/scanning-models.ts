@@ -1,4 +1,4 @@
-import { type PrScanFailOn, type PrScanResult, type PrScanStatus, type ScanStats, type ScannerName } from '@argus/shared';
+import { type PrReviewOverride, type PrScanFailOn,type PrScanResult, type PrScanStatus, type ScanStats, type ScannerName } from '@argus/shared';
 import { type Page } from './models';
 
 // ---------------------------------------------------------------- sources & repositories
@@ -75,6 +75,8 @@ export interface Repository extends DiscoveredRepo {
   disabledScanners: ScannerName[];
   /** false excludes the repository from every AI feature. */
   aiEnabled: boolean;
+  /** Pull request code review settings that replace the global ones; null = use the global settings. */
+  prReviewOverride: PrReviewOverride | null;
   nextScanAt: Date | null;
   lastScanAt: Date | null;
   lastScanStatus: ScanStatus | null;
@@ -86,7 +88,7 @@ export interface Repository extends DiscoveredRepo {
 export type RepositoryPatch = Partial<
   Pick<
     Repository,
-    'active' | 'teamId' | 'criticality' | 'branch' | 'schedule' | 'scanOnPush' | 'jiraProjectKey' | 'notifyEmails' | 'disabledScanners' | 'aiEnabled' | 'nextScanAt' | 'lastScanAt' | 'lastScanStatus' | 'lastScanRunId'
+    'active' | 'teamId' | 'criticality' | 'branch' | 'schedule' | 'scanOnPush' | 'jiraProjectKey' | 'notifyEmails' | 'disabledScanners' | 'aiEnabled' | 'prReviewOverride' | 'nextScanAt' | 'lastScanAt' | 'lastScanStatus' | 'lastScanRunId'
   >
 >;
 

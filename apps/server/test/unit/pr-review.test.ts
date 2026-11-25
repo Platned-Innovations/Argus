@@ -8,7 +8,7 @@ import { type PrReviewOutput, type PrScanResult } from '@argus/shared';
 import { afterAll, describe, expect, it } from 'vitest';
 import { type AiService } from '../../src/ai/ai.service';
 import { renderPrComment } from '../../src/pr-scans/pr-comment';
-import { collectDiff, isReviewable, parseDiff, reviewPullRequest } from '../../src/pr-scans/pr-review';
+import { collectDiff, isReviewable, parseDiff, reviewBehavior, reviewPullRequest } from '../../src/pr-scans/pr-review';
 
 const DIFF = [
   'diff --git a/src/cart.js b/src/cart.js',
@@ -69,6 +69,20 @@ describe('pull request diff', () => {
     expect(files[0].added).toBe(3);
     expect(isReviewable('web/dist/app.js')).toBe(false);
     expect(isReviewable('src/app.ts')).toBe(true);
+  });
+});
+
+describe('review behavior', () => {
+  const ai = { getSettings: async () => ({ prReviewInline: true, prReviewEveryPush: false, prReviewRequestChanges: true }) } as unknown as AiService;
+
+  it('uses the global settings unless the repository has its own', async () => {
+    expect(await reviewBehavior(ai, repo)).toEqual({ inline: true, everyPush: false, requestChanges: true });
+    expect(await reviewBehavior(ai, { ...repo, prReviewOverride: null } as Repository)).toEqual({ inline: true, everyPush: false, requestChanges: true });
+  });
+
+  it('replaces all three global settings with the repository override', async () => {
+    const prReviewOverride = { inline: false, everyPush: true, requestChanges: false };
+    expect(await reviewBehavior(ai, { ...repo, prReviewOverride } as Repository)).toEqual(prReviewOverride);
   });
 });
 

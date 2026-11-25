@@ -650,6 +650,14 @@ migrations['0013_pr_scans'] = {
   },
 };
 
+migrations['0014_repo_pr_review_override'] = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async up(db: Kysely<any>) {
+    // null = the repository uses the global pull request code review settings.
+    await db.schema.alterTable('repositories').addColumn('pr_review_override', 'jsonb').execute();
+  },
+};
+
 export const migrationProvider: MigrationProvider = {
   async getMigrations() {
     return migrations;

@@ -35,7 +35,7 @@ function strip<T extends { _id: string }>(doc: T): Omit<T, '_id'> & { id: string
 
 /** Repository documents written before a field existed get its default. */
 function toRepository(doc: RepositoryDoc): Repository {
-  return { ...strip(doc), disabledScanners: doc.disabledScanners ?? [], aiEnabled: doc.aiEnabled ?? true };
+  return { ...strip(doc), disabledScanners: doc.disabledScanners ?? [], aiEnabled: doc.aiEnabled ?? true, prReviewOverride: doc.prReviewOverride ?? null };
 }
 
 function escapeRegex(s: string): string {
@@ -146,6 +146,7 @@ export class MongoRepositoryRepo implements RepositoryRepo {
             notifyEmails: [],
             disabledScanners: [],
             aiEnabled: true,
+            prReviewOverride: null,
             nextScanAt: active ? defaults.firstScanAt : null,
             lastScanAt: null,
             lastScanStatus: null,

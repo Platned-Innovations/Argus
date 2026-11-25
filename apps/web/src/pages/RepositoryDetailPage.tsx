@@ -6,6 +6,7 @@ import {
   SCANNERS,
   type ScannerName,
   type Paged,
+  type PrReviewOverride,
   PROVIDER_LABELS,
   type RepositoryDto,
   type RepoUpdateInput,
@@ -44,6 +45,9 @@ interface FormState {
   notifyEmails: string;
   disabledScanners: ScannerName[];
   aiEnabled: boolean;
+  /** true: this repository's own pull request review settings replace the global ones. */
+  prReviewCustom: boolean;
+  prReview: PrReviewOverride;
 }
 
 function toForm(r: RepositoryDto): FormState {
@@ -59,6 +63,8 @@ function toForm(r: RepositoryDto): FormState {
     notifyEmails: r.notifyEmails.join(', '),
     disabledScanners: r.disabledScanners,
     aiEnabled: r.aiEnabled,
+    prReviewCustom: r.prReviewOverride !== null,
+    prReview: r.prReviewOverride ?? { inline: false, everyPush: false, requestChanges: false },
   };
 }
 
@@ -86,6 +92,7 @@ function SettingsCard({ repo }: { repo: RepositoryDto }) {
           .filter(Boolean),
         disabledScanners: form.disabledScanners,
         aiEnabled: form.aiEnabled,
+        prReviewOverride: form.prReviewCustom ? form.prReview : null,
       };
       return api<RepositoryDto>(`/repos/${repo.id}`, { method: 'PATCH', body });
     },
@@ -176,6 +183,36 @@ function SettingsCard({ repo }: { repo: RepositoryDto }) {
             checked={form.aiEnabled}
             onChange={(e) => setForm({ ...form, aiEnabled: e.target.checked })}
           />
+          <div className="space-y-3">
+            <Checkbox
+              label="Custom pull request code review settings"
+              description="When on, the three settings below replace the global ones (Administration → AI) for this repository. When off, the global settings apply. Whether the review runs at all is still set globally."
+              checked={form.prReviewCustom}
+              onChange={(e) => setForm({ ...form, prReviewCustom: e.target.checked })}
+            />
+            {form.prReviewCustom && (
+              <div className="space-y-3 pl-7">
+                <Checkbox
+                  label="Review every push"
+                  description="Review the pull request again each time it is scanned. Off: only the first scan of a pull request is reviewed."
+                  checked={form.prReview.everyPush}
+                  onChange={(e) => setForm({ ...form, prReview: { ...form.prReview, everyPush: e.target.checked } })}
+                />
+                <Checkbox
+                  label="Post remarks as inline comments"
+                  description="Each remark is posted on its line of the pull request instead of being listed in the summary comment."
+                  checked={form.prReview.inline}
+                  onChange={(e) => setForm({ ...form, prReview: { ...form.prReview, inline: e.target.checked } })}
+                />
+                <Checkbox
+                  label="Request changes when there are remarks"
+                  description="Marks the pull request as changes requested (Needs work on Bitbucket Data Center) when a review leaves remarks."
+                  checked={form.prReview.requestChanges}
+                  onChange={(e) => setForm({ ...form, prReview: { ...form.prReview, requestChanges: e.target.checked } })}
+                />
+              </div>
+            )}
+          </div>
           <div>
             <div className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Scanners</div>
             <div className="grid gap-2 sm:grid-cols-2">

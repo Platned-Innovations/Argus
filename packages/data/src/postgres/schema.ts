@@ -1,4 +1,4 @@
-import { type PrScanResult } from '@argus/shared';
+import { type PrReviewOverride, type PrScanResult } from '@argus/shared';
 import { type ColumnType } from 'kysely';
 
 /** jsonb columns: read as parsed JSON, written as a JSON string (node-postgres would mangle JS arrays). */
@@ -119,6 +119,7 @@ export interface RepositoriesTable {
   notifyEmails: Json<string[]>;
   disabledScanners: Json<string[]>;
   aiEnabled: boolean;
+  prReviewOverride: Json<PrReviewOverride> | null;
   nextScanAt: Date | null;
   lastScanAt: Date | null;
   lastScanStatus: string | null;

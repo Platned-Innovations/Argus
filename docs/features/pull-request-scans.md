@@ -62,6 +62,14 @@ Turn on **Request changes when there are remarks** (under the feature's switch, 
 - Argus does not withdraw the request. A person dismisses the review (GitHub) or the author asks for a new review once the remarks are handled. If approvals are required to merge, a standing request blocks the merge until then.
 - It needs write access to pull requests (see **Let Argus comment** below). On Bitbucket Cloud a token that can only read pull requests may still be able to comment, but requesting changes is refused with a 403 until it has `write:pullrequest:bitbucket`. The provider refuses it when the credentials belong to the pull request's author; on Bitbucket Data Center they must belong to a user (not a project or repository access token). A refusal is recorded in the scan's log and changes nothing else. Requests made with `"comment": false` never request changes.
 
+### Per-repository settings
+
+**Review every push**, **Post remarks as inline comments** and **Request changes when there are remarks** are global by default. On a repository's page, under **Monitoring settings**, turn on **Custom pull request code review settings** to give that repository its own values for these three settings (`prReviewOverride` in the repository API: `{ inline, everyPush, requestChanges }`, or `null` for the global settings).
+
+- The override replaces the global settings as a set: with it on, the repository's three values apply and the global ones are ignored. Turning it off returns the repository to the global settings.
+- Whether the review runs at all (the feature's switch, its provider, the budget and the repository's AI opt-out) is still decided globally.
+- Changes apply from the next pull request scan.
+
 It needs one extra fetch of the base branch per scan and one AI request per reviewed scan. The usual AI controls apply: the repository's AI opt-out, the monthly budget, and the audit log (`ai.request`, use case `pr_review`).
 
 ## Setting it up

@@ -16,7 +16,7 @@ import { SourcesService } from '../sources/sources.service';
 import { suggestFixes } from './pr-ai';
 import { buildResult, pullRequestDelta } from './pr-analysis';
 import { renderInlineComment, renderPrComment } from './pr-comment';
-import { collectDiff, reviewEnabled, reviewPullRequest } from './pr-review';
+import { collectDiff, reviewBehavior, reviewEnabled, reviewPullRequest, type ReviewBehavior } from './pr-review';
 import { PR_SCAN_JOB, PrScansService } from './pr-scans.service';
 
 const MAX_LOG_LINES = 300;
@@ -148,8 +148,8 @@ export class PrScanExecutor implements OnModuleInit {
       // Optional AI code review of the diff. Advisory: it never changes the gate, and a failure only skips it.
       // Unless "review every push" is on, it runs once per pull request: later pushes keep the first review (and its
       // summary section) as it is.
-      const everyPush = (await this.ai.getSettings()).prReviewEveryPush;
-      const earlier = everyPush ? null : ((await this.store.prScans.findLastCommented(scan.repoId, scan.number))?.result?.review ?? null);
+      const behavior = await reviewBehavior(this.ai, repo);
+      const earlier = behavior.everyPush ? null : ((await this.store.prScans.findLastCommented(scan.repoId, scan.number))?.result?.review ?? null);
       let review: PrReviewDto | null = null;
       if (earlier) {
         log('AI code review skipped: this pull request was already reviewed by an earlier scan');
@@ -179,11 +179,11 @@ export class PrScanExecutor implements OnModuleInit {
       result.review = review ?? earlier;
       log(`Result: ${delta.introduced.length} new issue(s), gate ${result.gate}; ${delta.existingInChangedFiles} already known in changed files, ${delta.suppressed} suppressed`);
       const patch: PrScanPatch = { status: 'succeeded', headSha, result };
-      if (scan.comment && review) await this.inlineComments(scan, repo.fullName, client, headSha, review, log);
+      if (scan.comment && review) await this.inlineComments(scan, repo.fullName, client, headSha, review, behavior, log);
       if (scan.comment) Object.assign(patch, await this.comment(scan, repo.fullName, source.provider, repo.htmlUrl, headSha, result, log));
       // Last, once everything is on the pull request. Only a review made by this scan counts: scanner findings
       // alone, or a review kept from an earlier scan, never request changes.
-      if (scan.comment && review?.comments.length) await this.requestChanges(scan, repo.fullName, client, headSha, review, log);
+      if (scan.comment && review?.comments.length) await this.requestChanges(scan, repo.fullName, client, headSha, review, behavior, log);
       await finish(patch);
     } catch (err) {
       const permanent = (err instanceof ProviderError && err.permanent) || (err instanceof GitError && /authentication failed|could not read username|not found|couldn't find remote ref|403/i.test(err.message));
@@ -209,9 +209,9 @@ export class PrScanExecutor implements OnModuleInit {
    * from earlier scans are left in place. A remark that cannot be posted inline stays in the summary comment. Never
    * fails the scan.
    */
-  private async inlineComments(scan: PrScan, fullName: string, client: ProviderClient, headSha: string, review: PrReviewDto, log: (m: string) => void): Promise<void> {
+  private async inlineComments(scan: PrScan, fullName: string, client: ProviderClient, headSha: string, review: PrReviewDto, behavior: ReviewBehavior, log: (m: string) => void): Promise<void> {
     // Comments posted by earlier scans are left in place.
-    if (!(await this.ai.getSettings()).prReviewInline) return;
+    if (!behavior.inline) return;
 
     const ids: string[] = [];
     let failure: string | null = null;
@@ -233,8 +233,8 @@ export class PrScanExecutor implements OnModuleInit {
    * With "request changes" on, marks the pull request as needing changes when the AI code review left remarks.
    * Never fails the scan.
    */
-  private async requestChanges(scan: PrScan, fullName: string, client: ProviderClient, headSha: string, review: PrReviewDto, log: (m: string) => void): Promise<void> {
-    if (!(await this.ai.getSettings()).prReviewRequestChanges) return;
+  private async requestChanges(scan: PrScan, fullName: string, client: ProviderClient, headSha: string, review: PrReviewDto, behavior: ReviewBehavior, log: (m: string) => void): Promise<void> {
+    if (!behavior.requestChanges) return;
     const n = review.comments.length;
     const inline = review.comments.filter((c) => c.inline).length;
     const where = inline === n ? 'the inline comments' : inline ? 'the inline comments and the Argus summary comment' : 'the Argus summary comment';
