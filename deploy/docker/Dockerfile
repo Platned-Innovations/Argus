@@ -43,8 +43,9 @@ RUN git clone --depth 1 --branch "v${GITLEAKS_VERSION}" https://github.com/gitle
  && /usr/local/bin/gitleaks version
 
 # ---------- Trivy (infrastructure as code, container images), built from pinned source ----------
-# As with Gitleaks: the release binary carries a module with a known, fixed CVE (go-jose 4.1.5), so Trivy is built
-# from the release's exact commit with the patched module and the same pinned Go toolchain.
+# As with Gitleaks: the release binary carries modules with known, fixed CVEs (go-jose 4.1.5; containerd 2.4.1,
+# CVE-2026-95839; golang.org/x/net 0.60.0, CVE-2026-78661), so Trivy is built from the release's exact commit with
+# the patched modules and the same pinned Go toolchain.
 FROM golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS trivy
 ARG TRIVY_VERSION=0.76.1
 ARG TRIVY_COMMIT=e713f67f7d54decdcd9b3132c9751833dcced698
@@ -52,7 +53,7 @@ ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-mod=mod
 RUN git clone --depth 1 --branch "v${TRIVY_VERSION}" https://github.com/aquasecurity/trivy.git /src/trivy \
  && cd /src/trivy \
  && test "$(git rev-parse HEAD)" = "${TRIVY_COMMIT}" \
- && go get github.com/go-jose/go-jose/v4@v4.1.6 \
+ && go get github.com/go-jose/go-jose/v4@v4.1.6 github.com/containerd/containerd/v2@v2.4.2 golang.org/x/net@v0.62.0 \
  && go mod tidy \
  && go build -trimpath -ldflags "-s -w -X=github.com/aquasecurity/trivy/pkg/version/app.ver=${TRIVY_VERSION}" -o /usr/local/bin/trivy ./cmd/trivy \
  && /usr/local/bin/trivy --version
