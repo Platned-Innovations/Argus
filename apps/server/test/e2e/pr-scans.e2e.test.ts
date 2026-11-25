@@ -34,7 +34,7 @@ describe.each(dbHarnesses())('pull request scans from CI e2e: $name', (h) => {
   const intelCalls = new Map<string, number>();
   const aiCalls: AiCall[] = [];
   /** What GitHub lists as the pull request's review comments: Argus's own, plus people's replies. */
-  let reviewThread: { id: number; in_reply_to_id?: number; reactions?: { total_count: number } }[] = [];
+  const reviewThread: { id: number; in_reply_to_id?: number; reactions?: { total_count: number } }[] = [];
   /** Inline review comments created and deleted on the pull request. */
   const inline: { method: string; id: number; body: Record<string, unknown> }[] = [];
   /** Reviews submitted on the pull request ("request changes"). */

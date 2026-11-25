@@ -6,5 +6,7 @@
     var r = document.documentElement;
     r.classList.toggle('dark', dark);
     r.style.colorScheme = dark ? 'dark' : 'light';
-  } catch (e) {}
+  } catch {
+    // Storage blocked (private window, site data off): keep the default theme.
+  }
 })();
