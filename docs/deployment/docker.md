@@ -112,7 +112,7 @@ All containers must share the same database and the same `ARGUS_MASTER_KEY`. Sch
 
 ## TLS
 
-Terminate TLS at a reverse proxy or load balancer, then set `ARGUS_PUBLIC_URL=https://…` so Argus issues `Secure` cookies and HSTS. `ARGUS_TRUST_PROXY` (default: one hop) makes client IPs correct for rate limiting and the audit log.
+Terminate TLS at a reverse proxy or load balancer, then set `ARGUS_PUBLIC_URL=https://…` so Argus issues `Secure` cookies and HSTS. Set `ARGUS_TRUST_PROXY=1` (one proxy hop) so client IPs are correct for rate limiting and the audit log. Leave it at the default `false` when the port is reached directly: Argus then ignores `X-Forwarded-For`, which a client could otherwise forge.
 
 ## Backups
 

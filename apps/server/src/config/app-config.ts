@@ -14,7 +14,8 @@ const envSchema = z.object({
   ARGUS_ADMIN_PASSWORD: z.string().min(1).optional(),
   ARGUS_PUBLIC_URL: z.url().optional(),
   ARGUS_COOKIE_SECURE: z.enum(['auto', 'true', 'false']).default('auto'),
-  ARGUS_TRUST_PROXY: z.string().default('1'),
+  // Off by default: X-Forwarded-For is only honest when a proxy you run sets it. Behind a proxy or App Service, set a hop count.
+  ARGUS_TRUST_PROXY: z.string().default('false'),
   ARGUS_WEB_DIR: z.string().optional(),
   ARGUS_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(2),
   ARGUS_AUTH_RATE_LIMIT: z.coerce.number().int().min(1).max(10_000).default(10),

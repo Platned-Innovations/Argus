@@ -105,7 +105,7 @@ az webapp config appsettings set -g argus-rg -n argus-web --settings \
 | `WEBSITES_ENABLE_APP_SERVICE_STORAGE=false` | Argus needs no persistent file storage; scan workspaces are temporary. |
 | Always On | Keeps the background worker running between web requests. |
 
-App Service sits behind a front end that adds `X-Forwarded-For`. The default `ARGUS_TRUST_PROXY=1` makes Argus record the real client IP.
+App Service sits behind a front end that adds `X-Forwarded-For`. The template sets `ARGUS_TRUST_PROXY=1` so Argus records the real client IP (the application default is `false`, for direct exposure).
 
 ## 6. First sign-in
 

@@ -45,6 +45,8 @@ services:
       ARGUS_PUBLIC_URL: ${ARGUS_PUBLIC_URL:-http://localhost:8080}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       ARGUS_AUTH_RATE_LIMIT: ${ARGUS_AUTH_RATE_LIMIT:-}
+      # The port is published directly, so client IPs come from the connection. Set to 1 behind a reverse proxy.
+      ARGUS_TRUST_PROXY: ${ARGUS_TRUST_PROXY:-false}
       ARGUS_WORKER_CONCURRENCY: ${ARGUS_WORKER_CONCURRENCY:-}
       ARGUS_SCAN_TIMEOUT_MINUTES: ${ARGUS_SCAN_TIMEOUT_MINUTES:-}
       ARGUS_SCHEDULER_INTERVAL_SECONDS: ${ARGUS_SCHEDULER_INTERVAL_SECONDS:-}
