@@ -56,7 +56,8 @@ export function intelRoutes(calls: Map<string, number>) {
     if (p === '/intel/epss') return json({ data: (url.searchParams.get('cve') ?? '').split(',').filter((c) => c === 'CVE-2021-23337').map((cve) => ({ cve, epss: '0.40000' })) });
     if (p === '/intel/eol/api/dotnet.json')
       return json([
-        { cycle: '8', eol: '2026-11-10', lts: true },
+        // Relative to today, so .NET 8 stays the supported upgrade target whenever the tests run.
+        { cycle: '8', eol: new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10), lts: true },
         { cycle: '6', eol: '2024-11-12', lts: true },
       ]);
     if (p.startsWith('/intel/eol/')) return json({ error: 'unknown product' }, 404);

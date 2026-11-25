@@ -303,7 +303,9 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       expect(res.text).toMatch(/^# HELP argus_info /m);
       expect(res.text).toContain(`role="api",database="${h.name}"} 1`);
       expect(res.text).toMatch(/^argus_findings_open\{severity="critical"\} \d+$/m);
-      expect(res.text).toMatch(/^argus_users 2$/m);
+      // However many accounts the earlier tests created.
+      const users = ((await admin.call('get', '/api/v1/users')).body as { total: number }).total;
+      expect(res.text).toMatch(new RegExp(`^argus_users ${users}$`, 'm'));
       expect(res.text).toMatch(/^argus_worker_heartbeat_age_seconds -?\d+$/m);
       // Session cookies do not grant access to metrics.
       expect((await admin.call('get', '/metrics')).status).toBe(401);
