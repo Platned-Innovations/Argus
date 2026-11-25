@@ -247,6 +247,16 @@ describe.each(harnesses)('sources, repositories & scans e2e: $name', (h) => {
     for (const a of ['source.created', 'source.synced', 'repo.updated', 'repo.bulk_updated', 'scan.requested']) expect(actions).toContain(a);
   });
 
+  it('never sends the stored token to a new server address', async () => {
+    // Refused before the connection test, so nothing is sent: a failed test would answer SOURCE_CONNECTION_FAILED.
+    const moved = await admin.call('patch', `/api/v1/sources/${source.id}`, { baseUrl: 'http://127.0.0.1:9' });
+    expect(moved.status).toBe(400);
+    expect(moved.body).toMatchObject({ code: 'SECRET_REENTRY_REQUIRED' });
+    expect(((await admin.call('get', `/api/v1/sources/${source.id}`)).body as SourceDto).baseUrl).toBe(source.baseUrl);
+    // Changes that keep the address do not need the token again.
+    expect((await admin.call('patch', `/api/v1/sources/${source.id}`, { name: 'Mock GitHub' })).status).toBe(200);
+  });
+
   it('rotates the webhook secret and deletes the source with its repositories', async () => {
     const rotated = await admin.call('post', `/api/v1/sources/${source.id}/webhook-secret`);
     expect(rotated.body.webhookSecret).not.toBe(webhookSecret);
