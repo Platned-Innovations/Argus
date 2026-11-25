@@ -11,6 +11,7 @@ export interface AccessClaims {
 export interface MfaClaims {
   sub: string;
   iat: number;
+  trusted?: boolean;
 }
 
 const ISSUER = 'argus';
@@ -33,8 +34,9 @@ export class TokenService {
   }
 
   /** Proves the password step succeeded; exchanged for a session once the second factor is verified. */
-  signMfa(userId: string): string {
-    return this.jwt.sign({}, { subject: userId, audience: 'argus:mfa', expiresIn: MFA_TOKEN_TTL_SECONDS, ...this.signing() });
+  /** `trusted`: the password step came from a trusted device, so the account lockout does not apply to the code either. */
+  signMfa(userId: string, opts: { trusted?: boolean } = {}): string {
+    return this.jwt.sign(opts.trusted ? { trusted: true } : {}, { subject: userId, audience: 'argus:mfa', expiresIn: MFA_TOKEN_TTL_SECONDS, ...this.signing() });
   }
 
   verifyMfa(token: string): MfaClaims {

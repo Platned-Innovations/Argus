@@ -11,7 +11,7 @@ const numberFields: { key: keyof SecuritySettings; label: string; hint: string; 
   { key: 'passwordMinLength', label: 'Minimum password length', hint: '8–128 characters.', min: 8, max: 128, group: 'password' },
   { key: 'passwordRequiredClasses', label: 'Required character classes', hint: 'Out of lowercase,, digit, symbol (1–4).', min: 1, max: 4, group: 'password' },
   { key: 'lockoutThreshold', label: 'Lock after failed attempts', hint: 'Consecutive failures before the account is locked.', min: 3, max: 50, group: 'password' },
-  { key: 'lockoutMinutes', label: 'Lockout duration (minutes)', hint: 'Administrators can unlock accounts earlier.', min: 1, max: 1440, group: 'password' },
+  { key: 'lockoutMinutes', label: 'Longest lockout (minutes)', hint: 'The lock starts at 30 seconds and doubles with each further failure, up to this. Administrators can unlock accounts earlier.', min: 1, max: 1440, group: 'password' },
   { key: 'accessTokenMinutes', label: 'Access token lifetime (minutes)', hint: 'Short-lived; refreshed silently while the session is active.', min: 5, max: 60, group: 'session' },
   { key: 'sessionDays', label: 'Session lifetime (days of inactivity)', hint: 'Users must sign in again after this long without activity.', min: 1, max: 90, group: 'session' },
 ];

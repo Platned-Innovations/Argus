@@ -65,7 +65,7 @@ Under **Administration → Security settings**, visible to administrators and se
 | Minimum password length | 12 | 8–128 |
 | Required character classes | 3 | 1–4 |
 | Lock after failed attempts | 5 | 3–50 |
-| Lockout duration (minutes) | 15 | 1–1440 |
+| Longest lockout (minutes): the lock starts at 30 seconds and doubles with each further failure, up to this | 15 | 1–1440 |
 | Access token lifetime (minutes) | 15 | 5–60 |
 | Session lifetime (days of inactivity) | 7 | 1–90 |
 

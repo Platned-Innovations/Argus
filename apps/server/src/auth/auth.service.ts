@@ -7,7 +7,7 @@ import { AuditService } from '../core/audit.service';
 import { CryptoService } from '../core/crypto.service';
 import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
-import { type IssuedTokens } from './cookies';
+import { DEVICE_COOKIE_MAX_AGE_MS, type IssuedTokens } from './cookies';
 import { MfaService } from './mfa.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
@@ -15,7 +15,10 @@ import { TokenService } from './token.service';
 /** A rotated refresh token presented again within this window is treated as a benign race (e.g. two tabs), not theft. */
 const REFRESH_REUSE_GRACE_MS = 30_000;
 
-const INVALID_CREDENTIALS = 'Invalid username or password.';
+/** The one answer for an unknown user, a wrong password and a locked account. */
+const INVALID_CREDENTIALS = 'Invalid username or password. After several failed attempts, wait a minute before trying again.';
+
+const isLocked = (user: User) => !!user.lockedUntil && user.lockedUntil.getTime() > Date.now();
 
 export type LoginResult = { kind: 'session'; user: User; tokens: IssuedTokens } | { kind: 'mfa'; mfaToken: string };
 
@@ -31,7 +34,12 @@ export class AuthService {
     private readonly audit: AuditService,
   ) {}
 
-  async login(identifier: string, password: string, ctx: RequestContext): Promise<LoginResult> {
+  /**
+   * Unknown, disabled and locked accounts get exactly the same answer as a wrong password, in about the same time,
+   * so the response never reveals which accounts exist. Attempts while an account is locked are not counted, so they
+   * cannot extend the lock; and the lock does not apply in a browser where the user has signed in before (`device`).
+   */
+  async login(identifier: string, password: string, ctx: RequestContext, device?: string): Promise<LoginResult> {
     const user = identifier.includes('@') ? await this.store.users.findByEmail(identifier) : await this.store.users.findByUsername(identifier);
 
     if (!user || user.status !== 'active') {
@@ -46,24 +54,30 @@ export class AuthService {
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
-    this.assertNotLocked(user);
+    const trusted = this.isTrustedDevice(user, device);
+    if (!trusted && isLocked(user)) {
+      await this.passwords.burnTime(password);
+      await this.audit.record({ action: 'auth.login', outcome: 'failure', target: { type: 'user', id: user.id }, details: { reason: 'locked' }, ip: ctx.ip });
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
+    }
 
     if (!(await this.passwords.verify(user.passwordHash, password))) {
       await this.registerFailure(user, 'bad_password', ctx);
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
-    if (user.mfaEnabled) return { kind: 'mfa', mfaToken: this.tokens.signMfa(user.id) };
+    if (user.mfaEnabled) return { kind: 'mfa', mfaToken: this.tokens.signMfa(user.id, { trusted }) };
     return this.completeLogin(user, ctx, 'password');
   }
 
   /**
-   * Continues a sign-in after the first factor was proven another way (a sign-in link): locked accounts are refused,
-   * and users with MFA still have to enter their code.
+   * Continues a sign-in after the first factor was proven another way (a sign-in link): locked accounts are refused
+   * (except in a trusted browser), and users with MFA still have to enter their code.
    */
-  async continueVerifiedLogin(user: User, ctx: RequestContext, method: string): Promise<LoginResult> {
-    this.assertNotLocked(user);
-    if (user.mfaEnabled) return { kind: 'mfa', mfaToken: this.tokens.signMfa(user.id) };
+  async continueVerifiedLogin(user: User, ctx: RequestContext, method: string, device?: string): Promise<LoginResult> {
+    const trusted = this.isTrustedDevice(user, device);
+    if (!trusted) this.assertNotLocked(user);
+    if (user.mfaEnabled) return { kind: 'mfa', mfaToken: this.tokens.signMfa(user.id, { trusted }) };
     return this.completeLogin(user, ctx, method);
   }
 
@@ -71,7 +85,8 @@ export class AuthService {
     const claims = this.tokens.verifyMfa(mfaToken);
     const user = await this.store.users.findById(claims.sub);
     if (!user || user.status !== 'active' || !user.mfaEnabled || !user.mfaSecretEnc) throw new UnauthorizedException('Invalid or expired token');
-    this.assertNotLocked(user);
+    // The password is already proven here, so saying that the account is locked reveals nothing new.
+    if (!claims.trusted) this.assertNotLocked(user);
 
     const method = await this.checkSecondFactor(user, code);
     if (!method) {
@@ -193,8 +208,24 @@ export class AuthService {
     return null;
   }
 
+  /** Value of the trusted-device cookie for this user, set after each successful sign-in. */
+  deviceCookie(user: User): string {
+    const issuedAt = Date.now();
+    return `${user.id}.${issuedAt}.${this.crypto.hash(`device:${user.id}.${issuedAt}`)}`;
+  }
+
+  /** A browser where this user signed in before, since their password last changed, within the last 180 days. */
+  private isTrustedDevice(user: User, cookie: string | undefined): boolean {
+    const [userId, issued, sig, extra] = (cookie ?? '').split('.');
+    const issuedAt = Number(issued);
+    if (extra !== undefined || !sig || userId !== user.id || !Number.isSafeInteger(issuedAt)) return false;
+    if (!this.crypto.safeEqual(sig, this.crypto.hash(`device:${userId}.${issuedAt}`))) return false;
+    if (Date.now() - issuedAt > DEVICE_COOKIE_MAX_AGE_MS) return false;
+    return !user.passwordChangedAt || user.passwordChangedAt.getTime() <= issuedAt;
+  }
+
   private assertNotLocked(user: User): void {
-    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+    if (isLocked(user)) {
       throw new HttpException(
         { statusCode: HttpStatus.LOCKED, message: 'Account is temporarily locked after too many failed attempts. Try again later.', code: 'ACCOUNT_LOCKED' },
         HttpStatus.LOCKED,
@@ -207,8 +238,11 @@ export class AuthService {
     const failures = await this.store.users.incrementFailedLogins(user.id);
     await this.audit.record({ action: 'auth.login', outcome: 'failure', target: { type: 'user', id: user.id }, details: { reason, failures }, ip: ctx.ip });
     if (failures >= security.lockoutThreshold) {
-      const lockedUntil = new Date(Date.now() + security.lockoutMinutes * 60_000);
-      await this.store.users.update(user.id, { lockedUntil, failedLoginCount: 0 });
+      // A growing delay rather than a long fixed lock: 30 s, then doubling with each further failure, up to the
+      // configured lockout. The count is only reset by a successful sign-in or an administrator.
+      const seconds = Math.min(30 * 2 ** (failures - security.lockoutThreshold), security.lockoutMinutes * 60);
+      const lockedUntil = new Date(Date.now() + seconds * 1000);
+      await this.store.users.update(user.id, { lockedUntil });
       await this.audit.record({
         action: 'auth.account_locked',
         outcome: 'failure',

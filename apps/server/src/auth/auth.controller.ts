@@ -22,7 +22,7 @@ import { AppConfig } from '../config/app-config';
 import { SettingsService } from '../core/settings.service';
 import { toMeDto } from '../users/user.mapper';
 import { AuthService, type LoginResult } from './auth.service';
-import { clearAuthCookies, REFRESH_COOKIE, setAuthCookies } from './cookies';
+import { clearAuthCookies, DEVICE_COOKIE, REFRESH_COOKIE, setAuthCookies, setDeviceCookie } from './cookies';
 import { SignInLinksService } from './sign-in-links.service';
 import { AllowRestricted, CurrentUser, Public, SessionOnly, SkipCsrf } from './decorators';
 
@@ -52,7 +52,7 @@ export class AuthController {
   @SkipCsrf()
   @Throttle(STRICT_LIMIT)
   async login(@Body(new ZodPipe(loginSchema)) body: z.infer<typeof loginSchema>, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<LoginResponse> {
-    return this.respond(await this.auth.login(body.username, body.password, requestContext(req)), res);
+    return this.respond(await this.auth.login(body.username, body.password, requestContext(req), this.cookie(req, DEVICE_COOKIE)), res);
   }
 
   /** What the sign-in page may offer besides the password. */
@@ -79,7 +79,7 @@ export class AuthController {
   @SkipCsrf()
   @Throttle(STRICT_LIMIT)
   async signInWithLink(@Body(new ZodPipe(signInLinkVerifySchema)) body: z.infer<typeof signInLinkVerifySchema>, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<LoginResponse> {
-    return this.respond(await this.signInLinks.signIn(body.token, requestContext(req)), res);
+    return this.respond(await this.signInLinks.signIn(body.token, requestContext(req), this.cookie(req, DEVICE_COOKIE)), res);
   }
 
   @Post('mfa/verify')
@@ -159,12 +159,17 @@ export class AuthController {
   }
 
   private refreshCookie(req: Request): string | undefined {
-    return (req.cookies as Record<string, string | undefined> | undefined)?.[REFRESH_COOKIE];
+    return this.cookie(req, REFRESH_COOKIE);
+  }
+
+  private cookie(req: Request, name: string): string | undefined {
+    return (req.cookies as Record<string, string | undefined> | undefined)?.[name];
   }
 
   private async respond(result: LoginResult, res: Response): Promise<LoginResponse> {
     if (result.kind === 'mfa') return { status: 'mfa_required', mfaToken: result.mfaToken };
     setAuthCookies(res, result.tokens, this.config.cookieSecure);
+    setDeviceCookie(res, this.auth.deviceCookie(result.user), this.config.cookieSecure);
     return { status: 'ok', user: toMeDto(result.user, await this.settings.getSecurity()) };
   }
 }

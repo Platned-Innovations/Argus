@@ -131,14 +131,27 @@ describe.each(harnesses)('auth & administration e2e: $name', (h) => {
     expect((await dev.call('get', '/api/v1/auth/me')).body.permissions).toContain('tickets:write');
   });
 
-  it('locks accounts after repeated failures, and admins can unlock them', async () => {
+  it('locks accounts briefly after repeated failures, without revealing it, and admins can unlock them', async () => {
+    // A browser where dev.one has signed in before.
+    const usual = new Client(app);
+    expect((await usual.login('dev.one', devPassword)).status).toBe(200);
+    expect(usual.cookies.get('argus_device')).toBeTruthy();
+
     const c = new Client(app);
     for (let i = 0; i < 5; i++) expect((await c.login('dev.one', 'nope-nope-nope')).status).toBe(401);
+    // Locked: even the right password gets the same answer as an unknown account.
     const locked = await c.login('dev.one', devPassword);
-    expect(locked.status).toBe(423);
-    expect(locked.body.code).toBe('ACCOUNT_LOCKED');
-    expect((await admin.call('get', `/api/v1/users/${devId}`)).body.lockedUntil).not.toBeNull();
+    const unknown = await c.login('nobody.here', devPassword);
+    expect(locked.status).toBe(401);
+    expect(locked.body).toEqual(unknown.body);
+    const until = new Date((await admin.call('get', `/api/v1/users/${devId}`)).body.lockedUntil as string).getTime();
+    // A short delay that grows with further failures, not a long fixed lock.
+    expect(until - Date.now()).toBeLessThanOrEqual(31_000);
 
+    // The lock does not keep the owner out of a browser they signed in with before.
+    expect((await usual.login('dev.one', devPassword)).status).toBe(200);
+
+    for (let i = 0; i < 5; i++) await c.login('dev.one', 'nope-nope-nope');
     expect((await admin.call('post', `/api/v1/users/${devId}/unlock`)).status).toBe(200);
     expect((await c.login('dev.one', devPassword)).status).toBe(200);
   });

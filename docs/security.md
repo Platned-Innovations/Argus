@@ -39,8 +39,9 @@ If you find a vulnerability, please report it privately to the maintainers rathe
 | Local accounts with a configurable **password policy** (default: at least 12 characters, 3 of 4 character classes, must not contain the username). The same policy code runs in the browser for live feedback and on the server for enforcement. | ✅ |
 | **Default administrator.** On a fresh database, Argus creates `admin` with a password from `ARGUS_ADMIN_PASSWORD`, or generates a strong one and logs it **once**. The password **must be changed at first sign-in**. | ✅ |
 | **Every admin-set password is temporary.** Users created or reset by an administrator must choose their own password before they can do anything else. | ✅ |
-| **Account lockout** after N consecutive failures (default: 5 failures, 15 minutes). Failed MFA codes and failed "current password" checks count too. Administrators can unlock accounts. | ✅ |
-| **Username enumeration resistance.** Unknown and disabled accounts get the same error, and an argon2 verification still runs against a dummy hash so response times match. | ✅ |
+| **Account lockout** after N consecutive failures (default 5), as a growing delay: 30 seconds, doubling with each further failure up to the configured maximum (default 15 minutes). Failed MFA codes and failed "current password" checks count too. Attempts during the lock are not counted, so they cannot extend it. Administrators can unlock accounts. | ✅ |
+| **Lockout cannot keep the owner out.** After a successful sign-in, the browser keeps a signed, HttpOnly device cookie (180 days, invalid after a password change). The lock does not apply to sign-ins from that browser, so someone guessing an account's password only locks out other browsers. Attempts from it still count and are still rate-limited per IP. | ✅ |
+| **Username enumeration resistance.** Unknown, disabled and locked accounts get the same error as a wrong password, and an argon2 verification still runs (against a dummy hash) so response times match. | ✅ |
 | **TOTP multi-factor authentication** (RFC 6238; works with Microsoft Authenticator, Google Authenticator, 1Password and others). | ✅ |
 | **TOTP replay protection.** A code that has already been accepted cannot be used again, even within its 30-second window. | ✅ |
 | **Recovery codes:** 10 single-use codes, shown once and stored as keyed hashes. | ✅ |
