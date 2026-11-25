@@ -1,4 +1,4 @@
-import { API_TOKEN_LIFETIMES_DAYS, type ApiTokenCreatedDto, type ApiTokenDto, CI_PR_SCAN_SCOPES, type Permission, READ_ONLY_SCOPES } from '@argus/shared';
+import { API_TOKEN_LIFETIMES_DAYS, type ApiTokenCreatedDto, type ApiTokenDto, CI_PR_SCAN_SCOPES, type Permission, READ_ONLY_SCOPES, TOKEN_SCOPES } from '@argus/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Plus } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
@@ -18,7 +18,8 @@ function status(t: ApiTokenDto) {
 function CreateTokenModal({ onClose }: { onClose(): void }) {
   const qc = useQueryClient();
   const { me } = useAuth();
-  const held = (me?.permissions ?? []) as Permission[];
+  // Account, team, settings and source management stay with signed-in users: tokens cannot hold them.
+  const held = ((me?.permissions ?? []) as Permission[]).filter((p) => TOKEN_SCOPES.includes(p));
   const [name, setName] = useState('');
   const [days, setDays] = useState(90);
   const [scopes, setScopes] = useState<Permission[]>(READ_ONLY_SCOPES.filter((s) => held.includes(s)));

@@ -2,11 +2,12 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Que
 import { createUserSchema, listUsersQuerySchema, updateUserSchema } from '@argus/shared';
 import { type Request } from 'express';
 import { type z } from 'zod';
-import { CurrentUser, RequirePermissions } from '../auth/decorators';
+import { CurrentUser, RequirePermissions, SessionOnly } from '../auth/decorators';
 import { type RequestUser, requestContext } from '../common/request';
 import { ZodPipe } from '../common/zod.pipe';
 import { UsersService } from './users.service';
 
+/** Account management is for signed-in administrators only: an API token can never reset a password or MFA, create a user or change a role. */
 @Controller('users')
 export class UsersController {
   constructor(private readonly users: UsersService) {}
@@ -24,12 +25,14 @@ export class UsersController {
   }
 
   @Post()
+  @SessionOnly()
   @RequirePermissions('users:manage')
   create(@Body(new ZodPipe(createUserSchema)) body: z.infer<typeof createUserSchema>, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.users.create(body, me.user, requestContext(req));
   }
 
   @Patch(':id')
+  @SessionOnly()
   @RequirePermissions('users:manage')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -42,6 +45,7 @@ export class UsersController {
 
   @Post(':id/reset-password')
   @HttpCode(200)
+  @SessionOnly()
   @RequirePermissions('users:manage')
   resetPassword(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.users.resetPassword(id, me.user, requestContext(req));
@@ -49,6 +53,7 @@ export class UsersController {
 
   @Post(':id/reset-mfa')
   @HttpCode(200)
+  @SessionOnly()
   @RequirePermissions('users:manage')
   resetMfa(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.users.resetMfa(id, me.user, requestContext(req));
@@ -56,6 +61,7 @@ export class UsersController {
 
   @Post(':id/unlock')
   @HttpCode(200)
+  @SessionOnly()
   @RequirePermissions('users:manage')
   unlock(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.users.unlock(id, me.user, requestContext(req));
@@ -63,6 +69,7 @@ export class UsersController {
 
   @Post(':id/revoke-sessions')
   @HttpCode(200)
+  @SessionOnly()
   @RequirePermissions('users:manage')
   revokeSessions(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() me: RequestUser, @Req() req: Request) {
     return this.users.revokeSessions(id, me.user, requestContext(req));

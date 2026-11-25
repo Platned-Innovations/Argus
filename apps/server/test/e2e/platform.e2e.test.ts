@@ -3,10 +3,11 @@ import { createServer, type Server } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { type INestApplication } from '@nestjs/common';
 import { type DataStore } from '@argus/data';
-import { type ApiTokenCreatedDto, type ApiTokenDto } from '@argus/shared';
+import { API_TOKEN_PREFIX, type ApiTokenCreatedDto, type ApiTokenDto } from '@argus/shared';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
+import { ApiTokensService } from '../../src/auth/api-tokens.service';
 import { AppConfig } from '../../src/config/app-config';
 import { DATA_STORE } from '../../src/core/tokens';
 import { CredentialsService } from '../../src/credentials/credentials.service';
@@ -195,6 +196,24 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       expect((await anon('get', '/api/v1/findings', token)).status).toBe(401);
       await admin.call('patch', `/api/v1/users/${devId}`, { status: 'active', role: 'developer' });
       expect((await anon('get', '/api/v1/findings', token)).status).toBe(200);
+    });
+
+    it('can never manage users, teams, settings or sources, even as an older token that holds those scopes', async () => {
+      const refused = await admin.call('post', '/api/v1/me/tokens', { name: 'Admin CI', scopes: ['repos:read', 'users:manage'], expiresInDays: 30 });
+      expect(refused.status).toBe(400);
+      // A token created before these scopes were withheld from tokens.
+      const raw = `${API_TOKEN_PREFIX}legacy-admin-token-0123456789abcdefghij`;
+      const store = app.get<DataStore>(DATA_STORE);
+      const adminId = ((await admin.call('get', '/api/v1/auth/me')).body as { id: string }).id;
+      await store.apiTokens.create({ userId: adminId, name: 'Legacy', tokenHash: app.get(ApiTokensService).hashToken(raw), prefix: raw.slice(0, 16), scopes: ['users:read', 'users:manage', 'settings:manage', 'sources:manage', 'teams:manage'], expiresAt: new Date(Date.now() + 86_400_000) });
+      expect((await anon('get', '/api/v1/users', raw)).status).toBe(200);
+      expect((await anon('post', `/api/v1/users/${devId}/reset-password`, raw)).status).toBe(403);
+      expect((await anon('post', `/api/v1/users/${devId}/reset-mfa`, raw)).status).toBe(403);
+      expect((await anon('patch', `/api/v1/users/${devId}`, raw, { role: 'admin' })).status).toBe(403);
+      expect((await anon('get', '/api/v1/sources', raw)).status).toBe(403);
+      expect((await anon('get', '/api/v1/settings/ai', raw)).status).toBe(403);
+      // The same action from an administrator's session still works.
+      expect((await admin.call('post', `/api/v1/users/${devId}/unlock`)).status).toBe(200);
     });
 
     it('can be revoked by its owner or an administrator', async () => {

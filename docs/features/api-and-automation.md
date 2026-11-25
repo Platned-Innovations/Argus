@@ -6,6 +6,7 @@ Use API tokens to call Argus from CI pipelines and scripts. Create one under **P
 
 - **Shown once.** The token (`argus_pat_…`) is displayed when it is created and never again. Argus stores only a keyed hash of it.
 - **Scoped.** Choose the permissions the token may use (a *read-only* preset is offered). A token can never do more than its owner's role allows. The check is made on every request, so if the owner's role is lowered, the token loses those permissions too.
+- **No administration.** A token cannot hold `users:manage`, `teams:manage`, `settings:manage` or `sources:manage`, and the endpoints that need them refuse every token, including one created before this rule. Managing accounts, teams, settings and sources needs a signed-in administrator, so a leaked token cannot take over an account or redirect a stored secret.
 - **Expiring.** 7, 30, 90, 180 or 365 days. There are no tokens without an expiry.
 - **Tied to its owner.** A token stops working when its owner is disabled, or must change their password or enrol in MFA.
 - **Revocable.** The owner revokes it under Profile; an administrator can revoke any token under **Security settings → API tokens (all users)**.
@@ -20,6 +21,7 @@ curl -H "Authorization: Bearer $ARGUS_TOKEN" https://argus.example.com/api/v1/fi
 API tokens are **default-deny**. They work only on endpoints that declare the permissions they need, and never on these:
 - sign-in, MFA and password endpoints
 - token management, so a leaked token cannot create other tokens or hide itself
+- managing users, teams, settings and sources (including password and MFA resets)
 
 Token requests carry no cookies, so CSRF protection does not apply to them.
 
