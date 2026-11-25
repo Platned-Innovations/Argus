@@ -13,6 +13,7 @@ import {
   type Paged,
 } from '@argus/shared';
 import { type RequestContext } from '../common/request';
+import { assertSecretReentered } from '../common/secret-destination';
 import { AppConfig } from '../config/app-config';
 import { AuditService } from '../core/audit.service';
 import { CryptoService } from '../core/crypto.service';
@@ -201,6 +202,9 @@ export class CredentialsService implements OnModuleInit {
     const current = await this.storedEntra();
     if (!input.clientSecret && !current?.secretEnc) throw new BadRequestException('The client secret is required.');
     const { clientSecret, ...rest } = input;
+    // The client secret is sent to the tenant it was entered for.
+    const tenant = (t: string | null | undefined) => (t ? t.trim().toLowerCase() : null);
+    const moved = current ? assertSecretReentered(tenant(current.tenantId), tenant(input.tenantId), { hadSecret: !!current.secretEnc, secretProvided: !!clientSecret, what: 'client secret' }) : null;
     const value: StoredEntra = {
       ...rest,
       secretEnc: clientSecret ? this.crypto.encrypt(clientSecret) : current!.secretEnc,
@@ -211,6 +215,7 @@ export class CredentialsService implements OnModuleInit {
     };
     await this.store.settings.set(ENTRA_KEY, value, actor.id);
     await this.audit.record({ action: 'integration.entra_import_updated', actor, details: { enabled: value.enabled, tenantId: value.tenantId, clientId: value.clientId, secretRotated: !!clientSecret }, ip: ctx.ip });
+    if (moved) await this.audit.record({ action: 'integration.entra_import_destination_changed', actor, details: moved, ip: ctx.ip });
     return (await this.getEntraSettings())!;
   }
 

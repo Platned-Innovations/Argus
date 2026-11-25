@@ -48,7 +48,7 @@ The same result, step by step.
 
 ```bash
 az acr create -g argus-rg -n argusacr --sku Basic
-az acr build -r argusacr -t argus:0.5.0 -f deploy/docker/Dockerfile .
+az acr build -r argusacr -t argus:0.6.0 -f deploy/docker/Dockerfile .
 ```
 
 ## 2. Create the database
@@ -79,7 +79,7 @@ az keyvault secret set --vault-name argus-kv -n argus-db-url --value 'postgres:/
 ```bash
 az appservice plan create -g argus-rg -n argus-plan --is-linux --sku P1v3
 az webapp create -g argus-rg -p argus-plan -n argus-web \
-  --deployment-container-image-name argusacr.azurecr.io/argus:0.5.0
+  --deployment-container-image-name argusacr.azurecr.io/argus:0.6.0
 az webapp identity assign -g argus-rg -n argus-web
 # Let the app pull from ACR and read Key Vault with its managed identity
 # (grant AcrPull on the registry and "Key Vault Secrets User" on the vault).
@@ -105,7 +105,7 @@ az webapp config appsettings set -g argus-rg -n argus-web --settings \
 | `WEBSITES_ENABLE_APP_SERVICE_STORAGE=false` | Argus needs no persistent file storage; scan workspaces are temporary. |
 | Always On | Keeps the background worker running between web requests. |
 
-App Service sits behind a front end that adds `X-Forwarded-For`. The default `ARGUS_TRUST_PROXY=1` makes Argus record the real client IP.
+App Service sits behind a front end that adds `X-Forwarded-For`. The template sets `ARGUS_TRUST_PROXY=1` so Argus records the real client IP (the application default is `false`, for direct exposure).
 
 ## 6. First sign-in
 

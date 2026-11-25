@@ -3,6 +3,7 @@ import { type DataStore, type Job, type Source, type SourceWithCounts } from '@a
 import { type SourceCreateInput, type SourceDto, type SourceTestInput, type SourceTestResult, type SourceUpdateInput, type SourceWithSecretDto } from '@argus/shared';
 import { Redactor } from '../common/redact';
 import { type RequestContext } from '../common/request';
+import { assertSecretReentered, urlOrigin } from '../common/secret-destination';
 import { AuditService, type AuditActor } from '../core/audit.service';
 import { CryptoService } from '../core/crypto.service';
 import { DATA_STORE } from '../core/tokens';
@@ -141,6 +142,8 @@ export class SourcesService implements OnModuleInit {
       username: input.username !== undefined ? nullIfEmpty(input.username) : current.username,
     };
     const connectionChanged = input.token !== undefined || next.baseUrl !== current.baseUrl || next.scope !== current.scope || next.username !== current.username;
+    // Before the connection test, which sends the token to the new address.
+    const moved = assertSecretReentered(urlOrigin(current.baseUrl), urlOrigin(next.baseUrl), { hadSecret: true, secretProvided: input.token !== undefined, what: 'token' });
     const token = input.token ?? this.crypto.decrypt(current.tokenEnc);
     if (connectionChanged) {
       const check = await this.test({ provider: current.provider, ...next, token });
@@ -159,6 +162,7 @@ export class SourcesService implements OnModuleInit {
       details: { changed: Object.keys(input).filter((k) => k !== 'token'), tokenRotated: input.token !== undefined },
       ip: ctx.ip,
     });
+    if (moved) await this.audit.record({ action: 'source.destination_changed', actor, target: { type: 'source', id }, details: moved, ip: ctx.ip });
     if (connectionChanged) await this.enqueueSync(id);
     return this.get(updated.id);
   }

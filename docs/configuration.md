@@ -23,7 +23,7 @@ Runtime policies (password rules, MFA, sessions) are set in the UI under **Admin
 | `ARGUS_ADMIN_PASSWORD` | generated | Initial password for the default `admin` account. Used **only** when the database has no users. It must be changed at first sign-in. |
 | `ARGUS_PUBLIC_URL` | — | External URL, for example `https://argus.example.com`. Used for links in emails, notifications, Jira issues and pull request comments, and to enable `Secure` cookies and HSTS when it starts with `https://`. Required for [sign-in links by email](features/user-management.md#sign-in-links-by-email). |
 | `ARGUS_COOKIE_SECURE` | `auto` | `auto` is secure when the public URL is HTTPS (or, without a public URL, when `NODE_ENV=production`). Can also be `true` or `false`. |
-| `ARGUS_TRUST_PROXY` | `1` | Express `trust proxy` setting, so client IPs are correct behind a load balancer or App Service front end. Accepts a hop count, `true`, `false`, or a subnet list. |
+| `ARGUS_TRUST_PROXY` | `false` | Express `trust proxy` setting. Off by default, so the client IP comes from the connection: when Argus is reached directly, a client could otherwise send any `X-Forwarded-For` and dodge per-IP rate limits or falsify the audit log. Behind a reverse proxy, load balancer or App Service front end, set the number of proxy hops (usually `1`) so client IPs are correct. Also accepts `true` or a subnet list. |
 | `ARGUS_AUTH_RATE_LIMIT` | `10` | Requests per minute per client IP for each credential endpoint (login, MFA verification, password change). Raise it if many users share one egress IP (corporate NAT). |
 | `ARGUS_WORKER_CONCURRENCY` | `2` | Maximum number of background jobs (scans, syncs) one worker process runs at the same time. |
 | `ARGUS_SCAN_WORKDIR` | `<os temp>/argus-scans` | Parent directory for the temporary scan checkouts. Each scan uses a subdirectory, deleted when the scan ends. Needs free space for your largest repository. |
@@ -65,7 +65,7 @@ Under **Administration → Security settings**, visible to administrators and se
 | Minimum password length | 12 | 8–128 |
 | Required character classes | 3 | 1–4 |
 | Lock after failed attempts | 5 | 3–50 |
-| Lockout duration (minutes) | 15 | 1–1440 |
+| Longest lockout (minutes): the lock starts at 30 seconds and doubles with each further failure, up to this | 15 | 1–1440 |
 | Access token lifetime (minutes) | 15 | 5–60 |
 | Session lifetime (days of inactivity) | 7 | 1–90 |
 

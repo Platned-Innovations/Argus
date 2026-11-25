@@ -3,10 +3,11 @@ import { createServer, type Server } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { type INestApplication } from '@nestjs/common';
 import { type DataStore } from '@argus/data';
-import { type ApiTokenCreatedDto, type ApiTokenDto } from '@argus/shared';
+import { API_TOKEN_PREFIX, type ApiTokenCreatedDto, type ApiTokenDto } from '@argus/shared';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
+import { ApiTokensService } from '../../src/auth/api-tokens.service';
 import { AppConfig } from '../../src/config/app-config';
 import { DATA_STORE } from '../../src/core/tokens';
 import { CredentialsService } from '../../src/credentials/credentials.service';
@@ -197,6 +198,24 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       expect((await anon('get', '/api/v1/findings', token)).status).toBe(200);
     });
 
+    it('can never manage users, teams, settings or sources, even as an older token that holds those scopes', async () => {
+      const refused = await admin.call('post', '/api/v1/me/tokens', { name: 'Admin CI', scopes: ['repos:read', 'users:manage'], expiresInDays: 30 });
+      expect(refused.status).toBe(400);
+      // A token created before these scopes were withheld from tokens.
+      const raw = `${API_TOKEN_PREFIX}legacy-admin-token-0123456789abcdefghij`;
+      const store = app.get<DataStore>(DATA_STORE);
+      const adminId = ((await admin.call('get', '/api/v1/auth/me')).body as { id: string }).id;
+      await store.apiTokens.create({ userId: adminId, name: 'Legacy', tokenHash: app.get(ApiTokensService).hashToken(raw), prefix: raw.slice(0, 16), scopes: ['users:read', 'users:manage', 'settings:manage', 'sources:manage', 'teams:manage'], expiresAt: new Date(Date.now() + 86_400_000) });
+      expect((await anon('get', '/api/v1/users', raw)).status).toBe(200);
+      expect((await anon('post', `/api/v1/users/${devId}/reset-password`, raw)).status).toBe(403);
+      expect((await anon('post', `/api/v1/users/${devId}/reset-mfa`, raw)).status).toBe(403);
+      expect((await anon('patch', `/api/v1/users/${devId}`, raw, { role: 'admin' })).status).toBe(403);
+      expect((await anon('get', '/api/v1/sources', raw)).status).toBe(403);
+      expect((await anon('get', '/api/v1/settings/ai', raw)).status).toBe(403);
+      // The same action from an administrator's session still works.
+      expect((await admin.call('post', `/api/v1/users/${devId}/unlock`)).status).toBe(200);
+    });
+
     it('can be revoked by its owner or an administrator', async () => {
       const all = (await admin.call('get', '/api/v1/api-tokens')).body as ApiTokenDto[];
       expect(all.find((t) => t.id === tokenId)).toMatchObject({ userName: 'Dev Tok', revokedAt: null });
@@ -207,6 +226,27 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       const audit = (await admin.call('get', '/api/v1/audit?action=api_token.revoked')).body.items;
       expect(audit[0]).toMatchObject({ actorName: 'admin', targetId: tokenId });
       void bearer;
+    });
+
+    it('is revoked when an administrator signs the owner out everywhere or resets their password', async () => {
+      const id = (await admin.call('post', '/api/v1/users', { username: 'ci.owner', displayName: 'CI Owner', role: 'developer', password: 'Ci-Owner-Pass-12345', teamIds: [] })).body.user.id as string;
+      const owner = new Client(app);
+      await owner.login('ci.owner', 'Ci-Owner-Pass-12345');
+      await owner.call('post', '/api/v1/auth/change-password', { currentPassword: 'Ci-Owner-Pass-12345', newPassword: 'Ci-Owner-Pass-67890' });
+      const mint = async () => ((await owner.call('post', '/api/v1/me/tokens', { name: 'CI', scopes: ['findings:read'], expiresInDays: 7 })).body as ApiTokenCreatedDto).token;
+
+      const first = await mint();
+      expect((await anon('get', '/api/v1/findings', first)).status).toBe(200);
+      expect((await admin.call('post', `/api/v1/users/${id}/revoke-sessions`)).status).toBe(200);
+      expect((await anon('get', '/api/v1/findings', first)).status).toBe(401);
+
+      await owner.login('ci.owner', 'Ci-Owner-Pass-67890');
+      const second = await mint();
+      expect((await anon('get', '/api/v1/findings', second)).status).toBe(200);
+      expect((await admin.call('post', `/api/v1/users/${id}/reset-password`)).status).toBe(200);
+      expect((await anon('get', '/api/v1/findings', second)).status).toBe(401);
+      const audit = (await admin.call('get', '/api/v1/audit?action=user.password_reset')).body.items;
+      expect(audit[0]).toMatchObject({ targetId: id, details: { tokensRevoked: 1 } });
     });
   });
 
@@ -263,15 +303,22 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
       expect(res.text).toMatch(/^# HELP argus_info /m);
       expect(res.text).toContain(`role="api",database="${h.name}"} 1`);
       expect(res.text).toMatch(/^argus_findings_open\{severity="critical"\} \d+$/m);
-      expect(res.text).toMatch(/^argus_users 2$/m);
+      // However many accounts the earlier tests created.
+      const users = ((await admin.call('get', '/api/v1/users')).body as { total: number }).total;
+      expect(res.text).toMatch(new RegExp(`^argus_users ${users}$`, 'm'));
       expect(res.text).toMatch(/^argus_worker_heartbeat_age_seconds -?\d+$/m);
       // Session cookies do not grant access to metrics.
       expect((await admin.call('get', '/metrics')).status).toBe(401);
     });
 
     it('describes the API from the running code, with permissions and validation schemas', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/openapi.json');
+      // It maps every endpoint and permission, so it is not public.
+      expect((await request(app.getHttpServer()).get('/api/v1/openapi.json')).status).toBe(401);
+      const res = await admin.call('get', '/api/v1/openapi.json');
       expect(res.status).toBe(200);
+      // The runtime details that /readyz no longer shows.
+      expect((await admin.call('get', '/api/v1/system/status')).body).toMatchObject({ status: 'ok', role: 'api', database: { type: h.name, ok: true } });
+      expect((await dev.call('get', '/api/v1/system/status')).status).toBe(403);
       const doc = res.body as { openapi: string; paths: Record<string, Record<string, Record<string, unknown>>> };
       expect(doc.openapi).toBe('3.1.0');
       const createAdvisory = doc.paths['/api/v1/intel/advisories'].post;

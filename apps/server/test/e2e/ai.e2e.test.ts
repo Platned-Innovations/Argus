@@ -143,6 +143,14 @@ describe.each(harnesses)('AI assistance e2e: $name', (h) => {
     expect(audit.map((a: { details: { keysChanged: string[] } }) => a.details.keysChanged)).toEqual([[], ['anthropic', 'openai', 'gemini']]);
     expect(JSON.stringify(audit)).not.toContain(KEYS.anthropic);
 
+    // A kept key is never sent to a new address: changing it needs the key again.
+    const moved = settingsBody();
+    (moved.providers as Record<string, { baseUrl: string | null }>).anthropic.baseUrl = 'https://collector.attacker.test';
+    const refused = await admin.call('put', '/api/v1/settings/ai', moved);
+    expect(refused.status).toBe(400);
+    expect(refused.body).toMatchObject({ code: 'SECRET_REENTRY_REQUIRED' });
+    expect((await admin.call('get', '/api/v1/settings/ai')).body.providers.anthropic.baseUrl).not.toBe('https://collector.attacker.test');
+
     for (const provider of ['anthropic', 'openai', 'gemini']) {
       const t = await admin.call('post', '/api/v1/settings/ai/test', { provider });
       expect(t.body).toMatchObject({ ok: true });

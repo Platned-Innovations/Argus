@@ -2,12 +2,13 @@ import { RequestMethod } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { type NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
-import { json, type NextFunction, type Request, type Response } from 'express';
+import { json, type NextFunction, raw, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AUTH_RATE_LIMIT_SETTING } from './auth/auth.controller';
 import { type AppConfig } from './config/app-config';
+import { WEBHOOK_BODY_LIMIT } from './scans/webhooks.controller';
 
 /** Errors raised by body-parser (http-errors with a `type` such as entity.parse.failed or entity.too.large). */
 type BodyParserError = Error & { type?: string; status?: number; expose?: boolean; expected?: number; received?: number };
@@ -40,16 +41,9 @@ export async function createApiApp(config: AppConfig): Promise<NestExpressApplic
     }),
   );
   app.use(cookieParser());
-  // Webhook payloads (large pushes) can be several MB and need the raw bytes for signature verification.
-  app.use(
-    '/api/v1/webhooks',
-    json({
-      limit: '25mb',
-      verify: (req: Request, _res, buf) => {
-        req.rawBody = buf;
-      },
-    }),
-  );
+  // Webhooks are public: their bodies are kept as raw bytes and only parsed as JSON after the signature is checked
+  // (see WebhooksController), so an unsigned request costs one HMAC, not a JSON parse. Large pushes can be a few MB.
+  app.use('/api/v1/webhooks', raw({ type: () => true, limit: WEBHOOK_BODY_LIMIT }));
   app.use(json({ limit: '1mb' }));
   // A body that cannot be read (malformed JSON, too large, cut short) would otherwise surface as "Cannot POST …" (404).
   app.use((err: BodyParserError, req: Request, res: Response, next: NextFunction) => {

@@ -81,10 +81,10 @@ Creating and revoking links needs the *Manage users* permission and a signed-in 
 Open a user to:
 
 - **Edit** their display name, email, role, teams or status. A disabled user is signed out everywhere immediately and cannot sign in.
-- **Reset password**: generates a new temporary password (shown once) and signs the user out everywhere.
-- **Reset MFA**: removes their authenticator so they can enroll again (for example, after losing a phone).
+- **Reset password**: generates a new temporary password (shown once), signs the user out everywhere and revokes their API tokens.
+- **Reset MFA**: removes their authenticator so they can enroll again (for example, after losing a phone), signs them out everywhere and revokes their API tokens.
 - **Unlock account**: clears a lockout caused by repeated failed sign-ins.
-- **Sign out everywhere**: revokes all of their sessions.
+- **Sign out everywhere**: revokes all of their sessions and API tokens, so nothing issued before keeps working.
 
 Every action is recorded in the audit log.
 
@@ -123,7 +123,9 @@ A link signs you in, but it does not change your password. To set a new password
 These are configured under **Security settings**:
 
 - **Password rules.** The defaults are at least 12 characters, at least 3 of {lowercase, uppercase, digit, symbol}, and the password must not contain the username. The sign-in UI checks the rules as you type, and the server enforces them.
-- **Lockout.** After 5 consecutive failures (counting wrong passwords, wrong MFA codes and wrong "current password" entries), the account is locked for 15 minutes. Administrators can unlock it sooner.
+- **Lockout.** After 5 consecutive failures (counting wrong passwords, wrong MFA codes and wrong "current password" entries), the account is locked for 30 seconds. Each further failure doubles the lock, up to 15 minutes. A successful sign-in resets the count, and administrators can unlock the account sooner.
+  - A locked account gets the same "invalid username or password" answer as a wrong password or an unknown account, so sign-in never reveals which accounts exist or are locked. Attempts during the lock are not counted.
+  - The lock does not apply in a browser where the user has signed in before (since their last password change, within 180 days). Someone guessing passwords can only lock out other browsers, not keep the owner out.
 - **Session lifetime.** Access tokens last 15 minutes and are renewed silently. A session ends after 7 days of inactivity.
 
 ## Audit log

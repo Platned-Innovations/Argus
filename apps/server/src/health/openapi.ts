@@ -4,8 +4,8 @@ import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
 import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
 import { DiscoveryService } from '@nestjs/core';
 import { z } from 'zod';
-import { type Permission } from '@argus/shared';
-import { PERMISSIONS_KEY, Public, PUBLIC_KEY, SESSION_ONLY_KEY } from '../auth/decorators';
+import { type Permission, SESSION_ONLY_PERMISSIONS } from '@argus/shared';
+import { PERMISSIONS_KEY, PUBLIC_KEY, RequirePermissions, SESSION_ONLY_KEY } from '../auth/decorators';
 import { AppConfig } from '../config/app-config';
 import { ZodPipe } from '../common/zod.pipe';
 
@@ -80,8 +80,9 @@ export class OpenApiService {
         const raw = joinPath(Array.isArray(base) ? base[0] : base, Array.isArray(sub) ? sub[0] : sub);
         const path = UNPREFIXED.has(raw) ? raw : `${PREFIX}${raw === '/' ? '' : raw}`;
         const isPublic = meta<boolean>(PUBLIC_KEY, handler, ctrl) === true;
-        const sessionOnly = meta<boolean>(SESSION_ONLY_KEY, handler, ctrl) === true;
         const permissions = meta<Permission[]>(PERMISSIONS_KEY, handler, ctrl) ?? [];
+        // Endpoints that need a permission tokens cannot hold are closed to tokens too (see PermissionsGuard).
+        const sessionOnly = meta<boolean>(SESSION_ONLY_KEY, handler, ctrl) === true || permissions.some((p) => SESSION_ONLY_PERMISSIONS.includes(p));
 
         const op: JsonSchema = {
           operationId: `${ctrl.name.replace(/Controller$/, '')}_${name}`,
@@ -135,12 +136,12 @@ export class OpenApiService {
 }
 
 @Controller()
-@Public()
 export class OpenApiController {
   constructor(private readonly openapi: OpenApiService) {}
 
-  /** The API description, generated from the running code. */
+  /** The API description, generated from the running code. It maps every endpoint and permission, so it needs sign-in. */
   @Get('openapi.json')
+  @RequirePermissions('repos:read')
   document() {
     return this.openapi.document();
   }

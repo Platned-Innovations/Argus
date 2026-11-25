@@ -3,6 +3,7 @@ import { type DataStore, type Repository, type Ticket, type User } from '@argus/
 import { type ConnectionTestDto, type JiraSettingsDto, type JiraSettingsInput, TICKET_STATUS_LABELS } from '@argus/shared';
 import { Redactor } from '../common/redact';
 import { type RequestContext } from '../common/request';
+import { assertSecretReentered, urlOrigin } from '../common/secret-destination';
 import { AppConfig } from '../config/app-config';
 import { AuditService } from '../core/audit.service';
 import { CryptoService } from '../core/crypto.service';
@@ -67,6 +68,7 @@ export class JiraService implements OnModuleInit {
     if (!input.token && !current?.tokenEnc) throw new BadRequestException('The API token is required.');
     if (input.deployment === 'cloud' && !input.email) throw new BadRequestException('Jira Cloud needs the email address of the account that owns the API token.');
     const { token, ...rest } = input;
+    const moved = current ? assertSecretReentered(urlOrigin(current.baseUrl), urlOrigin(input.baseUrl), { hadSecret: !!current.tokenEnc, secretProvided: !!token, what: 'API token' }) : null;
     const value: StoredJira = {
       ...rest,
       baseUrl: input.baseUrl.replace(/\/+$/, ''),
@@ -75,6 +77,7 @@ export class JiraService implements OnModuleInit {
     };
     await this.store.settings.set(SETTINGS_KEY, value, actor.id);
     await this.audit.record({ action: 'integration.jira_updated', actor, details: { enabled: value.enabled, deployment: value.deployment, baseUrl: value.baseUrl, tokenRotated: !!token }, ip: ctx.ip });
+    if (moved) await this.audit.record({ action: 'integration.jira_destination_changed', actor, details: moved, ip: ctx.ip });
     return (await this.getSettings())!;
   }
 

@@ -64,7 +64,7 @@ rem Runs hidden and detached, so it keeps running after this window closes.
 powershell -NoProfile -Command "$p = Start-Process -FilePath cmd.exe -ArgumentList '/d /c npm start -w @argus/server >> logs\argus.log 2>&1' -WorkingDirectory '%CD%' -WindowStyle Hidden -PassThru; $p.Id" > "%PIDFILE%"
 call :isrunning
 echo   Started ^(process %PID%^). Waiting for %URL%/readyz ...
-powershell -NoProfile -Command "for ($i = 0; $i -lt 60; $i++) { try { $r = Invoke-RestMethod '%URL%/readyz' -TimeoutSec 3; Write-Host ('  Ready: Argus ' + $r.version + ', database ' + $r.database.type + ' ok'); exit 0 } catch { Start-Sleep 2 } }; Write-Host '  Not ready after 2 minutes; check the log (option 5).'; exit 1"
+powershell -NoProfile -Command "for ($i = 0; $i -lt 60; $i++) { try { $null = Invoke-RestMethod '%URL%/readyz' -TimeoutSec 3; Write-Host ('  Ready: Argus ' + (Get-Content package.json -Raw | ConvertFrom-Json).version + ', database ok'); exit 0 } catch { Start-Sleep 2 } }; Write-Host '  Not ready after 2 minutes; check the log (option 5).'; exit 1"
 exit /b 0
 
 :stop
@@ -79,7 +79,7 @@ exit /b 0
 :status
 call :isrunning
 if "%RUNNING%"=="1" (echo   Process: running ^(%PID%^)) else (echo   Process: not started from this menu)
-powershell -NoProfile -Command "try { $r = Invoke-RestMethod '%URL%/readyz' -TimeoutSec 5; $age = [int]((Get-Date) - [datetime]$r.worker.lastSeen).TotalSeconds; Write-Host ('  Version:  ' + $r.version + ' (' + $r.role + ')'); Write-Host ('  Database: ' + $r.database.type + ', ' + $(if ($r.database.ok) { 'ok' } else { 'NOT OK' })); Write-Host ('  Worker:   last seen ' + $age + 's ago on ' + $r.worker.host); Write-Host ('  Web:      %URL%') } catch { Write-Host ('  Not responding on %URL%: ' + $_.Exception.Message) }"
+powershell -NoProfile -Command "Write-Host ('  Version:  ' + (Get-Content package.json -Raw | ConvertFrom-Json).version); try { $null = Invoke-RestMethod '%URL%/readyz' -TimeoutSec 5; Write-Host '  Database: ok'; Write-Host ('  Web:      %URL%'); Write-Host '  Worker heartbeat and other details: signed in as an administrator, open %URL%/api/v1/system/status' } catch { Write-Host ('  Not ready on %URL% (database unreachable or not started): ' + $_.Exception.Message) }"
 exit /b 0
 
 :logs

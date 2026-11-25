@@ -100,7 +100,7 @@ export class SignInLinksService {
     await this.audit.record({ action: 'auth.sign_in_link_requested', target: { type: 'user', id: user.id }, details: { channel: channel.name }, ip: ctx.ip });
   }
 
-  async signIn(token: string, ctx: RequestContext): Promise<LoginResult> {
+  async signIn(token: string, ctx: RequestContext, device?: string): Promise<LoginResult> {
     const fail = async (reason: string, user: User | null) => {
       await this.audit.record({ action: 'auth.login', outcome: 'failure', target: user ? { type: 'user', id: user.id } : null, details: { method: 'sign_in_link', reason }, ip: ctx.ip });
       return new UnauthorizedException(INVALID_LINK);
@@ -110,6 +110,6 @@ export class SignInLinksService {
     if (!link) throw await fail('invalid_link', null);
     const user = await this.store.users.findById(link.userId);
     if (!user || user.status !== 'active') throw await fail('disabled', user);
-    return this.auth.continueVerifiedLogin(user, ctx, 'sign_in_link');
+    return this.auth.continueVerifiedLogin(user, ctx, 'sign_in_link', device);
   }
 }

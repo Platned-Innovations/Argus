@@ -15,6 +15,7 @@ import {
   DEFAULT_AI_SETTINGS,
 } from '@argus/shared';
 import { type RequestContext } from '../common/request';
+import { assertSecretReentered, urlOrigin } from '../common/secret-destination';
 import { AppConfig } from '../config/app-config';
 import { AuditService } from '../core/audit.service';
 import { CryptoService } from '../core/crypto.service';
@@ -109,9 +110,13 @@ export class AiService {
     const current = await this.stored();
     const providers = {} as Record<AiProvider, StoredProvider>;
     const keysChanged: string[] = [];
+    const moved: Record<string, { from: string | null; to: string | null }> = {};
     for (const p of AI_PROVIDERS) {
       const { apiKey, clearApiKey, ...rest } = input.providers[p];
       const prev = current.providers[p];
+      // A kept key is only sent to the address it was entered for (null = the provider's own API).
+      const change = assertSecretReentered(urlOrigin(prev.baseUrl), urlOrigin(rest.baseUrl), { hadSecret: !!prev.keyEnc && !clearApiKey, secretProvided: !!apiKey, what: `API key for ${p}` });
+      if (change) moved[p] = change;
       const keyEnc = apiKey ? this.crypto.encrypt(apiKey) : clearApiKey ? null : prev.keyEnc;
       if (apiKey || (clearApiKey && prev.keyEnc)) keysChanged.push(p);
       providers[p] = { ...rest, baseUrl: rest.baseUrl?.replace(/\/+$/, '') ?? null, keyEnc, keyHint: apiKey ? `••••${apiKey.slice(-4)}` : keyEnc ? prev.keyHint : null };
@@ -135,6 +140,7 @@ export class AiService {
       },
       ip: ctx.ip,
     });
+    if (Object.keys(moved).length) await this.audit.record({ action: 'settings.ai_destination_changed', actor, details: moved, ip: ctx.ip });
     return this.getSettings();
   }
 

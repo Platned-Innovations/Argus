@@ -1,8 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { type Channel, type DataStore, type User } from '@argus/data';
-import { type ChannelDto, type ChannelInput, type ConnectionTestDto, isEmailChannel } from '@argus/shared';
+import { type ChannelDto, type ChannelInput, type ChannelType, type ConnectionTestDto, isEmailChannel } from '@argus/shared';
 import { Redactor } from '../common/redact';
 import { type RequestContext } from '../common/request';
+import { assertSecretReentered, urlOrigin } from '../common/secret-destination';
 import { AppConfig } from '../config/app-config';
 import { AuditService } from '../core/audit.service';
 import { CryptoService } from '../core/crypto.service';
@@ -15,6 +16,24 @@ import { callExternal, IntegrationError } from './outbound';
 function hint(secret: string): string {
   // For webhook URLs show nothing of the token-bearing path; for passwords/keys the last 4 characters.
   return secret.startsWith('https://') ? `${new URL(secret).host}/…` : `••••${secret.slice(-4)}`;
+}
+
+/**
+ * Where the channel's stored secret goes: the SMTP server, the Microsoft Entra tenant that issues the token, or the
+ * webhook's origin. Teams and Slack webhooks keep their whole URL as the secret, so they have no separate destination.
+ */
+function secretDestination(type: ChannelType, config: unknown): string | null {
+  const c = (config ?? {}) as { host?: string; authMode?: string; tenantId?: string | null; url?: string };
+  switch (type) {
+    case 'email_graph':
+      return `entra:${(c.tenantId ?? '').trim().toLowerCase()}`;
+    case 'email_smtp':
+      return c.authMode === 'microsoft_oauth2' ? `smtp:${(c.host ?? '').trim().toLowerCase()} entra:${(c.tenantId ?? '').trim().toLowerCase()}` : `smtp:${(c.host ?? '').trim().toLowerCase()}`;
+    case 'webhook':
+      return urlOrigin(c.url);
+    default:
+      return null;
+  }
 }
 
 @Injectable()
@@ -84,6 +103,11 @@ export class ChannelsService {
     const existing = await this.require(id);
     if (existing.type !== input.type) throw new BadRequestException('The channel type cannot be changed.');
     this.assertSecret(input, existing);
+    const moved = assertSecretReentered(secretDestination(existing.type, existing.config), secretDestination(input.type, input.config), {
+      hadSecret: !!existing.secretEnc,
+      secretProvided: !!input.secret,
+      what: { email_graph: 'client secret', email_smtp: 'password or client secret', teams_webhook: 'webhook URL', slack_webhook: 'webhook URL', webhook: 'signing secret' }[input.type],
+    });
     const c = (await this.store.channels.update(id, {
       name: input.name,
       enabled: input.enabled,
@@ -91,6 +115,7 @@ export class ChannelsService {
       ...(input.secret ? { secretEnc: this.crypto.encrypt(input.secret), secretHint: hint(input.secret) } : {}),
     }))!;
     await this.audit.record({ action: 'channel.updated', actor, target: { type: 'channel', id }, details: { name: c.name, secretRotated: !!input.secret }, ip: ctx.ip });
+    if (moved) await this.audit.record({ action: 'channel.destination_changed', actor, target: { type: 'channel', id }, details: moved, ip: ctx.ip });
     return this.toDto(c);
   }
 

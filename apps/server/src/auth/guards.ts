@@ -1,7 +1,7 @@
 import { type CanActivate, type ExecutionContext, ForbiddenException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { type DataStore } from '@argus/data';
-import { hasPermission, type Permission, RESTRICTION_CODES } from '@argus/shared';
+import { hasPermission, type Permission, RESTRICTION_CODES, SESSION_ONLY_PERMISSIONS } from '@argus/shared';
 import { type Request } from 'express';
 import { CryptoService } from '../core/crypto.service';
 import { SettingsService } from '../core/settings.service';
@@ -110,6 +110,8 @@ export class PermissionsGuard implements CanActivate {
     if (!required?.length) return true;
     if (!current) throw new UnauthorizedException();
     if (!required.every((p) => hasPermission(current.user.role, p))) throw new ForbiddenException('You do not have permission to do this.');
+    // Also stops tokens created before these scopes were withheld from tokens.
+    if (current.apiToken && required.some((p) => SESSION_ONLY_PERMISSIONS.includes(p))) throw new ForbiddenException('This endpoint cannot be used with an API token.');
     if (current.apiToken && !required.every((p) => current.apiToken!.scopes.includes(p))) throw new ForbiddenException(`This API token lacks the scope: ${required.filter((p) => !current.apiToken!.scopes.includes(p)).join(', ')}.`);
     return true;
   }

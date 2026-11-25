@@ -41,6 +41,12 @@ describe('AppConfig', () => {
     expect(() => AppConfig.fromEnv({ ARGUS_DB_TYPE: 'oracle', ARGUS_MASTER_KEY: 'short' })).toThrow(/ARGUS_DB_TYPE[\s\S]*ARGUS_DB_URL[\s\S]*ARGUS_MASTER_KEY/);
   });
 
+  it('ignores X-Forwarded-For unless a proxy is configured', () => {
+    expect(AppConfig.fromEnv(baseEnv).trustProxy).toBe(false);
+    expect(AppConfig.fromEnv({ ...baseEnv, ARGUS_TRUST_PROXY: '' }).trustProxy).toBe(false);
+    expect(AppConfig.fromEnv({ ...baseEnv, ARGUS_TRUST_PROXY: '1' }).trustProxy).toBe(1);
+  });
+
   it('treats empty variables as unset', () => {
     expect(AppConfig.fromEnv({ ...baseEnv, ARGUS_ADMIN_PASSWORD: '', ARGUS_PUBLIC_URL: '' }).adminPassword).toBeUndefined();
   });
