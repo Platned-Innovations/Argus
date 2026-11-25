@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type INestApplication } from '@nestjs/common';
 import { type RepositoryDto, type ScanRunDto, type SourceDto } from '@argus/shared';
+import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp } from '../../src/app.factory';
 import { AppConfig } from '../../src/config/app-config';
@@ -238,8 +239,24 @@ describe.each(harnesses)('sources, repositories & scans e2e: $name', (h) => {
       { what: 'push-triggered scan', timeoutMs: 90_000 },
     );
 
+    // An unknown source gets the same answer as a bad signature.
     const noSource = await new Client(app).call('post', `/api/v1/webhooks/${crypto.randomUUID()}`, {}, { headers: { 'x-github-event': 'ping' } });
-    expect(noSource.status).toBe(404);
+    expect(noSource.status).toBe(401);
+  });
+
+  it('rejects unsigned and oversized webhook bodies without parsing them, and rate-limits each address', async () => {
+    const post = (body: string, headers: Record<string, string> = {}) =>
+      request(app.getHttpServer()).post(`/api/v1/webhooks/${source.id}`).set({ 'content-type': 'application/json', 'x-github-event': 'push', ...headers }).send(body);
+    // Not JSON at all: an unsigned body is refused on its signature, never parsed.
+    expect((await post('x'.repeat(9 * 1024 * 1024))).status).toBe(401);
+    expect((await post('x'.repeat(11 * 1024 * 1024))).status).toBe(413);
+    // Signed but not JSON.
+    const sig = `sha256=${createHmac('sha256', webhookSecret).update('not json').digest('hex')}`;
+    expect((await post('not json', { 'x-hub-signature-256': sig })).status).toBe(400);
+
+    let last = 0;
+    for (let i = 0; i < 125 && last !== 429; i++) last = (await post('{}')).status;
+    expect(last).toBe(429);
   });
 
   it('audits source and repository administration', async () => {

@@ -136,12 +136,12 @@ AI features are optional and switched off until an administrator configures a pr
 | Control | Status |
 |---|---|
 | **Strict Content Security Policy** (`default-src 'self'`, no inline scripts, `frame-ancestors 'none'`), plus `X-Content-Type-Options`, a Referrer-Policy and the other Helmet defaults. | ✅ |
-| Request bodies are limited to 1 MB (25 MB for signed push webhooks, which can be large) and validated against schemas. Unknown fields are stripped. | ✅ |
+| Request bodies are limited to 1 MB (10 MB for push webhooks, which can be large) and validated against schemas. Unknown fields are stripped. | ✅ |
 | **Structured logs never contain credentials.** Cookies, `Authorization` headers, CSRF tokens and `Set-Cookie` headers are redacted. Request bodies are not logged. | ✅ |
 | Configuration is validated at startup, and a misconfigured instance refuses to start. | ✅ |
 | The container runs as a **non-root user**, with `tini` as PID 1 and a health check. | ✅ |
 | **Dependency hygiene.** CI fails on high or critical `npm audit` findings in production dependencies, and the image is scanned with Trivy. | ✅ |
-| **Inbound push webhooks are authenticated** with an HMAC-SHA256 signature (`X-Hub-Signature-256` / `X-Hub-Signature`) over the raw request body, using a per-source random secret. Signatures are compared in constant time, and unsigned or mis-signed calls are rejected with 401. | ✅ |
+| **Inbound push webhooks are authenticated** with an HMAC-SHA256 signature (`X-Hub-Signature-256` / `X-Hub-Signature`) over the raw request body, using a per-source random secret. Signatures are compared in constant time, and unsigned or mis-signed calls are rejected with 401. The body is kept as raw bytes and parsed as JSON only after the signature checks out, so an unsigned request costs one HMAC. An unknown source id gets the same 401 as a bad signature, and each address may send at most 120 webhooks a minute (429 after that). Also limit body size and connections at your reverse proxy. | ✅ |
 | Source-connection tests have their own rate limit (20/min), so Argus cannot be used to amplify requests to third-party APIs. | ✅ |
 | **Outbound webhooks are HMAC-signed** (`X-Argus-Signature` over timestamp and body), so receivers can verify origin and reject replays. | ✅ |
 | **Outbound calls to configured services are hardened.**<br>• Graph, Entra ID, Jira, Teams, Slack and webhooks: HTTPS only (plain HTTP only on loopback), redirects refused so a credential never follows a redirect elsewhere, 15-second timeouts.<br>• Email: TLS 1.2+ only.<br>• Errors shown to administrators are redacted of secrets. | ✅ |
