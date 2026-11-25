@@ -48,7 +48,9 @@ describe.each(harnesses)('auth & administration e2e: $name', (h) => {
     expect((await c.call('get', '/healthz')).body).toEqual({ status: 'ok' });
     const ready = await c.call('get', '/readyz');
     expect(ready.status).toBe(200);
-    expect(ready.body.database).toEqual({ type: h.name, ok: true });
+    // Public probes say only whether Argus is up; the details need a signed-in user with settings:read.
+    expect(ready.body).toEqual({ status: 'ok' });
+    expect((await c.call('get', '/api/v1/system/status')).status).toBe(401);
   });
 
   it('rejects unauthenticated API calls', async () => {

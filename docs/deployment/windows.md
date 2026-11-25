@@ -27,7 +27,7 @@ On a Windows server or VM without Docker, `argus.bat` in the repository root bui
 | **1 Start** | Builds the server and web UI (`npm run build`), then starts `npm start -w @argus/server` hidden in the background and waits until `/readyz` answers. |
 | **2 Stop** | Stops the server and its child processes. |
 | **3 Restart** | Stop, then Start. Use it after changing `.env` or pulling new code. |
-| **4 Status** | Whether the process runs, and what `/readyz` reports: version, database and the worker's last heartbeat. |
+| **4 Status** | Whether the process runs, the version, and whether `/readyz` reports the database as reachable. The worker's last heartbeat is at `/api/v1/system/status`, for a signed-in administrator. |
 | **5 Live log** | Follows the log as readable lines (time, level, message). Press Ctrl+C, then **N**, to return to the menu. |
 | **6 Install** | `npm ci`. Run it after a `git pull` that changes dependencies, then Restart. |
 | **0 Exit** | Closes the menu. Argus keeps running. |

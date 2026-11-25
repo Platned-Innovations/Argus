@@ -5,7 +5,7 @@ import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
 import { DiscoveryService } from '@nestjs/core';
 import { z } from 'zod';
 import { type Permission, SESSION_ONLY_PERMISSIONS } from '@argus/shared';
-import { PERMISSIONS_KEY, Public, PUBLIC_KEY, SESSION_ONLY_KEY } from '../auth/decorators';
+import { PERMISSIONS_KEY, PUBLIC_KEY, RequirePermissions, SESSION_ONLY_KEY } from '../auth/decorators';
 import { AppConfig } from '../config/app-config';
 import { ZodPipe } from '../common/zod.pipe';
 
@@ -136,12 +136,12 @@ export class OpenApiService {
 }
 
 @Controller()
-@Public()
 export class OpenApiController {
   constructor(private readonly openapi: OpenApiService) {}
 
-  /** The API description, generated from the running code. */
+  /** The API description, generated from the running code. It maps every endpoint and permission, so it needs sign-in. */
   @Get('openapi.json')
+  @RequirePermissions('repos:read')
   document() {
     return this.openapi.document();
   }

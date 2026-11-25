@@ -2,21 +2,18 @@ import { Controller, Get, Inject, Res } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { type DataStore } from '@argus/data';
 import { type Response } from 'express';
-import { Public } from '../auth/decorators';
+import { Public, RequirePermissions } from '../auth/decorators';
 import { AppConfig } from '../config/app-config';
 import { SettingsService } from '../core/settings.service';
 import { DATA_STORE } from '../core/tokens';
 import { WORKER_HEARTBEAT_KEY, type WorkerHeartbeat } from '../worker/worker.service';
 
+/** Public probes for load balancers and monitoring. They say only whether Argus is up, nothing about how it runs. */
 @Controller()
 @Public()
 @SkipThrottle()
 export class HealthController {
-  constructor(
-    @Inject(DATA_STORE) private readonly store: DataStore,
-    private readonly settings: SettingsService,
-    private readonly config: AppConfig,
-  ) {}
+  constructor(@Inject(DATA_STORE) private readonly store: DataStore) {}
 
   /** Liveness: the process is up. */
   @Get('healthz')
@@ -24,12 +21,29 @@ export class HealthController {
     return { status: 'ok' };
   }
 
-  /** Readiness: the database is reachable. Worker heartbeat is informational. */
+  /** Readiness: the database is reachable. Details are at GET /api/v1/system/status, for signed-in users. */
   @Get('readyz')
   async readyz(@Res({ passthrough: true }) res: Response) {
     const db = await this.store.ping();
-    const heartbeat = db ? await this.settings.getSystemValue<WorkerHeartbeat>(WORKER_HEARTBEAT_KEY).catch(() => null) : null;
     res.status(db ? 200 : 503);
+    return { status: db ? 'ok' : 'unavailable' };
+  }
+}
+
+/** Version, role, database and worker heartbeat: useful to operators, and to attackers, so not public. */
+@Controller('system')
+export class SystemStatusController {
+  constructor(
+    @Inject(DATA_STORE) private readonly store: DataStore,
+    private readonly settings: SettingsService,
+    private readonly config: AppConfig,
+  ) {}
+
+  @Get('status')
+  @RequirePermissions('settings:read')
+  async status() {
+    const db = await this.store.ping();
+    const heartbeat = db ? await this.settings.getSystemValue<WorkerHeartbeat>(WORKER_HEARTBEAT_KEY).catch(() => null) : null;
     return {
       status: db ? 'ok' : 'unavailable',
       version: this.config.version,

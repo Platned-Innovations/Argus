@@ -13,7 +13,7 @@ import { IntegrationErrorFilter } from './common/integration-error.filter';
 import { type AppConfig } from './config/app-config';
 import { CoreModule } from './core/core.module';
 import { FindingsModule } from './findings/findings.module';
-import { HealthController } from './health/health.controller';
+import { HealthController, SystemStatusController } from './health/health.controller';
 import { MetricsController } from './health/metrics.controller';
 import { OpenApiController, OpenApiService } from './health/openapi';
 import { IntelModule } from './intel/intel.module';
@@ -87,7 +87,7 @@ export class AppModule {
           : []),
         ...(config.role === 'all' ? [WorkerModule] : []),
       ],
-      controllers: [HealthController, MetricsController, OpenApiController, TeamsController, AuditController, SettingsController],
+      controllers: [HealthController, SystemStatusController, MetricsController, OpenApiController, TeamsController, AuditController, SettingsController],
       providers: [
         OpenApiService,
         SettingsTransferService,

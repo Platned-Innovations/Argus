@@ -310,8 +310,13 @@ describe.each(harnesses)('platform e2e: $name', (h) => {
     });
 
     it('describes the API from the running code, with permissions and validation schemas', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/openapi.json');
+      // It maps every endpoint and permission, so it is not public.
+      expect((await request(app.getHttpServer()).get('/api/v1/openapi.json')).status).toBe(401);
+      const res = await admin.call('get', '/api/v1/openapi.json');
       expect(res.status).toBe(200);
+      // The runtime details that /readyz no longer shows.
+      expect((await admin.call('get', '/api/v1/system/status')).body).toMatchObject({ status: 'ok', role: 'api', database: { type: h.name, ok: true } });
+      expect((await dev.call('get', '/api/v1/system/status')).status).toBe(403);
       const doc = res.body as { openapi: string; paths: Record<string, Record<string, Record<string, unknown>>> };
       expect(doc.openapi).toBe('3.1.0');
       const createAdvisory = doc.paths['/api/v1/intel/advisories'].post;

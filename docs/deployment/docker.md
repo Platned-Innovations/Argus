@@ -67,9 +67,10 @@ Argus supports MongoDB 6 and later. PostgreSQL is not affected.
 | Endpoint | Purpose |
 |---|---|
 | `GET /healthz` | Liveness: the process is up. Used by the image `HEALTHCHECK`. |
-| `GET /readyz` | Readiness. Returns `200` when the database is reachable, otherwise `503`. Also reports the version, role, database type and the last worker heartbeat. |
+| `GET /readyz` | Readiness. Returns `200` and `{"status":"ok"}` when the database is reachable, otherwise `503`. It reports nothing else, since it is public. |
+| `GET /api/v1/system/status` | The version, role, database type and the last worker heartbeat. Needs a signed-in user (or API token) with `settings:read`. |
 | `GET /metrics` | Prometheus metrics. Off unless `ARGUS_METRICS_TOKEN` is set; send it as `Authorization: Bearer <token>`. |
-| `GET /api/v1/openapi.json` | OpenAPI 3.1 description of the REST API, generated from the running code. |
+| `GET /api/v1/openapi.json` | OpenAPI 3.1 description of the REST API, generated from the running code. Needs a signed-in user or API token (`repos:read`). |
 
 ### Prometheus
 
