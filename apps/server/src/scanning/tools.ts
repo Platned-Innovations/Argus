@@ -14,6 +14,10 @@ export function toolVersion(binary: string, args: string[], parse: (stdout: stri
       .then(({ stdout }) => parse(stdout))
       .catch(() => null);
     probes.set(key, probe);
+    // A missing or failed probe is not remembered, so installing the tool or fixing its path shows up without a restart.
+    void probe.then((v) => {
+      if (v === null && probes.get(key) === probe) probes.delete(key);
+    });
   }
   return probe;
 }
